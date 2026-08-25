@@ -37,7 +37,7 @@
 
   .add-form{
     padding:16px 20px;border-bottom:1px solid var(--divider);
-    display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;
+    display:grid;grid-template-columns:1fr 1fr 1.3fr 1fr 1fr auto;gap:10px;align-items:end;
   }
   .add-form label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
   .add-form .btn-primary{margin-top:0;white-space:nowrap;}
@@ -122,6 +122,29 @@
 
     <section class="panel">
       <div class="panel-head">
+        <h2>Radar rápido</h2>
+      </div>
+      <div class="quick-metrics" id="quickMetrics"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Evolución</h2>
+        <span id="historyRange"></span>
+      </div>
+      <div class="history-chart" id="historyChart"><div class="empty-note">Cargando historial…</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Composición por sector</h2>
+        <span>por valor de mercado</span>
+      </div>
+      <div id="donutContainer"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Mis posiciones</h2>
         <span id="lastUpdate">—</span>
       </div>
@@ -135,6 +158,19 @@
           <select id="fTipo">
             <option value="accion">Acción</option>
             <option value="cedear">CEDEAR</option>
+          </select>
+        </div>
+        <div>
+          <label>Sector</label>
+          <select id="fSector">
+            <option value="Energía y O&G">Energía y O&G</option>
+            <option value="Infraestructura y Utilities">Infraestructura y Utilities</option>
+            <option value="Materiales">Materiales</option>
+            <option value="Bancos y Financiero">Bancos y Financiero</option>
+            <option value="Consumo">Consumo</option>
+            <option value="Tecnología">Tecnología</option>
+            <option value="Real Estate">Real Estate</option>
+            <option value="Otro">Otro</option>
           </select>
         </div>
         <div>
@@ -320,6 +356,7 @@ function showApp(session) {
     '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>' +
     '<span class="user-bar">' + session.user.email + '<button class="btn-secondary" onclick="signOut()">Salir</button></span>';
   loadHoldings();
+  loadHistory();
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(loadHoldings, REFRESH_MS);
 }
@@ -350,6 +387,7 @@ async function addHolding(evt) {
   evt.preventDefault();
   const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
   const tipo = document.getElementById('fTipo').value;
+  const sector = document.getElementById('fSector').value;
   const cantidad = parseFloat(document.getElementById('fCantidad').value);
   const precioCompra = parseFloat(document.getElementById('fPrecio').value);
   const errEl = document.getElementById('formErr');
@@ -360,7 +398,7 @@ async function addHolding(evt) {
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
   const { error } = await sb.from('holdings').insert({
-    ticker, tipo, cantidad, precio_compra: precioCompra
+    ticker, tipo, sector, cantidad, precio_compra: precioCompra
   });
   btn.disabled = false;
 
@@ -410,14 +448,16 @@ function render(priceMap) {
   document.getElementById('sumCost').textContent = rows.length ? fmtARS(totalCost) : '—';
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${rows.length} posiciones</span>`;
 
+  renderQuickMetrics('quickMetrics', rows);
+  renderDonut('donutContainer', groupBySector(rows), totalValue);
+
   const body = document.getElementById('holdingsBody');
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="8" class="empty-note">Todavía no cargaste ninguna posición. Agregá la primera arriba.</td></tr>';
     return;
   }
 
-  const sorted = [...rows].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  body.innerHTML = sorted.map(r => {
+  const rowHtml = r => {
     const delCell = `<td><button class="del-btn" onclick="deleteHolding('${r.id}')" title="Eliminar">✕</button></td>`;
     if (!r.found) {
       return `<tr>
@@ -436,7 +476,30 @@ function render(priceMap) {
       <td class="mono row-value">${fmtARS(r.value)}</td>
       ${delCell}
     </tr>`;
+  };
+
+  body.innerHTML = groupBySector(rows).map(({ sector, list, sectorValue }) => {
+    const sectorWeight = totalValue ? (sectorValue / totalValue) * 100 : 0;
+    return `<tr class="sector-row"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
+      + list.map(rowHtml).join('');
   }).join('');
+}
+
+async function loadHistory() {
+  if (!currentSession) return;
+  try {
+    const { data, error } = await sb
+      .from('portfolio_snapshots')
+      .select('snapshot_date,total_value')
+      .eq('user_id', currentSession.user.id)
+      .order('snapshot_date', { ascending: true });
+    if (error) throw error;
+    const points = data.map(d => ({ date: d.snapshot_date, value: d.total_value }));
+    renderHistory('historyChart', 'historyRange', points);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
+  }
 }
 
 sb.auth.onAuthStateChange((event, session) => {

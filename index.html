@@ -58,6 +58,21 @@
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Radar rápido</h2>
+    </div>
+    <div class="quick-metrics" id="quickMetrics"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Evolución</h2>
+      <span id="historyRange"></span>
+    </div>
+    <div class="history-chart" id="historyChart"><div class="empty-note">Cargando historial…</div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Posiciones</h2>
       <span id="lastUpdate">—</span>
     </div>
@@ -84,6 +99,14 @@
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Composición por sector</h2>
+      <span>por valor de mercado</span>
+    </div>
+    <div id="donutContainer"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Composición de la cartera</h2>
       <span>por valor de mercado</span>
     </div>
@@ -96,6 +119,7 @@
   </footer>
 </main>
 
+<script src="supabase-config.js"></script>
 <script src="market.js"></script>
 <script src="portfolio.js"></script>
 <script>
@@ -164,16 +188,9 @@ function render(priceMap) {
   document.getElementById('sumCost').textContent = fmtARS(totalCost);
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${holdings.length} posiciones</span>`;
 
-  const sectorGroups = new Map();
-  rows.forEach(r => {
-    const key = r.sector || 'Otros';
-    if (!sectorGroups.has(key)) sectorGroups.set(key, []);
-    sectorGroups.get(key).push(r);
-  });
-  const sectors = [...sectorGroups.entries()].map(([sector, list]) => {
-    const sectorValue = list.reduce((s, r) => s + (r.value ?? r.cost), 0);
-    return { sector, list: list.sort((a, b) => (b.value ?? 0) - (a.value ?? 0)), sectorValue };
-  }).sort((a, b) => b.sectorValue - a.sectorValue);
+  const sectors = groupBySector(rows);
+  renderQuickMetrics('quickMetrics', rows);
+  renderDonut('donutContainer', sectors, totalValue);
 
   const rowHtml = r => {
     if (!r.found) {
@@ -218,7 +235,24 @@ function render(priceMap) {
   }).join('');
 }
 
+async function loadHistory() {
+  try {
+    const res = await fetch(
+      `${window.SUPABASE_URL}/rest/v1/community_snapshots?select=snapshot_date,total_value&order=snapshot_date.asc`,
+      { headers: { apikey: window.SUPABASE_ANON_KEY } }
+    );
+    if (!res.ok) throw new Error('history fetch failed: ' + res.status);
+    const data = await res.json();
+    const points = data.map(d => ({ date: d.snapshot_date, value: d.total_value }));
+    renderHistory('historyChart', 'historyRange', points);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
+  }
+}
+
 loadPrices(false);
+loadHistory();
 refreshTimer = setInterval(() => loadPrices(false), REFRESH_MS);
 </script>
 

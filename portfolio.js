@@ -4,7 +4,7 @@
 // sector: usado para agrupar la tabla y el gráfico de composición.
 // cantidad: nominales en cartera.
 // precioCompra: precio promedio de compra en pesos.
-window.PORTFOLIO = {
+const PORTFOLIO = {
   nombre: "Cartera Mervalazo",
   actualizado: "2026-08-25",
   holdings: [
@@ -18,3 +18,8 @@ window.PORTFOLIO = {
     { ticker: "GGAL", tipo: "accion", sector: "Bancos y Financiero", cantidad: 50, precioCompra: 6584 }
   ]
 };
+
+// Se usa como <script> en el navegador y como require() en la función
+// de Netlify que guarda el historial diario — por eso expone ambas formas.
+if (typeof window !== 'undefined') window.PORTFOLIO = PORTFOLIO;
+if (typeof module !== 'undefined') module.exports = PORTFOLIO;
