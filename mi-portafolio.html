@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Mi Portafolio</title>
+<meta name="description" content="Llevá el seguimiento de tus propias posiciones en acciones y CEDEARs argentinos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .auth-wrap{max-width:380px;margin:80px auto;text-align:center;}
+  .auth-wrap h2{font-size:19px;font-weight:700;margin-bottom:6px;}
+  .auth-wrap p{color:var(--text-dim);font-size:13px;margin-bottom:22px;line-height:1.5;}
+  .auth-card{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:24px;}
+  input, select{
+    width:100%;background:var(--bg-alt);border:1px solid var(--card-border);color:var(--text);
+    padding:10px 12px;border-radius:8px;font-size:13.5px;font-family:inherit;outline:none;
+  }
+  input:focus, select:focus{border-color:var(--accent-dim);}
+  .btn-primary{
+    width:100%;background:var(--accent);color:#04211d;border:none;font-weight:700;
+    padding:10px 12px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:inherit;margin-top:12px;
+  }
+  .btn-primary:hover{filter:brightness(1.05);}
+  .btn-primary:disabled{opacity:.6;cursor:default;}
+  .auth-msg{font-size:12.5px;margin-top:14px;color:var(--text-dim);}
+  .auth-msg.err{color:var(--down);}
+  .auth-msg.ok{color:var(--up);}
+
+  .user-bar{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--text-dim);}
+
+  .add-form{
+    padding:16px 20px;border-bottom:1px solid var(--divider);
+    display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;
+  }
+  .add-form label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+  .add-form .btn-primary{margin-top:0;white-space:nowrap;}
+  .del-btn{
+    background:none;border:1px solid var(--card-border);color:var(--text-faint);
+    width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:14px;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .del-btn:hover{border-color:var(--down);color:var(--down);}
+  .form-err{grid-column:1/-1;font-size:12px;color:var(--down);display:none;}
+
+  #app{display:none;}
+  @media (max-width:760px){
+    .add-form{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div class="brand-text">
+        <h1>Mi Portafolio</h1>
+        <p>Tus posiciones · datos en vivo de ByMA</p>
+      </div>
+    </div>
+    <div class="status" id="headerRight">
+      <a href="index.html" class="nav-link">← Cartera Mervalazo</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="authScreen" class="auth-wrap">
+    <h2>Ingresá a tu portafolio</h2>
+    <p>Ponemos tu mail y te mandamos un link de acceso. Sin contraseñas.</p>
+    <div class="auth-card">
+      <label for="emailInput" style="display:block;font-size:11px;color:var(--text-faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Tu email</label>
+      <input type="email" id="emailInput" placeholder="vos@mail.com" autocomplete="email">
+      <button class="btn-primary" id="sendLinkBtn" onclick="sendMagicLink()">Enviarme el link de acceso</button>
+      <div class="auth-msg" id="authMsg"></div>
+    </div>
+  </div>
+
+  <div id="app">
+    <div class="summary-grid" id="summaryGrid">
+      <div class="summary-card">
+        <div class="label">Valor de cartera</div>
+        <div class="value mono" id="sumValue">—</div>
+        <div class="sub" id="sumValueSub">&nbsp;</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Variación diaria</div>
+        <div class="value mono" id="sumDaily">—</div>
+        <div class="sub" id="sumDailySub">&nbsp;</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Resultado total</div>
+        <div class="value mono" id="sumTotal">—</div>
+        <div class="sub" id="sumTotalSub">&nbsp;</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Costo invertido</div>
+        <div class="value mono" id="sumCost">—</div>
+        <div class="sub" id="sumCostSub">&nbsp;</div>
+      </div>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Mis posiciones</h2>
+        <span id="lastUpdate">—</span>
+      </div>
+      <form class="add-form" onsubmit="addHolding(event)">
+        <div>
+          <label>Ticker</label>
+          <input type="text" id="fTicker" placeholder="GGAL" required style="text-transform:uppercase;">
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="fTipo">
+            <option value="accion">Acción</option>
+            <option value="cedear">CEDEAR</option>
+          </select>
+        </div>
+        <div>
+          <label>Cantidad</label>
+          <input type="number" id="fCantidad" placeholder="100" min="0" step="any" required>
+        </div>
+        <div>
+          <label>Precio compra</label>
+          <input type="number" id="fPrecio" placeholder="6200" min="0" step="any" required>
+        </div>
+        <button type="submit" class="btn-primary" id="addBtn">Agregar</button>
+        <div class="form-err" id="formErr"></div>
+      </form>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Cantidad</th>
+              <th>P. Compra</th>
+              <th>P. Actual</th>
+              <th>Var. Diaria</th>
+              <th>Var. Total</th>
+              <th>Valor</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="holdingsBody">
+            <tr><td colspan="8" class="empty-note">Todavía no cargaste ninguna posición. Agregá la primera arriba.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> con demora de mercado, a título informativo. No constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+let currentSession = null;
+let holdingsCache = [];
+let refreshTimer = null;
+const REFRESH_MS = 60000;
+
+async function sendMagicLink() {
+  const email = document.getElementById('emailInput').value.trim();
+  const msg = document.getElementById('authMsg');
+  const btn = document.getElementById('sendLinkBtn');
+  if (!email) return;
+  btn.disabled = true;
+  msg.className = 'auth-msg';
+  msg.textContent = 'Enviando…';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname }
+  });
+  btn.disabled = false;
+  if (error) {
+    msg.className = 'auth-msg err';
+    msg.textContent = error.message;
+  } else {
+    msg.className = 'auth-msg ok';
+    msg.textContent = 'Revisá tu mail — te mandamos un link para entrar.';
+  }
+}
+
+function showAuthScreen() {
+  document.getElementById('authScreen').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('headerRight').innerHTML =
+    '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>';
+  if (refreshTimer) clearInterval(refreshTimer);
+}
+
+function showApp(session) {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('headerRight').innerHTML =
+    '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>' +
+    '<span class="user-bar">' + session.user.email + '<button class="btn-secondary" onclick="signOut()">Salir</button></span>';
+  loadHoldings();
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(loadHoldings, REFRESH_MS);
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+}
+
+async function loadHoldings() {
+  const { data, error } = await sb.from('holdings').select('*').order('created_at', { ascending: true });
+  if (error) {
+    console.error(error);
+    return;
+  }
+  holdingsCache = data;
+  try {
+    const priceMap = await getPriceMap();
+    render(priceMap);
+    document.getElementById('lastUpdate').textContent =
+      'Última actualización ' + new Date().toLocaleTimeString('es-AR');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('lastUpdate').textContent = 'Sin conexión con el feed de precios';
+  }
+}
+
+async function addHolding(evt) {
+  evt.preventDefault();
+  const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
+  const tipo = document.getElementById('fTipo').value;
+  const cantidad = parseFloat(document.getElementById('fCantidad').value);
+  const precioCompra = parseFloat(document.getElementById('fPrecio').value);
+  const errEl = document.getElementById('formErr');
+  errEl.style.display = 'none';
+
+  if (!ticker || !(cantidad > 0) || !(precioCompra > 0)) return;
+
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true;
+  const { error } = await sb.from('holdings').insert({
+    ticker, tipo, cantidad, precio_compra: precioCompra
+  });
+  btn.disabled = false;
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  document.getElementById('fTicker').value = '';
+  document.getElementById('fCantidad').value = '';
+  document.getElementById('fPrecio').value = '';
+  loadHoldings();
+}
+
+async function deleteHolding(id) {
+  await sb.from('holdings').delete().eq('id', id);
+  loadHoldings();
+}
+
+function render(priceMap) {
+  const rows = holdingsCache.map(h => {
+    const q = priceMap.get(h.ticker);
+    const price = q ? q.c : null;
+    const dailyPct = q ? q.pct_change : null;
+    const value = price != null ? price * h.cantidad : null;
+    const cost = h.precio_compra * h.cantidad;
+    const totalPct = price != null ? ((price - h.precio_compra) / h.precio_compra) * 100 : null;
+    return { ...h, price, dailyPct, value, cost, totalPct, found: !!q };
+  });
+
+  const totalValue = rows.reduce((s, r) => s + (r.value ?? r.cost), 0);
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const totalGain = totalValue - totalCost;
+  const totalGainPct = totalCost ? (totalGain / totalCost) * 100 : 0;
+  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.value ?? 0) : 0), 0) / (totalValue || 1);
+  const dailyDelta = totalValue * (weightedDaily / 100);
+
+  document.getElementById('sumValue').textContent = totalValue ? fmtARS(totalValue) : '—';
+  document.getElementById('sumValueSub').innerHTML = rows.length ? `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)} hoy</span>` : '&nbsp;';
+
+  document.getElementById('sumDaily').textContent = rows.length ? (dailyDelta >= 0 ? '+' : '') + fmtARS(dailyDelta) : '—';
+  document.getElementById('sumDailySub').innerHTML = rows.length ? `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)}</span>` : '&nbsp;';
+
+  document.getElementById('sumTotal').textContent = rows.length ? (totalGain >= 0 ? '+' : '') + fmtARS(totalGain) : '—';
+  document.getElementById('sumTotalSub').innerHTML = rows.length ? `<span class="pill ${pctClass(totalGainPct)}">${fmtPct(totalGainPct)} desde compra</span>` : '&nbsp;';
+
+  document.getElementById('sumCost').textContent = rows.length ? fmtARS(totalCost) : '—';
+  document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${rows.length} posiciones</span>`;
+
+  const body = document.getElementById('holdingsBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="8" class="empty-note">Todavía no cargaste ninguna posición. Agregá la primera arriba.</td></tr>';
+    return;
+  }
+
+  const sorted = [...rows].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  body.innerHTML = sorted.map(r => {
+    const delCell = `<td><button class="del-btn" onclick="deleteHolding('${r.id}')" title="Eliminar">✕</button></td>`;
+    if (!r.found) {
+      return `<tr>
+        <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
+        ${delCell}
+      </tr>`;
+    }
+    return `<tr>
+      <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+      <td class="mono">${fmtNum(r.cantidad)}</td>
+      <td class="mono">${fmtARS(r.precio_compra)}</td>
+      <td class="mono">${fmtARS(r.price)}</td>
+      <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
+      <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
+      <td class="mono row-value">${fmtARS(r.value)}</td>
+      ${delCell}
+    </tr>`;
+  }).join('');
+}
+
+sb.auth.getSession().then(({ data: { session } }) => {
+  currentSession = session;
+  session ? showApp(session) : showAuthScreen();
+});
+
+sb.auth.onAuthStateChange((_event, session) => {
+  currentSession = session;
+  session ? showApp(session) : showAuthScreen();
+});
+</script>
+
+</body>
+</html>
