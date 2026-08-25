@@ -221,14 +221,15 @@ function render(priceMap) {
   }).join('');
 
   const compList = document.getElementById('compositionList');
-  compList.innerHTML = sectors.map(({ sector, list, sectorValue }) => {
+  compList.innerHTML = sectors.map(({ sector, list, sectorValue }, sectorIndex) => {
     const sectorWeight = (sectorValue / totalValue) * 100;
+    const color = donutColor(sectorIndex);
     const rowsHtml = list.map(r => {
       const weight = ((r.value ?? r.cost) / totalValue) * 100;
       return `<div class="comp-row">
         <span class="tk">${r.ticker}</span>
-        <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 1)}%"></span></span>
-        <span class="pct mono">${fmtNum(weight)}%</span>
+        <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 2)}%;background:${color};"></span></span>
+        <span class="pct mono"><span class="amt">${fmtARS(r.value ?? r.cost)}</span>${fmtNum(weight)}%</span>
       </div>`;
     }).join('');
     return `<div class="comp-sector">${sector}<span>${fmtNum(sectorWeight)}%</span></div>${rowsHtml}`;
