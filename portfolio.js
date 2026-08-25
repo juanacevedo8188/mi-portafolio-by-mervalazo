@@ -11,10 +11,10 @@ window.PORTFOLIO = {
     { ticker: "YPFD", tipo: "accion", sector: "Energía y O&G", cantidad: 75, precioCompra: 8071 },
     { ticker: "VIST", tipo: "cedear", sector: "Energía y O&G", cantidad: 20, precioCompra: 35241 },
     { ticker: "PAMP", tipo: "accion", sector: "Energía y O&G", cantidad: 50, precioCompra: 5070 },
-    { ticker: "TGSU2", tipo: "accion", sector: "Infraestructura y Utilities", cantidad: 10, precioCompra: 8972 },
-    { ticker: "CEPU", tipo: "accion", sector: "Infraestructura y Utilities", cantidad: 20, precioCompra: 2070 },
-    { ticker: "ALUA", tipo: "accion", sector: "Materiales", cantidad: 30, precioCompra: 872 },
+    { ticker: "TGSU2", tipo: "accion", sector: "Infraestructura y Utilities", cantidad: 35, precioCompra: 8972 },
+    { ticker: "CEPU", tipo: "accion", sector: "Infraestructura y Utilities", cantidad: 40, precioCompra: 2070 },
+    { ticker: "ALUA", tipo: "accion", sector: "Materiales", cantidad: 40, precioCompra: 872 },
     { ticker: "TXAR", tipo: "accion", sector: "Materiales", cantidad: 50, precioCompra: 687 },
-    { ticker: "GGAL", tipo: "accion", sector: "Bancos y Financiero", cantidad: 20, precioCompra: 6584 }
+    { ticker: "GGAL", tipo: "accion", sector: "Bancos y Financiero", cantidad: 50, precioCompra: 6584 }
   ]
 };
