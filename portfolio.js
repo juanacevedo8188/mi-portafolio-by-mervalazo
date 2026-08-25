@@ -1,18 +1,20 @@
 // Cartera de Mervalazo — editá este archivo para actualizar las posiciones.
-// ticker: símbolo exacto como aparece en ByMA (ej: GGAL, YPFD, AAPL para CEDEAR).
+// ticker: símbolo exacto como aparece en ByMA (ej: GGAL, YPFD, VIST para CEDEAR).
 // tipo: "accion" o "cedear" (solo para mostrar el tag en la tabla).
+// sector: usado para agrupar la tabla y el gráfico de composición.
 // cantidad: nominales en cartera.
 // precioCompra: precio promedio de compra en pesos.
 window.PORTFOLIO = {
   nombre: "Cartera Mervalazo",
   actualizado: "2026-08-25",
   holdings: [
-    { ticker: "GGAL", tipo: "accion", cantidad: 100, precioCompra: 6200 },
-    { ticker: "YPFD", tipo: "accion", cantidad: 40, precioCompra: 32000 },
-    { ticker: "PAMP", tipo: "accion", cantidad: 150, precioCompra: 3100 },
-    { ticker: "BMA", tipo: "accion", cantidad: 60, precioCompra: 7200 },
-    { ticker: "AAPL", tipo: "cedear", cantidad: 8, precioCompra: 22000 },
-    { ticker: "MSFT", tipo: "cedear", cantidad: 5, precioCompra: 45000 },
-    { ticker: "KO", tipo: "cedear", cantidad: 20, precioCompra: 8500 }
+    { ticker: "YPFD", tipo: "accion", sector: "Energía y O&G", cantidad: 75, precioCompra: 8071 },
+    { ticker: "VIST", tipo: "cedear", sector: "Energía y O&G", cantidad: 20, precioCompra: 35241 },
+    { ticker: "PAMP", tipo: "accion", sector: "Energía y O&G", cantidad: 50, precioCompra: 5070 },
+    { ticker: "TGSU2", tipo: "accion", sector: "Infraestructura y Utilities", cantidad: 10, precioCompra: 8972 },
+    { ticker: "CEPU", tipo: "accion", sector: "Infraestructura y Utilities", cantidad: 20, precioCompra: 2070 },
+    { ticker: "ALUA", tipo: "accion", sector: "Materiales", cantidad: 30, precioCompra: 872 },
+    { ticker: "TXAR", tipo: "accion", sector: "Materiales", cantidad: 50, precioCompra: 687 },
+    { ticker: "GGAL", tipo: "accion", sector: "Bancos y Financiero", cantidad: 20, precioCompra: 6584 }
   ]
 };

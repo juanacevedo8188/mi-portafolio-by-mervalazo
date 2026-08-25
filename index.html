@@ -164,9 +164,18 @@ function render(priceMap) {
   document.getElementById('sumCost').textContent = fmtARS(totalCost);
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${holdings.length} posiciones</span>`;
 
-  const body = document.getElementById('holdingsBody');
-  const sorted = [...rows].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  body.innerHTML = sorted.map(r => {
+  const sectorGroups = new Map();
+  rows.forEach(r => {
+    const key = r.sector || 'Otros';
+    if (!sectorGroups.has(key)) sectorGroups.set(key, []);
+    sectorGroups.get(key).push(r);
+  });
+  const sectors = [...sectorGroups.entries()].map(([sector, list]) => {
+    const sectorValue = list.reduce((s, r) => s + (r.value ?? r.cost), 0);
+    return { sector, list: list.sort((a, b) => (b.value ?? 0) - (a.value ?? 0)), sectorValue };
+  }).sort((a, b) => b.sectorValue - a.sectorValue);
+
+  const rowHtml = r => {
     if (!r.found) {
       return `<tr>
         <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
@@ -185,16 +194,27 @@ function render(priceMap) {
       <td class="mono row-value">${fmtARS(r.value)}</td>
       <td class="mono">${fmtNum(weight)}%</td>
     </tr>`;
+  };
+
+  const body = document.getElementById('holdingsBody');
+  body.innerHTML = sectors.map(({ sector, list, sectorValue }) => {
+    const sectorWeight = (sectorValue / totalValue) * 100;
+    return `<tr class="sector-row"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
+      + list.map(rowHtml).join('');
   }).join('');
 
   const compList = document.getElementById('compositionList');
-  compList.innerHTML = sorted.map(r => {
-    const weight = ((r.value ?? r.cost) / totalValue) * 100;
-    return `<div class="comp-row">
-      <span class="tk">${r.ticker}</span>
-      <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 1)}%"></span></span>
-      <span class="pct mono">${fmtNum(weight)}%</span>
-    </div>`;
+  compList.innerHTML = sectors.map(({ sector, list, sectorValue }) => {
+    const sectorWeight = (sectorValue / totalValue) * 100;
+    const rowsHtml = list.map(r => {
+      const weight = ((r.value ?? r.cost) / totalValue) * 100;
+      return `<div class="comp-row">
+        <span class="tk">${r.ticker}</span>
+        <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 1)}%"></span></span>
+        <span class="pct mono">${fmtNum(weight)}%</span>
+      </div>`;
+    }).join('');
+    return `<div class="comp-sector">${sector}<span>${fmtNum(sectorWeight)}%</span></div>${rowsHtml}`;
   }).join('');
 }
 
