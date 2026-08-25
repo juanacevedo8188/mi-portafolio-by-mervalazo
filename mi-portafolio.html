@@ -28,6 +28,10 @@
   .auth-msg{font-size:12.5px;margin-top:14px;color:var(--text-dim);}
   .auth-msg.err{color:var(--down);}
   .auth-msg.ok{color:var(--up);}
+  .field-label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.3px;}
+  .field-label:first-child{margin-top:0;}
+  .auth-links{margin-top:16px;display:flex;flex-direction:column;gap:8px;font-size:12.5px;}
+  .auth-links a{cursor:pointer;}
 
   .user-bar{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--text-dim);}
 
@@ -70,13 +74,25 @@
 
 <main>
   <div id="authScreen" class="auth-wrap">
-    <h2>Ingresá a tu portafolio</h2>
-    <p>Ponemos tu mail y te mandamos un link de acceso. Sin contraseñas.</p>
+    <h2 id="authTitle">Iniciá sesión</h2>
+    <p id="authSubtitle">Entrá con tu mail y contraseña.</p>
     <div class="auth-card">
-      <label for="emailInput" style="display:block;font-size:11px;color:var(--text-faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;">Tu email</label>
-      <input type="email" id="emailInput" placeholder="vos@mail.com" autocomplete="email">
-      <button class="btn-primary" id="sendLinkBtn" onclick="sendMagicLink()">Enviarme el link de acceso</button>
+      <label for="emailInput" class="field-label">Tu email</label>
+      <input type="email" id="emailInput" placeholder="vos@mail.com" autocomplete="email" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+      <div id="passwordField">
+        <label for="passwordInput" class="field-label">Contraseña</label>
+        <input type="password" id="passwordInput" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+      </div>
+      <div id="confirmPasswordField" style="display:none;">
+        <label for="confirmPasswordInput" class="field-label">Repetí la contraseña</label>
+        <input type="password" id="confirmPasswordInput" placeholder="••••••••" autocomplete="new-password" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+      </div>
+      <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Iniciar sesión</button>
       <div class="auth-msg" id="authMsg"></div>
+      <div class="auth-links">
+        <a id="toggleModeLink" onclick="toggleAuthMode(event)">¿No tenés cuenta? Registrate</a>
+        <a id="forgotLink" onclick="startPasswordReset(event)">Olvidé mi contraseña</a>
+      </div>
     </div>
   </div>
 
@@ -168,35 +184,133 @@ let currentSession = null;
 let holdingsCache = [];
 let refreshTimer = null;
 const REFRESH_MS = 60000;
+let authMode = 'login'; // 'login' | 'signup' | 'reset' | 'recovery'
 
-async function sendMagicLink() {
-  const email = document.getElementById('emailInput').value.trim();
-  const msg = document.getElementById('authMsg');
-  const btn = document.getElementById('sendLinkBtn');
-  if (!email) return;
-  btn.disabled = true;
-  msg.className = 'auth-msg';
-  msg.textContent = 'Enviando…';
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin + window.location.pathname }
-  });
-  btn.disabled = false;
-  if (error) {
-    msg.className = 'auth-msg err';
-    msg.textContent = error.message;
+function renderAuthMode() {
+  const title = document.getElementById('authTitle');
+  const subtitle = document.getElementById('authSubtitle');
+  const pwField = document.getElementById('passwordField');
+  const confirmField = document.getElementById('confirmPasswordField');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  const toggleLink = document.getElementById('toggleModeLink');
+  const forgotLink = document.getElementById('forgotLink');
+  document.getElementById('authMsg').textContent = '';
+  document.getElementById('authMsg').className = 'auth-msg';
+
+  if (authMode === 'signup') {
+    title.textContent = 'Creá tu cuenta';
+    subtitle.textContent = 'Elegí una contraseña para tu portafolio.';
+    pwField.style.display = 'block';
+    confirmField.style.display = 'block';
+    submitBtn.textContent = 'Crear cuenta';
+    toggleLink.textContent = '¿Ya tenés cuenta? Iniciá sesión';
+    forgotLink.style.display = 'block';
+  } else if (authMode === 'reset') {
+    title.textContent = 'Recuperar contraseña';
+    subtitle.textContent = 'Te mandamos un link para elegir una nueva.';
+    pwField.style.display = 'none';
+    confirmField.style.display = 'none';
+    submitBtn.textContent = 'Enviarme el link';
+    toggleLink.textContent = 'Volver a iniciar sesión';
+    forgotLink.style.display = 'none';
+  } else if (authMode === 'recovery') {
+    title.textContent = 'Elegí tu nueva contraseña';
+    subtitle.textContent = 'Ingresá una contraseña nueva para tu cuenta.';
+    pwField.style.display = 'block';
+    confirmField.style.display = 'block';
+    submitBtn.textContent = 'Guardar nueva contraseña';
+    toggleLink.style.display = 'none';
+    forgotLink.style.display = 'none';
   } else {
-    msg.className = 'auth-msg ok';
-    msg.textContent = 'Revisá tu mail — te mandamos un link para entrar.';
+    title.textContent = 'Iniciá sesión';
+    subtitle.textContent = 'Entrá con tu mail y contraseña.';
+    pwField.style.display = 'block';
+    confirmField.style.display = 'none';
+    submitBtn.textContent = 'Iniciar sesión';
+    toggleLink.textContent = '¿No tenés cuenta? Registrate';
+    toggleLink.style.display = 'block';
+    forgotLink.style.display = 'block';
   }
 }
 
-function showAuthScreen() {
+function toggleAuthMode(evt) {
+  evt.preventDefault();
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  renderAuthMode();
+}
+
+function startPasswordReset(evt) {
+  evt.preventDefault();
+  authMode = 'reset';
+  renderAuthMode();
+}
+
+async function handleAuthSubmit() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  const confirm = document.getElementById('confirmPasswordInput').value;
+  const msg = document.getElementById('authMsg');
+  const btn = document.getElementById('authSubmitBtn');
+  msg.className = 'auth-msg';
+  msg.textContent = '';
+
+  if (!email) {
+    msg.className = 'auth-msg err';
+    msg.textContent = 'Ingresá tu mail.';
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    if (authMode === 'login') {
+      if (!password) throw new Error('Ingresá tu contraseña.');
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } else if (authMode === 'signup') {
+      if (password.length < 6) throw new Error('La contraseña tiene que tener al menos 6 caracteres.');
+      if (password !== confirm) throw new Error('Las contraseñas no coinciden.');
+      const { data, error } = await sb.auth.signUp({
+        email, password,
+        options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      });
+      if (error) throw error;
+      if (!data.session) {
+        authMode = 'login';
+        renderAuthMode();
+        msg.className = 'auth-msg ok';
+        msg.textContent = 'Cuenta creada. Revisá tu mail para confirmarla y después iniciá sesión.';
+      }
+    } else if (authMode === 'reset') {
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + window.location.pathname
+      });
+      if (error) throw error;
+      msg.className = 'auth-msg ok';
+      msg.textContent = 'Revisá tu mail — te mandamos un link para elegir una nueva contraseña.';
+    } else if (authMode === 'recovery') {
+      if (password.length < 6) throw new Error('La contraseña tiene que tener al menos 6 caracteres.');
+      if (password !== confirm) throw new Error('Las contraseñas no coinciden.');
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) throw error;
+      const { data: { session } } = await sb.auth.getSession();
+      showApp(session);
+    }
+  } catch (err) {
+    msg.className = 'auth-msg err';
+    msg.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showAuthScreen(mode) {
+  authMode = mode || 'login';
   document.getElementById('authScreen').style.display = 'block';
   document.getElementById('app').style.display = 'none';
   document.getElementById('headerRight').innerHTML =
     '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>';
   if (refreshTimer) clearInterval(refreshTimer);
+  renderAuthMode();
 }
 
 function showApp(session) {
@@ -325,13 +439,13 @@ function render(priceMap) {
   }).join('');
 }
 
-sb.auth.getSession().then(({ data: { session } }) => {
+sb.auth.onAuthStateChange((event, session) => {
   currentSession = session;
-  session ? showApp(session) : showAuthScreen();
-});
-
-sb.auth.onAuthStateChange((_event, session) => {
-  currentSession = session;
+  if (event === 'PASSWORD_RECOVERY') {
+    showAuthScreen('recovery');
+    return;
+  }
+  if (authMode === 'recovery') return;
   session ? showApp(session) : showAuthScreen();
 });
 </script>
