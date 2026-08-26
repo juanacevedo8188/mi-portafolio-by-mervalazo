@@ -291,6 +291,7 @@ input:focus, select:focus{border-color:var(--accent-dim);}
 .breadth-seg.down{background:var(--down);}
 .breadth-seg.flat{background:var(--text-faint);opacity:.5;}
 .breadth-legend{display:flex;justify-content:space-between;padding:0 20px 18px;font-size:13px;font-weight:700;}
+.breadth-stats{grid-template-columns:repeat(3,1fr);border-top:1px solid var(--divider);padding-top:18px;}
 
 .dollar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:18px 20px;}
 .dollar-card{background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:14px;}

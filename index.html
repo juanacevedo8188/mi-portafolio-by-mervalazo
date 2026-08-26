@@ -251,6 +251,8 @@ function renderMarketBreadth() {
   const down = rows.filter(r => r.pct_change < -0.005).length;
   const flat = rows.length - up - down;
   const pct = n => (n / rows.length) * 100;
+  const best = rows.reduce((a, b) => (b.pct_change > a.pct_change ? b : a));
+  const worst = rows.reduce((a, b) => (b.pct_change < a.pct_change ? b : a));
   el.innerHTML = `
     <div class="breadth-bar">
       <span class="breadth-seg up" style="width:${pct(up)}%"></span>
@@ -261,6 +263,20 @@ function renderMarketBreadth() {
       <span class="chg up">${up} suben</span>
       <span class="chg flat">${flat} igual</span>
       <span class="chg down">${down} bajan</span>
+    </div>
+    <div class="quick-metrics breadth-stats">
+      <div class="quick-stat">
+        <div class="label">% que sube</div>
+        <div class="val">${fmtNum(pct(up))}%</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Mejor del día</div>
+        <div class="val chg up">${best.symbol} · ${fmtPct(best.pct_change)}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Peor del día</div>
+        <div class="val chg down">${worst.symbol} · ${fmtPct(worst.pct_change)}</div>
+      </div>
     </div>
   `;
 }
