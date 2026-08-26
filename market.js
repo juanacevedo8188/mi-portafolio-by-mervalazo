@@ -56,6 +56,46 @@ async function getAllDolarRates() {
   return res.json();
 }
 
+// Letras capitalizables (LECAP/BONCAP): fechas/valor final de argentinadatos.com,
+// precio actual de mercado del feed de data912 (notas y bonos). El DTM resta un
+// dia por la liquidacion T+1 — sin ese ajuste el TNA/TEA/TEM no coinciden con
+// los que muestran las calculadoras de referencia del mercado.
+async function getLecapData() {
+  const [letras, notes, bonds] = await Promise.all([
+    fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error('letras failed: ' + r.status); return r.json(); }),
+    fetchFeed('arg_notes'),
+    fetchFeed('arg_bonds')
+  ]);
+  const priceMap = new Map();
+  [...notes, ...bonds].forEach(row => priceMap.set(row.symbol, row));
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return letras
+    .map(l => {
+      const q = priceMap.get(l.ticker);
+      if (!q || !q.c || !l.fechaVencimiento || !l.vpv) return null;
+      const vencimiento = new Date(l.fechaVencimiento + 'T00:00:00');
+      const calendarDays = Math.round((vencimiento - today) / 86400000);
+      const dtm = calendarDays - 1;
+      if (dtm < 1) return null; // vencida o vence manana: fuera de rango util
+      const ratio = l.vpv / q.c;
+      return {
+        ticker: l.ticker,
+        vencimiento: l.fechaVencimiento,
+        dtm,
+        price: q.c,
+        tem: (Math.pow(ratio, 30 / dtm) - 1) * 100,
+        tna: (ratio - 1) * (365 / dtm) * 100,
+        tea: (Math.pow(ratio, 365 / dtm) - 1) * 100
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.dtm - b.dtm);
+}
+
 // Cripto se cotiza en dólares (es lo natural para leer su precio) pero para
 // que sume bien en el total de la cartera (en pesos) tambien se guarda el
 // equivalente en ARS usando el dolar MEP promedio del momento.

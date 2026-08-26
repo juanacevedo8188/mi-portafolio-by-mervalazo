@@ -97,8 +97,33 @@
     <div id="topStocksArg"><div class="empty-note">Cargando…</div></div>
   </section>
 
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Renta Fija — LECAPs</h2>
+      <span id="lecapUpdated">—</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Vencimiento</th>
+            <th>DTM</th>
+            <th>TEM</th>
+            <th>TNA</th>
+            <th>TEA</th>
+            <th>Precio</th>
+          </tr>
+        </thead>
+        <tbody id="lecapBody">
+          <tr><td colspan="7" class="empty-note">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <footer>
-    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y cotizaciones del dólar por <a href="https://dolarapi.com" target="_blank" rel="noopener">dolarapi.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
+    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>, cotizaciones del dólar por <a href="https://dolarapi.com" target="_blank" rel="noopener">dolarapi.com</a> y datos de LECAPs por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
   </footer>
 </main>
 
@@ -233,13 +258,40 @@ async function loadTopCrypto() {
   }
 }
 
+async function loadLecaps() {
+  const body = document.getElementById('lecapBody');
+  try {
+    const data = await getLecapData();
+    if (!data.length) {
+      body.innerHTML = '<tr><td colspan="7" class="empty-note">No hay LECAPs vigentes en este momento.</td></tr>';
+      document.getElementById('lecapUpdated').textContent = '';
+      return;
+    }
+    body.innerHTML = data.map(l => `
+      <tr>
+        <td><span class="tk">${l.ticker}</span></td>
+        <td class="mono">${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td class="mono">${l.dtm}</td>
+        <td class="mono">${fmtNum(l.tem)}%</td>
+        <td class="mono">${fmtNum(l.tna)}%</td>
+        <td class="mono">${fmtNum(l.tea)}%</td>
+        <td class="mono row-value">${fmtARS(l.price)}</td>
+      </tr>
+    `).join('');
+    document.getElementById('lecapUpdated').textContent = data.length + ' letras vigentes';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="7" class="empty-note">No se pudo cargar la información de LECAPs.</td></tr>';
+  }
+}
+
 async function loadAll(manual) {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
   btn.classList.add('spinning');
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
-    await Promise.all([loadDollar(), loadTopGainers(), loadTopCrypto(), loadTopStocksArg()]);
+    await Promise.all([loadDollar(), loadTopGainers(), loadTopCrypto(), loadTopStocksArg(), loadLecaps()]);
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
