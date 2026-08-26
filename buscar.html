@@ -229,6 +229,24 @@ async function loadWatchlist() {
   renderWatchlist();
 }
 
+async function updateGroup(id, value) {
+  await sb.from('watchlist').update({ grupo: value.trim() || null }).eq('id', id);
+  await loadWatchlist();
+}
+
+function groupWatchlist(list) {
+  const groups = new Map();
+  list.forEach(w => {
+    const key = (w.grupo || '').trim();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(w);
+  });
+  const named = [...groups.entries()].filter(([k]) => k).sort((a, b) => a[0].localeCompare(b[0]));
+  const ordered = named.map(([label, items]) => ({ label, items }));
+  if (groups.has('')) ordered.push({ label: 'Sin categoría', items: groups.get('') });
+  return ordered;
+}
+
 function renderWatchlist() {
   const body = document.getElementById('watchlistBody');
   document.getElementById('watchlistStatus').textContent = watchlistCache.length + ' activos';
@@ -237,15 +255,23 @@ function renderWatchlist() {
     return;
   }
   const priceOf = ticker => masterList.find(s => s.symbol === ticker);
-  body.innerHTML = watchlistCache.map(w => {
+  const distinctGroups = [...new Set(watchlistCache.map(w => w.grupo).filter(Boolean))];
+  const datalistHtml = '<datalist id="groupOptions">' + distinctGroups.map(g => `<option value="${g}">`).join('') + '</datalist>';
+
+  const rowHtml = w => {
     const q = priceOf(w.ticker);
     return `<div class="watchlist-row">
       ${tvLink(w.ticker)}
       <span class="tag ${w.tipo}">${w.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span>
+      <input class="group-input" list="groupOptions" placeholder="Sin categoría" value="${w.grupo || ''}" onchange="updateGroup('${w.id}', this.value)">
       <span class="sr-price mono">${q ? fmtARS(q.c) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
       <button class="icon-btn" onclick="unfollow('${w.ticker}')" title="Dejar de seguir">✕</button>
     </div>`;
-  }).join('');
+  };
+
+  body.innerHTML = datalistHtml + groupWatchlist(watchlistCache).map(g =>
+    `<div class="watch-group-header">${g.label}</div>${g.items.map(rowHtml).join('')}`
+  ).join('');
 }
 
 document.getElementById('searchInput').addEventListener('input', e => renderSearchResults(e.target.value));
