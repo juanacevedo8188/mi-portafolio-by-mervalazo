@@ -1,8 +1,15 @@
-# Mervalazo — Cartera
+# Mervalazo
 
-Página estática que muestra la cartera modelo de la comunidad Mervalazo, con precios y variaciones en vivo de acciones y CEDEARs argentinos (feed público de [data912.com](https://data912.com)).
+Sitio estático de la comunidad Mervalazo. Páginas:
 
-## Actualizar la cartera
+- `index.html` — **Dashboard**: dólar, top ganadores del mercado, top cripto y top acciones argentinas.
+- `cartera.html` — Cartera modelo de la comunidad, con precios y variaciones en vivo de acciones y CEDEARs argentinos ([data912.com](https://data912.com)).
+- `mi-portafolio.html` — Cuentas personales: cada usuario carga sus propias posiciones.
+- `buscar.html` — Buscador de cualquier activo (acción, CEDEAR o cripto) con lista de seguimiento.
+
+La navegación entre páginas (`nav.js`) es compartida — se inyecta en cada una llamando a `renderNavTabs('<clave>')`.
+
+## Actualizar la cartera modelo
 
 Editá `portfolio.js`. Cada posición es:
 

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Cartera</title>
+<meta name="description" content="Seguimiento en vivo de la cartera modelo de la comunidad Mervalazo.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Cartera de la comunidad">
+<meta property="og:description" content="Seguimiento en vivo de la cartera modelo de la comunidad Mervalazo: precios, variaciones y composición de acciones y CEDEARs argentinos.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/cartera.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Cartera de la comunidad">
+<meta name="twitter:description" content="Seguimiento en vivo de la cartera modelo de la comunidad Mervalazo.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1 id="portfolioName">Mervalazo</h1>
+        <p>Cartera de la comunidad · datos en vivo de ByMA</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Conectando…</span></span>
+      <button id="refreshBtn" onclick="loadPrices(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <div class="summary-grid" id="summaryGrid">
+    <div class="summary-card">
+      <div class="label">Valor de cartera</div>
+      <div class="value mono" id="sumValue">—</div>
+      <div class="sub" id="sumValueSub">&nbsp;</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Variación diaria</div>
+      <div class="value mono" id="sumDaily">—</div>
+      <div class="sub" id="sumDailySub">&nbsp;</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Resultado total</div>
+      <div class="value mono" id="sumTotal">—</div>
+      <div class="sub" id="sumTotalSub">&nbsp;</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Costo invertido</div>
+      <div class="value mono" id="sumCost">—</div>
+      <div class="sub" id="sumCostSub">&nbsp;</div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Radar rápido</h2>
+    </div>
+    <div class="quick-metrics" id="quickMetrics"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Evolución</h2>
+      <span id="historyRange"></span>
+    </div>
+    <div class="history-chart" id="historyChart"><div class="empty-note">Cargando historial…</div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Posiciones<span id="sectorFilterBadge"></span></h2>
+      <span id="lastUpdate">—</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Cantidad</th>
+            <th>P. Compra</th>
+            <th>P. Actual</th>
+            <th>Var. Diaria</th>
+            <th>Var. Total</th>
+            <th>Valor</th>
+            <th>Peso</th>
+          </tr>
+        </thead>
+        <tbody id="holdingsBody">
+          <tr><td colspan="8" class="empty-note">Cargando posiciones…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Composición por sector</h2>
+      <span>por valor de mercado</span>
+    </div>
+    <div id="donutContainer"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Composición de la cartera</h2>
+      <span>por valor de mercado</span>
+    </div>
+    <div class="composition" id="compositionList"></div>
+  </section>
+
+  <footer>
+    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> con demora de mercado, a título informativo. No constituye recomendación de inversión.
+    Cartera editada manualmente por el equipo de Mervalazo.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script src="portfolio.js"></script>
+<script>
+const REFRESH_MS = 60000;
+let refreshTimer = null;
+let lastPriceMap = null;
+let activeSectorFilter = null;
+
+function toggleSectorFilter(sector) {
+  activeSectorFilter = activeSectorFilter === sector ? null : sector;
+  if (lastPriceMap) render(lastPriceMap);
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+let hasRenderedOnce = false;
+
+async function loadPrices(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Conectando…');
+
+  try {
+    const priceMap = await getPriceMap();
+    render(priceMap);
+    hasRenderedOnce = true;
+    setStatus('live', 'En vivo · actualiza cada 60s');
+    document.getElementById('lastUpdate').textContent =
+      'Última actualización ' + new Date().toLocaleTimeString('es-AR');
+  } catch (err) {
+    console.error(err);
+    setStatus('err', 'No se pudo conectar con el feed de precios (data912.com) — reintentando cada 60s');
+    if (!hasRenderedOnce) {
+      document.getElementById('holdingsBody').innerHTML =
+        '<tr><td colspan="8" class="empty-note">No pudimos conectar con el feed de precios en este momento. Reintentando automáticamente cada 60 segundos…</td></tr>';
+    }
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+function render(priceMap) {
+  lastPriceMap = priceMap;
+  const { nombre, holdings } = window.PORTFOLIO;
+  document.getElementById('portfolioName').textContent = nombre || 'Mervalazo';
+
+  const rows = holdings.map(h => {
+    const q = priceMap.get(h.ticker);
+    const price = q ? q.c : null;
+    const dailyPct = q ? q.pct_change : null;
+    const value = price != null ? price * h.cantidad : null;
+    const cost = h.precioCompra * h.cantidad;
+    const totalPct = price != null ? ((price - h.precioCompra) / h.precioCompra) * 100 : null;
+    return { ...h, price, dailyPct, value, cost, totalPct, found: !!q };
+  });
+
+  const totalValue = rows.reduce((s, r) => s + (r.value ?? r.cost), 0);
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const totalGain = totalValue - totalCost;
+  const totalGainPct = totalCost ? (totalGain / totalCost) * 100 : 0;
+  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.value ?? 0) : 0), 0) / (totalValue || 1);
+  const dailyDelta = totalValue * (weightedDaily / 100);
+
+  document.getElementById('sumValue').textContent = fmtARS(totalValue);
+  document.getElementById('sumValueSub').innerHTML = `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)} hoy</span>`;
+
+  document.getElementById('sumDaily').textContent = (dailyDelta >= 0 ? '+' : '') + fmtARS(dailyDelta);
+  document.getElementById('sumDaily').className = 'value mono ' + (dailyDelta >= 0 ? '' : '');
+  document.getElementById('sumDailySub').innerHTML = `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)}</span>`;
+
+  document.getElementById('sumTotal').textContent = (totalGain >= 0 ? '+' : '') + fmtARS(totalGain);
+  document.getElementById('sumTotalSub').innerHTML = `<span class="pill ${pctClass(totalGainPct)}">${fmtPct(totalGainPct)} desde compra</span>`;
+
+  document.getElementById('sumCost').textContent = fmtARS(totalCost);
+  document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${holdings.length} posiciones</span>`;
+
+  const sectors = groupBySector(rows);
+  renderQuickMetrics('quickMetrics', rows, priceMap, weightedDaily);
+  renderDonut('donutContainer', sectors, totalValue, activeSectorFilter, toggleSectorFilter);
+
+  const filterBadge = document.getElementById('sectorFilterBadge');
+  filterBadge.innerHTML = activeSectorFilter
+    ? `<span class="filter-pill">${activeSectorFilter}<button onclick="toggleSectorFilter('${activeSectorFilter}')" title="Quitar filtro">✕</button></span>`
+    : '';
+
+  const visibleSectors = activeSectorFilter ? sectors.filter(s => s.sector === activeSectorFilter) : sectors;
+
+  const rowHtml = r => {
+    if (!r.found) {
+      return `<tr>
+        <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
+        <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
+        <td class="row-value">${fmtPct((r.value ?? r.cost) / totalValue * 100)}</td>
+      </tr>`;
+    }
+    const weight = ((r.value ?? 0) / totalValue) * 100;
+    return `<tr>
+      <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
+      <td class="mono">${fmtNum(r.cantidad)}</td>
+      <td class="mono">${fmtARS(r.precioCompra)}</td>
+      <td class="mono">${fmtARS(r.price)}</td>
+      <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
+      <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
+      <td class="mono row-value">${fmtARS(r.value)}</td>
+      <td class="mono">${fmtNum(weight)}%</td>
+    </tr>`;
+  };
+
+  const body = document.getElementById('holdingsBody');
+  body.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
+    const sectorWeight = (sectorValue / totalValue) * 100;
+    const isActive = activeSectorFilter === sector;
+    return `<tr class="sector-row${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
+      + list.map(rowHtml).join('');
+  }).join('');
+
+  const compList = document.getElementById('compositionList');
+  compList.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
+    const sectorIndex = sectors.findIndex(s => s.sector === sector);
+    const sectorWeight = (sectorValue / totalValue) * 100;
+    const color = donutColor(sectorIndex);
+    const isActive = activeSectorFilter === sector;
+    const rowsHtml = list.map(r => {
+      const weight = ((r.value ?? r.cost) / totalValue) * 100;
+      return `<div class="comp-row">
+        <span class="tk">${r.ticker}</span>
+        <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 2)}%;background:${color};"></span></span>
+        <span class="pct mono"><span class="amt">${fmtARS(r.value ?? r.cost)}</span>${fmtNum(weight)}%</span>
+      </div>`;
+    }).join('');
+    return `<div class="comp-sector${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')">${sector}<span>${fmtNum(sectorWeight)}%</span></div>${rowsHtml}`;
+  }).join('');
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch(
+      `${window.SUPABASE_URL}/rest/v1/community_snapshots?select=snapshot_date,total_value&order=snapshot_date.asc`,
+      { headers: { apikey: window.SUPABASE_ANON_KEY } }
+    );
+    if (!res.ok) throw new Error('history fetch failed: ' + res.status);
+    const data = await res.json();
+    const points = data.map(d => ({ date: d.snapshot_date, value: d.total_value }));
+    renderHistory('historyChart', 'historyRange', points);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
+  }
+}
+
+renderNavTabs('cartera');
+initTVHover();
+loadPrices(false);
+loadHistory();
+refreshTimer = setInterval(() => loadPrices(false), REFRESH_MS);
+</script>
+
+</body>
+</html>

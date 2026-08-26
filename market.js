@@ -50,6 +50,12 @@ async function getOficialRate() {
   return { compra: data.compra, venta: data.venta };
 }
 
+async function getAllDolarRates() {
+  const res = await fetch('https://dolarapi.com/v1/dolares', { cache: 'no-store' });
+  if (!res.ok) throw new Error('dolares failed: ' + res.status);
+  return res.json();
+}
+
 // Cripto se cotiza en dólares (es lo natural para leer su precio) pero para
 // que sume bien en el total de la cartera (en pesos) tambien se guarda el
 // equivalente en ARS usando el dolar MEP promedio del momento.
@@ -70,7 +76,8 @@ async function getCryptoMap() {
       usd: coin.current_price,
       c: coin.current_price * usdArsRate,
       pct_change: coin.price_change_percentage_24h,
-      name: coin.name
+      name: coin.name,
+      marketCap: coin.market_cap
     });
   });
   map.usdArsRate = usdArsRate;

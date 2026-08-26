@@ -41,11 +41,9 @@
         <p>Cualquier acción o CEDEAR de ByMA</p>
       </div>
     </div>
-    <div class="status" id="headerRight">
-      <a href="index.html" class="nav-link">← Cartera Mervalazo</a>
-      <a href="mi-portafolio.html" class="nav-link">Mi Portafolio →</a>
-    </div>
+    <div class="status" id="headerRight"></div>
   </div>
+  <div class="nav-tabs" id="navTabs"></div>
 </header>
 
 <main>
@@ -91,6 +89,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="market.js"></script>
+<script src="nav.js"></script>
 <script>
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 let currentSession = null;
@@ -298,14 +297,13 @@ document.addEventListener('click', e => {
   }
 });
 
+renderNavTabs('buscar');
 initTVHover();
 
 sb.auth.onAuthStateChange((_event, session) => {
   currentSession = session;
   const headerRight = document.getElementById('headerRight');
-  headerRight.innerHTML = session
-    ? '<a href="index.html" class="nav-link">← Cartera Mervalazo</a><a href="mi-portafolio.html" class="nav-link">Mi Portafolio →</a><span class="user-bar">' + session.user.email + '</span>'
-    : '<a href="index.html" class="nav-link">← Cartera Mervalazo</a><a href="mi-portafolio.html" class="nav-link">Mi Portafolio →</a>';
+  headerRight.innerHTML = session ? '<span class="user-bar">' + session.user.email + '</span>' : '';
   loadWatchlist();
 });
 

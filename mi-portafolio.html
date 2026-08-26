@@ -63,11 +63,9 @@
         <p>Tus posiciones · datos en vivo de ByMA</p>
       </div>
     </div>
-    <div class="status" id="headerRight">
-      <a href="index.html" class="nav-link">← Cartera Mervalazo</a>
-      <a href="buscar.html" class="nav-link">Buscar</a>
-    </div>
+    <div class="status" id="headerRight"></div>
   </div>
+  <div class="nav-tabs" id="navTabs"></div>
 </header>
 
 <main>
@@ -221,6 +219,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="market.js"></script>
+<script src="nav.js"></script>
 <script>
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 let currentSession = null;
@@ -358,10 +357,7 @@ function showAuthScreen(mode) {
   authMode = mode || 'login';
   document.getElementById('authScreen').style.display = 'block';
   document.getElementById('app').style.display = 'none';
-  document.getElementById('headerRight').innerHTML =
-    '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>' +
-    '<a href="buscar.html" class="nav-link">Buscar</a>' +
-    '<a href="https://mervalazo.netlify.app" target="_blank" rel="noopener" class="nav-link">Aprender</a>';
+  document.getElementById('headerRight').innerHTML = '';
   if (refreshTimer) clearInterval(refreshTimer);
   renderAuthMode();
 }
@@ -370,9 +366,6 @@ function showApp(session) {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('headerRight').innerHTML =
-    '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>' +
-    '<a href="buscar.html" class="nav-link">Buscar</a>' +
-    '<a href="https://mervalazo.netlify.app" target="_blank" rel="noopener" class="nav-link">Aprender</a>' +
     '<span class="user-bar">' + session.user.email + '<button class="btn-secondary" onclick="signOut()">Salir</button></span>';
   loadHoldings();
   loadHistory();
@@ -675,6 +668,7 @@ function setDisplayCurrency(cur) {
 initOficialRate();
 setInterval(initOficialRate, 60000);
 
+renderNavTabs('portafolio');
 initTVHover();
 
 sb.auth.onAuthStateChange((event, session) => {
