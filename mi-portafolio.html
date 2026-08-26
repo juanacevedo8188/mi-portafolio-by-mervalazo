@@ -352,7 +352,8 @@ function showAuthScreen(mode) {
   document.getElementById('authScreen').style.display = 'block';
   document.getElementById('app').style.display = 'none';
   document.getElementById('headerRight').innerHTML =
-    '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>';
+    '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>' +
+    '<a href="https://mervalazo.netlify.app" target="_blank" rel="noopener" class="nav-link">Aprender</a>';
   if (refreshTimer) clearInterval(refreshTimer);
   renderAuthMode();
 }
@@ -362,6 +363,7 @@ function showApp(session) {
   document.getElementById('app').style.display = 'block';
   document.getElementById('headerRight').innerHTML =
     '<a href="index.html" class="nav-link">← Cartera Mervalazo</a>' +
+    '<a href="https://mervalazo.netlify.app" target="_blank" rel="noopener" class="nav-link">Aprender</a>' +
     '<span class="user-bar">' + session.user.email + '<button class="btn-secondary" onclick="signOut()">Salir</button></span>';
   loadHoldings();
   loadHistory();
@@ -484,7 +486,7 @@ function render(priceMap) {
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${rows.length} posiciones</span>`;
 
   const sectors = groupBySector(rows);
-  renderQuickMetrics('quickMetrics', rows);
+  renderQuickMetrics('quickMetrics', rows, priceMap, weightedDaily);
   renderDonut('donutContainer', sectors, totalValue, activeSectorFilter, toggleSectorFilter);
 
   const filterBadge = document.getElementById('sectorFilterBadge');

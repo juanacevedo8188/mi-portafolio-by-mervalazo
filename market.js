@@ -46,11 +46,24 @@ function quickMetrics(rows) {
   return { best, worst, top3Pct };
 }
 
-function renderQuickMetrics(containerId, rows) {
+function benchmarkTile(priceMap, weightedDaily) {
+  const spy = priceMap ? priceMap.get('SPY') : null;
+  if (!spy || weightedDaily == null) return '';
+  const diff = weightedDaily - spy.pct_change;
+  return `
+    <div class="quick-stat">
+      <div class="label">vs S&amp;P 500 (CEDEAR)</div>
+      <div class="val chg ${pctClass(diff)}">${fmtPct(diff)}</div>
+      <div class="note">Cartera ${fmtPct(weightedDaily)} · SPY ${fmtPct(spy.pct_change)}</div>
+    </div>`;
+}
+
+function renderQuickMetrics(containerId, rows, priceMap, weightedDaily) {
   const el = document.getElementById(containerId);
   const m = quickMetrics(rows);
+  const spyTile = benchmarkTile(priceMap, weightedDaily);
   if (!m) {
-    el.innerHTML = '<div class="empty-note">Todavía no hay datos suficientes.</div>';
+    el.innerHTML = '<div class="empty-note">Todavía no hay datos suficientes.</div>' + spyTile;
     return;
   }
   el.innerHTML = `
@@ -66,6 +79,7 @@ function renderQuickMetrics(containerId, rows) {
       <div class="label">Concentración top 3</div>
       <div class="val">${fmtNum(m.top3Pct)}%</div>
     </div>
+    ${spyTile}
   `;
 }
 
