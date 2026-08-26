@@ -62,16 +62,24 @@
   <div class="dashboard-grid">
     <section class="panel">
       <div class="panel-head">
-        <h2>Top Ganadores del Mercado</h2>
-        <span>Acciones + CEDEARs</span>
+        <h2>Mercado</h2>
+        <div class="view-switch">
+          <button class="vs-arrow" onclick="cycleView('market', -1)" title="Anterior">‹</button>
+          <span id="marketViewLabel">—</span>
+          <button class="vs-arrow" onclick="cycleView('market', 1)" title="Siguiente">›</button>
+        </div>
       </div>
       <div id="topGainers"><div class="empty-note">Cargando…</div></div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h2>Top Cripto</h2>
-        <span>por cap. de mercado</span>
+        <h2>Cripto</h2>
+        <div class="view-switch">
+          <button class="vs-arrow" onclick="cycleView('crypto', -1)" title="Anterior">‹</button>
+          <span id="cryptoViewLabel">—</span>
+          <button class="vs-arrow" onclick="cycleView('crypto', 1)" title="Siguiente">›</button>
+        </div>
       </div>
       <div id="topCrypto"><div class="empty-note">Cargando…</div></div>
     </section>
@@ -79,8 +87,12 @@
 
   <section class="panel">
     <div class="panel-head">
-      <h2>Top Acciones Argentinas</h2>
-      <span>por variación diaria</span>
+      <h2>Acciones Argentinas</h2>
+      <div class="view-switch">
+        <button class="vs-arrow" onclick="cycleView('ar', -1)" title="Anterior">‹</button>
+        <span id="arViewLabel">—</span>
+        <button class="vs-arrow" onclick="cycleView('ar', 1)" title="Siguiente">›</button>
+      </div>
     </div>
     <div id="topStocksArg"><div class="empty-note">Cargando…</div></div>
   </section>
@@ -130,59 +142,94 @@ function rankRow(rank, tickerHtml, priceLabel, pct) {
   </div>`;
 }
 
+// pct_change puede venir null (ej: stablecoins) — esas quedan siempre al final,
+// no arriba, sin importar la vista.
+const byPctDesc = (a, b) => (b.pct_change ?? -Infinity) - (a.pct_change ?? -Infinity);
+const byPctAsc = (a, b) => (a.pct_change ?? Infinity) - (b.pct_change ?? Infinity);
+
+const GAIN_LOSE_VIEWS = [
+  { label: 'Ganadores', cmp: byPctDesc },
+  { label: 'Perdedores', cmp: byPctAsc }
+];
+const CRYPTO_VIEWS = [
+  { label: 'Top por cap. de mercado', cmp: (a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0) },
+  { label: 'Ganadores', cmp: byPctDesc },
+  { label: 'Perdedores', cmp: byPctAsc }
+];
+let viewIdx = { market: 0, ar: 0, crypto: 0 };
+let panelData = { market: [], ar: [], crypto: [] };
+
+function cycleView(panel, delta) {
+  const views = panel === 'crypto' ? CRYPTO_VIEWS : GAIN_LOSE_VIEWS;
+  viewIdx[panel] = (viewIdx[panel] + delta + views.length) % views.length;
+  if (panel === 'market') renderMarket();
+  else if (panel === 'ar') renderAr();
+  else renderCrypto();
+}
+
+function renderMarket() {
+  const view = GAIN_LOSE_VIEWS[viewIdx.market];
+  document.getElementById('marketViewLabel').textContent = view.label + ' · Acciones + CEDEARs';
+  const top = [...panelData.market].sort(view.cmp).slice(0, 10);
+  document.getElementById('topGainers').innerHTML = top.map((s, i) => rankRow(
+    i + 1,
+    `${tvLink(s.symbol, s.tipo)}<span class="tag ${s.tipo}" style="margin-left:7px;">${tipoLabel(s.tipo)}</span>`,
+    fmtARS(s.c),
+    s.pct_change
+  )).join('');
+}
+
+function renderAr() {
+  const view = GAIN_LOSE_VIEWS[viewIdx.ar];
+  document.getElementById('arViewLabel').textContent = view.label;
+  const top = [...panelData.ar].sort(view.cmp).slice(0, 10);
+  document.getElementById('topStocksArg').innerHTML = top.map((s, i) => rankRow(
+    i + 1, tvLink(s.symbol, 'accion'), fmtARS(s.c), s.pct_change
+  )).join('');
+}
+
+function renderCrypto() {
+  const view = CRYPTO_VIEWS[viewIdx.crypto];
+  document.getElementById('cryptoViewLabel').textContent = view.label;
+  const top = [...panelData.crypto].sort(view.cmp).slice(0, 10);
+  document.getElementById('topCrypto').innerHTML = top.map((c, i) => rankRow(
+    i + 1, `${tvLink(c.symbol, 'cripto')}<span class="rn-full">${c.name}</span>`, fmtUSD(c.usd), c.pct_change
+  )).join('');
+}
+
 async function loadTopGainers() {
-  const container = document.getElementById('topGainers');
   try {
     const [stocks, cedears] = await Promise.all([fetchFeed('arg_stocks'), fetchFeed('arg_cedears')]);
-    const all = [
+    panelData.market = [
       ...stocks.map(s => ({ ...s, tipo: 'accion' })),
       ...cedears.map(s => ({ ...s, tipo: 'cedear' }))
     ].filter(s => s.v > 0 && typeof s.pct_change === 'number');
-    const top = all.sort((a, b) => b.pct_change - a.pct_change).slice(0, 10);
-    container.innerHTML = top.map((s, i) => rankRow(
-      i + 1,
-      `${tvLink(s.symbol, s.tipo)}<span class="tag ${s.tipo}" style="margin-left:7px;">${tipoLabel(s.tipo)}</span>`,
-      fmtARS(s.c),
-      s.pct_change
-    )).join('');
+    renderMarket();
   } catch (err) {
     console.error(err);
-    container.innerHTML = '<div class="empty-note">No se pudo cargar el ranking.</div>';
+    document.getElementById('topGainers').innerHTML = '<div class="empty-note">No se pudo cargar el ranking.</div>';
   }
 }
 
 async function loadTopStocksArg() {
-  const container = document.getElementById('topStocksArg');
   try {
     const stocks = await fetchFeed('arg_stocks');
-    const top = stocks.filter(s => s.v > 0 && typeof s.pct_change === 'number')
-      .sort((a, b) => b.pct_change - a.pct_change).slice(0, 10);
-    container.innerHTML = top.map((s, i) => rankRow(
-      i + 1,
-      tvLink(s.symbol, 'accion'),
-      fmtARS(s.c),
-      s.pct_change
-    )).join('');
+    panelData.ar = stocks.filter(s => s.v > 0 && typeof s.pct_change === 'number');
+    renderAr();
   } catch (err) {
     console.error(err);
-    container.innerHTML = '<div class="empty-note">No se pudo cargar el ranking.</div>';
+    document.getElementById('topStocksArg').innerHTML = '<div class="empty-note">No se pudo cargar el ranking.</div>';
   }
 }
 
 async function loadTopCrypto() {
-  const container = document.getElementById('topCrypto');
   try {
     const cryptoMap = await getCryptoMap();
-    const top = [...cryptoMap.values()].sort((a, b) => b.marketCap - a.marketCap).slice(0, 10);
-    container.innerHTML = top.map((c, i) => rankRow(
-      i + 1,
-      `${tvLink(c.symbol, 'cripto')}<span class="rn-full">${c.name}</span>`,
-      fmtUSD(c.usd),
-      c.pct_change
-    )).join('');
+    panelData.crypto = [...cryptoMap.values()];
+    renderCrypto();
   } catch (err) {
     console.error(err);
-    container.innerHTML = '<div class="empty-note">No se pudo cargar el ranking de cripto.</div>';
+    document.getElementById('topCrypto').innerHTML = '<div class="empty-note">No se pudo cargar el ranking de cripto.</div>';
   }
 }
 
