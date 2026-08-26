@@ -56,6 +56,21 @@ async function getAllDolarRates() {
   return res.json();
 }
 
+// API publica y gratuita del BCRA (Banco Central de la Republica Argentina).
+async function getBcraVariables() {
+  const res = await fetch('https://api.bcra.gob.ar/estadisticas/v4.0/monetarias?limit=1000', { cache: 'no-store' });
+  if (!res.ok) throw new Error('bcra failed: ' + res.status);
+  const data = await res.json();
+  return data.results.filter(r => r.categoria === 'Principales Variables');
+}
+
+async function getBcraSeries(idVariable, limit) {
+  const res = await fetch(`https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/${idVariable}?limit=${limit || 1001}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('bcra series failed: ' + res.status);
+  const data = await res.json();
+  return data.results[0].detalle; // [{ fecha, valor }], mas reciente primero
+}
+
 // Letras capitalizables (LECAP/BONCAP): fechas/valor final de argentinadatos.com,
 // precio actual de mercado del feed de data912 (notas y bonos). El DTM resta un
 // dia por la liquidacion T+1 — sin ese ajuste el TNA/TEA/TEM no coinciden con

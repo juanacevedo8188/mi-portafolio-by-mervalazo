@@ -359,6 +359,16 @@ select option{background:var(--card);color:var(--text);}
   .comm-period,.comm-spark{display:none;}
 }
 
+.macro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:14px 20px 18px;}
+.macro-tile{
+  background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:13px 14px;
+  transition:transform .15s cubic-bezier(.4,0,.2,1),border-color .15s cubic-bezier(.4,0,.2,1);
+}
+.macro-tile:hover{transform:translateY(-2px);border-color:var(--accent-dim);}
+.macro-desc{font-size:11.5px;color:var(--text-dim);line-height:1.35;margin-bottom:8px;min-height:30px;}
+.macro-val{font-size:16px;font-weight:700;}
+.macro-date{font-size:10.5px;color:var(--text-faint);margin-top:5px;}
+
 .search-wrap{padding:18px 20px;position:relative;}
 .search-input{font-size:15px;padding:12px 14px;}
 .search-results{

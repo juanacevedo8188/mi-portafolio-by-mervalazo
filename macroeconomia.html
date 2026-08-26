@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Macroeconomía</title>
+<meta name="description" content="Estadísticas del BCRA en vivo: inflación, reservas, tipo de cambio, tasas y más.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Macroeconomía">
+<meta property="og:description" content="Estadísticas del BCRA en vivo: inflación, reservas, tipo de cambio, tasas y más.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/macroeconomia.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Macroeconomía">
+<meta name="twitter:description" content="Estadísticas del BCRA en vivo: inflación, reservas, tipo de cambio, tasas y más.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Macroeconomía</h1>
+        <p>Estadísticas del BCRA en vivo</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Conectando…</span></span>
+      <button id="refreshBtn" onclick="loadMacro(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Variables del BCRA</h2>
+      <span id="macroUpdated">—</span>
+    </div>
+    <div id="macroBody"><div class="empty-note">Cargando…</div></div>
+  </section>
+
+  <footer>
+    Datos provistos por la <a href="https://api.bcra.gob.ar" target="_blank" rel="noopener">API pública del BCRA</a>, con la periodicidad que publica cada variable, a título informativo.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const REFRESH_MS = 60000;
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+const MACRO_GROUPS = [
+  { label: 'Inflación', test: d => /inflaci|precios al consumidor/i.test(d) },
+  { label: 'Divisas', test: d => /reservas internacionales|tipo de cambio/i.test(d) },
+  { label: 'Tasas de Interés', test: d => /tasa de inter/i.test(d) },
+  { label: 'Base Monetaria', test: d => /base monetaria|circulación monetaria|billetes y monedas|efectivo en entidades|cuenta corriente en el bcra/i.test(d) },
+  { label: 'Depósitos', test: d => /depósitos en efectivo|depósitos a plazo/i.test(d) },
+  { label: 'Índices', test: d => /índice|unidad de valor|unidad de vivienda|coeficiente de estabiliza/i.test(d) },
+  { label: 'Préstamos y Sector Privado', test: d => /préstamos|privado/i.test(d) }
+];
+
+function groupVariables(vars) {
+  const groups = new Map();
+  vars.forEach(v => {
+    const match = MACRO_GROUPS.find(g => g.test(v.descripcion));
+    const label = match ? match.label : 'Otras';
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(v);
+  });
+  const order = [...MACRO_GROUPS.map(g => g.label), 'Otras'];
+  return order.filter(l => groups.has(l)).map(l => ({ label: l, items: groups.get(l) }));
+}
+
+function formatValor(v) {
+  const u = v.unidadExpresion || '';
+  if (/porcentaje/i.test(u)) return fmtNum(v.ultValorInformado) + '%';
+  if (/millones de usd/i.test(u)) return 'US$ ' + fmtNum(v.ultValorInformado) + 'M';
+  if (/millones de ars/i.test(u)) return '$ ' + fmtNum(v.ultValorInformado) + 'M';
+  if (/pesos argentinos por dólar/i.test(u)) return fmtARS(v.ultValorInformado);
+  if (/^en ars$/i.test(u)) return fmtARS(v.ultValorInformado);
+  return fmtNum(v.ultValorInformado);
+}
+
+async function loadMacro(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Conectando…');
+  const body = document.getElementById('macroBody');
+  try {
+    const vars = await getBcraVariables();
+    const groups = groupVariables(vars);
+    body.innerHTML = groups.map(g => `
+      <div class="watch-group-header">${g.label}<span class="wg-count">${g.items.length}</span></div>
+      <div class="macro-grid">
+        ${g.items.map(v => `
+          <div class="macro-tile">
+            <div class="macro-desc">${v.descripcion.trim()}</div>
+            <div class="macro-val mono">${formatValor(v)}</div>
+            <div class="macro-date">Últ. act: ${new Date(v.ultFechaInformada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+    document.getElementById('macroUpdated').textContent = vars.length + ' variables';
+    setStatus('live', 'En vivo · actualiza cada 60s');
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<div class="empty-note">No se pudo cargar la información del BCRA.</div>';
+    setStatus('err', 'No se pudo conectar');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+renderNavTabs('macro');
+loadMacro(false);
+setInterval(() => loadMacro(false), REFRESH_MS);
+</script>
+
+</body>
+</html>
