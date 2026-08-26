@@ -133,6 +133,8 @@ function setStatus(state, text) {
   label.textContent = text;
 }
 
+let hasRenderedOnce = false;
+
 async function loadPrices(manual) {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
@@ -142,12 +144,17 @@ async function loadPrices(manual) {
   try {
     const priceMap = await getPriceMap();
     render(priceMap);
+    hasRenderedOnce = true;
     setStatus('live', 'En vivo · actualiza cada 60s');
     document.getElementById('lastUpdate').textContent =
       'Última actualización ' + new Date().toLocaleTimeString('es-AR');
   } catch (err) {
     console.error(err);
-    setStatus('err', 'Sin conexión con el feed de precios');
+    setStatus('err', 'No se pudo conectar con el feed de precios (data912.com) — reintentando cada 60s');
+    if (!hasRenderedOnce) {
+      document.getElementById('holdingsBody').innerHTML =
+        '<tr><td colspan="8" class="empty-note">No pudimos conectar con el feed de precios en este momento. Reintentando automáticamente cada 60 segundos…</td></tr>';
+    }
   } finally {
     btn.disabled = false;
     btn.classList.remove('spinning');

@@ -365,6 +365,8 @@ async function signOut() {
   await sb.auth.signOut();
 }
 
+let hasRenderedOnce = false;
+
 async function loadHoldings() {
   const { data, error } = await sb.from('holdings').select('*').order('created_at', { ascending: true });
   if (error) {
@@ -375,11 +377,16 @@ async function loadHoldings() {
   try {
     const priceMap = await getPriceMap();
     render(priceMap);
+    hasRenderedOnce = true;
     document.getElementById('lastUpdate').textContent =
       'Última actualización ' + new Date().toLocaleTimeString('es-AR');
   } catch (err) {
     console.error(err);
-    document.getElementById('lastUpdate').textContent = 'Sin conexión con el feed de precios';
+    document.getElementById('lastUpdate').textContent = 'No se pudo conectar con el feed de precios — reintentando cada 60s';
+    if (!hasRenderedOnce) {
+      document.getElementById('holdingsBody').innerHTML =
+        '<tr><td colspan="8" class="empty-note">No pudimos conectar con el feed de precios en este momento. Reintentando automáticamente cada 60 segundos…</td></tr>';
+    }
   }
 }
 
