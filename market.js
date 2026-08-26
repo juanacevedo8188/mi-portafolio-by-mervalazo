@@ -326,6 +326,20 @@ function attachChartHover(containerId, points, width, height) {
   });
 }
 
+function buildSparklineSVG(values, width, height) {
+  width = width || 70;
+  height = height || 24;
+  if (!values || values.length < 2) return '';
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const stepX = width / (values.length - 1);
+  const coords = values.map((v, i) => [i * stepX, height - ((v - min) / range) * height]);
+  const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+  const up = values[values.length - 1] >= values[0];
+  const color = up ? 'var(--up)' : 'var(--down)';
+  return `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><path d="${path}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+}
+
 function tvSymbol(ticker, tipo) {
   return tipo === 'cripto' ? 'BINANCE:' + ticker + 'USDT' : 'BCBA:' + ticker;
 }

@@ -2,6 +2,7 @@ const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', href: 'index.html' },
   { key: 'cartera', label: 'Cartera Mervalazo', href: 'cartera.html' },
   { key: 'rentafija', label: 'Renta Fija', href: 'renta-fija.html' },
+  { key: 'commodities', label: 'Commodities', href: 'commodities.html' },
   { key: 'portafolio', label: 'Mi Portafolio', href: 'mi-portafolio.html' },
   { key: 'buscar', label: 'Buscar', href: 'buscar.html' },
   { key: 'aprender', label: 'Aprender', href: 'https://mervalazo.netlify.app', external: true }

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Commodities</title>
+<meta name="description" content="Petróleo, oro, plata, cobre, soja, trigo y maíz en vivo.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Commodities">
+<meta property="og:description" content="Petróleo, oro, plata, cobre, soja, trigo y maíz en vivo.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/commodities.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Commodities">
+<meta name="twitter:description" content="Petróleo, oro, plata, cobre, soja, trigo y maíz en vivo.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Commodities</h1>
+        <p>Energía, metales y agro en vivo</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Conectando…</span></span>
+      <button id="refreshBtn" onclick="loadCommodities(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Commodities</h2>
+      <span id="commUpdated">—</span>
+    </div>
+    <div id="commBody"><div class="empty-note">Cargando…</div></div>
+  </section>
+
+  <footer>
+    Precios de futuros provistos por Yahoo Finance, con demora de mercado, a título informativo. No constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const REFRESH_MS = 60000;
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+const GRUPO_ORDER = ['Energía', 'Metales', 'Agro'];
+
+function commodityRow(c) {
+  if (c.error) {
+    return `<div class="comm-row">
+      <span class="comm-name"><span class="tk">${c.key}</span><span class="comm-full">${c.name}</span></span>
+      <span class="empty-note" style="padding:0;">Sin datos</span>
+    </div>`;
+  }
+  const periodPct = c.sparkline && c.sparkline.length > 1
+    ? ((c.sparkline[c.sparkline.length - 1] - c.sparkline[0]) / c.sparkline[0]) * 100
+    : null;
+  return `<div class="comm-row">
+    <span class="comm-name"><span class="tk">${c.key}</span><span class="comm-full">${c.name}</span></span>
+    <span class="comm-price mono">${fmtNum(c.price)}</span>
+    <span class="chg comm-daily ${pctClass(c.pct_change)}">${fmtPct(c.pct_change)}</span>
+    <span class="chg comm-period ${pctClass(periodPct)}">${periodPct != null ? fmtPct(periodPct) : '—'}</span>
+    <span class="comm-spark">${c.sparkline ? buildSparklineSVG(c.sparkline) : ''}</span>
+  </div>`;
+}
+
+async function loadCommodities(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Conectando…');
+  const body = document.getElementById('commBody');
+  try {
+    const res = await fetch('/.netlify/functions/commodities', { cache: 'no-store' });
+    if (!res.ok) throw new Error('commodities failed: ' + res.status);
+    const data = await res.json();
+
+    const groups = new Map();
+    data.forEach(c => {
+      if (!groups.has(c.grupo)) groups.set(c.grupo, []);
+      groups.get(c.grupo).push(c);
+    });
+
+    body.innerHTML = GRUPO_ORDER.filter(g => groups.has(g)).map(g =>
+      `<div class="watch-group-header">${g}<span class="wg-count">${groups.get(g).length}</span></div>` +
+      groups.get(g).map(commodityRow).join('')
+    ).join('');
+
+    document.getElementById('commUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+    setStatus('live', 'En vivo · actualiza cada 60s');
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<div class="empty-note">No se pudo cargar la información de commodities.</div>';
+    setStatus('err', 'No se pudo conectar');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+renderNavTabs('commodities');
+loadCommodities(false);
+setInterval(() => loadCommodities(false), REFRESH_MS);
+</script>
+
+</body>
+</html>
