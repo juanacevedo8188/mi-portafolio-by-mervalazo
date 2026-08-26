@@ -73,7 +73,7 @@
 
   <section class="panel">
     <div class="panel-head">
-      <h2>Posiciones</h2>
+      <h2>Posiciones<span id="sectorFilterBadge"></span></h2>
       <span id="lastUpdate">—</span>
     </div>
     <div class="table-scroll">
@@ -125,6 +125,13 @@
 <script>
 const REFRESH_MS = 60000;
 let refreshTimer = null;
+let lastPriceMap = null;
+let activeSectorFilter = null;
+
+function toggleSectorFilter(sector) {
+  activeSectorFilter = activeSectorFilter === sector ? null : sector;
+  if (lastPriceMap) render(lastPriceMap);
+}
 
 function setStatus(state, text) {
   const dot = document.getElementById('statusDot');
@@ -162,6 +169,7 @@ async function loadPrices(manual) {
 }
 
 function render(priceMap) {
+  lastPriceMap = priceMap;
   const { nombre, holdings } = window.PORTFOLIO;
   document.getElementById('portfolioName').textContent = nombre || 'Mervalazo';
 
@@ -197,7 +205,14 @@ function render(priceMap) {
 
   const sectors = groupBySector(rows);
   renderQuickMetrics('quickMetrics', rows);
-  renderDonut('donutContainer', sectors, totalValue);
+  renderDonut('donutContainer', sectors, totalValue, activeSectorFilter, toggleSectorFilter);
+
+  const filterBadge = document.getElementById('sectorFilterBadge');
+  filterBadge.innerHTML = activeSectorFilter
+    ? `<span class="filter-pill">${activeSectorFilter}<button onclick="toggleSectorFilter('${activeSectorFilter}')" title="Quitar filtro">✕</button></span>`
+    : '';
+
+  const visibleSectors = activeSectorFilter ? sectors.filter(s => s.sector === activeSectorFilter) : sectors;
 
   const rowHtml = r => {
     if (!r.found) {
@@ -221,25 +236,28 @@ function render(priceMap) {
   };
 
   const body = document.getElementById('holdingsBody');
-  body.innerHTML = sectors.map(({ sector, list, sectorValue }) => {
+  body.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
     const sectorWeight = (sectorValue / totalValue) * 100;
-    return `<tr class="sector-row"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
+    const isActive = activeSectorFilter === sector;
+    return `<tr class="sector-row${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
       + list.map(rowHtml).join('');
   }).join('');
 
   const compList = document.getElementById('compositionList');
-  compList.innerHTML = sectors.map(({ sector, list, sectorValue }, sectorIndex) => {
+  compList.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
+    const sectorIndex = sectors.findIndex(s => s.sector === sector);
     const sectorWeight = (sectorValue / totalValue) * 100;
     const color = donutColor(sectorIndex);
+    const isActive = activeSectorFilter === sector;
     const rowsHtml = list.map(r => {
       const weight = ((r.value ?? r.cost) / totalValue) * 100;
       return `<div class="comp-row">
-        ${tvLink(r.ticker)}
+        <span class="tk">${r.ticker}</span>
         <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 2)}%;background:${color};"></span></span>
         <span class="pct mono"><span class="amt">${fmtARS(r.value ?? r.cost)}</span>${fmtNum(weight)}%</span>
       </div>`;
     }).join('');
-    return `<div class="comp-sector">${sector}<span>${fmtNum(sectorWeight)}%</span></div>${rowsHtml}`;
+    return `<div class="comp-sector${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')">${sector}<span>${fmtNum(sectorWeight)}%</span></div>${rowsHtml}`;
   }).join('');
 }
 

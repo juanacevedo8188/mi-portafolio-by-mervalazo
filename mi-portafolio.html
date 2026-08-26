@@ -145,7 +145,7 @@
 
     <section class="panel">
       <div class="panel-head">
-        <h2>Mis posiciones</h2>
+        <h2>Mis posiciones<span id="sectorFilterBadge"></span></h2>
         <span id="lastUpdate">—</span>
       </div>
       <form class="add-form" onsubmit="addHolding(event)">
@@ -221,6 +221,14 @@ let holdingsCache = [];
 let refreshTimer = null;
 const REFRESH_MS = 60000;
 let authMode = 'login'; // 'login' | 'signup' | 'reset' | 'recovery'
+let lastPriceMap = null;
+let activeSectorFilter = null;
+let editingId = null;
+
+function toggleSectorFilter(sector) {
+  activeSectorFilter = activeSectorFilter === sector ? null : sector;
+  if (lastPriceMap) render(lastPriceMap);
+}
 
 function renderAuthMode() {
   const title = document.getElementById('authTitle');
@@ -425,7 +433,27 @@ async function deleteHolding(id) {
   loadHoldings();
 }
 
+function startEdit(id) {
+  editingId = id;
+  if (lastPriceMap) render(lastPriceMap);
+}
+
+function cancelEdit() {
+  editingId = null;
+  if (lastPriceMap) render(lastPriceMap);
+}
+
+async function saveEdit(id) {
+  const cantidad = parseFloat(document.getElementById('editCantidad-' + id).value);
+  const precioCompra = parseFloat(document.getElementById('editPrecio-' + id).value);
+  if (!(cantidad > 0) || !(precioCompra > 0)) return;
+  await sb.from('holdings').update({ cantidad, precio_compra: precioCompra }).eq('id', id);
+  editingId = null;
+  loadHoldings();
+}
+
 function render(priceMap) {
+  lastPriceMap = priceMap;
   const rows = holdingsCache.map(h => {
     const q = priceMap.get(h.ticker);
     const price = q ? q.c : null;
@@ -455,8 +483,14 @@ function render(priceMap) {
   document.getElementById('sumCost').textContent = rows.length ? fmtARS(totalCost) : '—';
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${rows.length} posiciones</span>`;
 
+  const sectors = groupBySector(rows);
   renderQuickMetrics('quickMetrics', rows);
-  renderDonut('donutContainer', groupBySector(rows), totalValue);
+  renderDonut('donutContainer', sectors, totalValue, activeSectorFilter, toggleSectorFilter);
+
+  const filterBadge = document.getElementById('sectorFilterBadge');
+  filterBadge.innerHTML = activeSectorFilter
+    ? `<span class="filter-pill">${activeSectorFilter}<button onclick="toggleSectorFilter('${activeSectorFilter}')" title="Quitar filtro">✕</button></span>`
+    : '';
 
   const body = document.getElementById('holdingsBody');
   if (!rows.length) {
@@ -465,12 +499,29 @@ function render(priceMap) {
   }
 
   const rowHtml = r => {
-    const delCell = `<td><button class="del-btn" onclick="deleteHolding('${r.id}')" title="Eliminar">✕</button></td>`;
+    if (r.id === editingId) {
+      return `<tr>
+        <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td><input class="edit-row-input" id="editCantidad-${r.id}" type="number" min="0" step="any" value="${r.cantidad}"></td>
+        <td><input class="edit-row-input" id="editPrecio-${r.id}" type="number" min="0" step="any" value="${r.precio_compra}"></td>
+        <td class="mono">${r.price != null ? fmtARS(r.price) : '—'}</td>
+        <td colspan="2"></td>
+        <td class="mono row-value">${r.value != null ? fmtARS(r.value) : '—'}</td>
+        <td><div class="edit-actions">
+          <button class="icon-btn save" onclick="saveEdit('${r.id}')" title="Guardar">✓</button>
+          <button class="icon-btn" onclick="cancelEdit()" title="Cancelar">✕</button>
+        </div></td>
+      </tr>`;
+    }
+    const actionCell = `<td><div class="edit-actions">
+      <button class="icon-btn" onclick="startEdit('${r.id}')" title="Editar">✎</button>
+      <button class="icon-btn" onclick="deleteHolding('${r.id}')" title="Eliminar">✕</button>
+    </div></td>`;
     if (!r.found) {
       return `<tr>
         <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
         <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
-        ${delCell}
+        ${actionCell}
       </tr>`;
     }
     return `<tr>
@@ -481,13 +532,15 @@ function render(priceMap) {
       <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
       <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
       <td class="mono row-value">${fmtARS(r.value)}</td>
-      ${delCell}
+      ${actionCell}
     </tr>`;
   };
 
-  body.innerHTML = groupBySector(rows).map(({ sector, list, sectorValue }) => {
+  const visibleSectors = activeSectorFilter ? sectors.filter(s => s.sector === activeSectorFilter) : sectors;
+  body.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
     const sectorWeight = totalValue ? (sectorValue / totalValue) * 100 : 0;
-    return `<tr class="sector-row"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
+    const isActive = activeSectorFilter === sector;
+    return `<tr class="sector-row${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
       + list.map(rowHtml).join('');
   }).join('');
 }

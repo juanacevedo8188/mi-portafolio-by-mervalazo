@@ -85,43 +85,103 @@ function buildDonutSVG(values, size) {
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><g transform="rotate(-90 ${cx} ${cy})">${circles}</g></svg>`;
 }
 
-function renderDonut(containerId, sectors, totalValue) {
+function renderDonut(containerId, sectors, totalValue, activeSector, onSectorClick) {
   const el = document.getElementById(containerId);
   if (!sectors.length || !totalValue) {
     el.innerHTML = '<div class="empty-note">Todavía no hay posiciones para graficar.</div>';
     return;
   }
   const svg = buildDonutSVG(sectors.map(s => s.sectorValue));
-  const legend = sectors.map((s, i) => `
-    <div class="donut-legend-row">
+  const legend = sectors.map((s, i) => {
+    const isActive = activeSector === s.sector;
+    const isDim = activeSector && !isActive;
+    return `
+    <div class="donut-legend-row${isActive ? ' active' : ''}${isDim ? ' dim' : ''}" data-sector="${s.sector}">
       <span class="donut-dot" style="background:${donutColor(i)}"></span>
       <span class="donut-legend-label">${s.sector}</span>
       <span class="donut-legend-pct mono">${fmtNum((s.sectorValue / totalValue) * 100)}%</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   el.innerHTML = `<div class="donut-row"><div class="donut-svg">${svg}</div><div class="donut-legend">${legend}</div></div>`;
+  if (onSectorClick) {
+    el.querySelectorAll('.donut-legend-row').forEach(row => {
+      row.addEventListener('click', () => onSectorClick(row.dataset.sector));
+    });
+  }
+}
+
+const CHART_PAD = 10;
+
+function chartCoords(points, width, height) {
+  const values = points.map(p => p.value);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const stepX = points.length > 1 ? (width - CHART_PAD * 2) / (points.length - 1) : 0;
+  return points.map((p, i) => [
+    CHART_PAD + i * stepX,
+    height - CHART_PAD - ((p.value - min) / range) * (height - CHART_PAD * 2)
+  ]);
 }
 
 function buildLineChartSVG(points, width, height) {
   width = width || 600;
   height = height || 140;
-  const pad = 10;
-  const values = points.map(p => p.value);
-  const min = Math.min(...values), max = Math.max(...values);
-  const range = (max - min) || 1;
-  const stepX = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
-  const coords = points.map((p, i) => {
-    const x = pad + i * stepX;
-    const y = height - pad - ((p.value - min) / range) * (height - pad * 2);
-    return [x, y];
-  });
+  const coords = chartCoords(points, width, height);
   const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
   const up = points[points.length - 1].value >= points[0].value;
   const color = up ? 'var(--up)' : 'var(--down)';
-  const areaPath = `${path} L${coords[coords.length - 1][0].toFixed(1)} ${height - pad} L${coords[0][0].toFixed(1)} ${height - pad} Z`;
+  const areaPath = `${path} L${coords[coords.length - 1][0].toFixed(1)} ${height - CHART_PAD} L${coords[0][0].toFixed(1)} ${height - CHART_PAD} Z`;
   return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
     <path d="${areaPath}" fill="${color}" opacity="0.12" stroke="none"/>
     <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+    <circle class="chart-hover-dot" r="4" fill="${color}" stroke="var(--card)" stroke-width="2" style="opacity:0;"/>
   </svg>`;
+}
+
+function attachChartHover(containerId, points, width, height) {
+  const container = document.getElementById(containerId);
+  const svg = container.querySelector('svg');
+  const dot = container.querySelector('.chart-hover-dot');
+  if (!svg || points.length < 2) return;
+
+  let tooltip = document.getElementById('chartTooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'chartTooltip';
+    tooltip.className = 'chart-tooltip';
+    document.body.appendChild(tooltip);
+  }
+
+  const coords = chartCoords(points, width, height);
+  const stepX = points.length > 1 ? (width - CHART_PAD * 2) / (points.length - 1) : 0;
+
+  function handleMove(e) {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const relX = (e.clientX - rect.left) * scaleX;
+    let idx = Math.round((relX - CHART_PAD) / (stepX || 1));
+    idx = Math.max(0, Math.min(points.length - 1, idx));
+    const p = points[idx];
+    const prev = points[idx - 1];
+    const change = prev ? ((p.value - prev.value) / prev.value) * 100 : null;
+    const dateLabel = new Date(p.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    dot.setAttribute('cx', coords[idx][0]);
+    dot.setAttribute('cy', coords[idx][1]);
+    dot.style.opacity = '1';
+
+    tooltip.innerHTML = `<div class="ct-date">${dateLabel}</div><div class="ct-value mono">${fmtARS(p.value)}</div>` +
+      (change != null ? `<div class="ct-change ${pctClass(change)}">${fmtPct(change)} vs día anterior</div>` : '');
+    tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 190) + 'px';
+    tooltip.style.top = Math.max(8, e.clientY - 56) + 'px';
+    tooltip.style.display = 'block';
+  }
+
+  container.addEventListener('mousemove', handleMove);
+  container.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+    dot.style.opacity = '0';
+  });
 }
 
 function tvMiniWidgetUrl(ticker) {
@@ -190,6 +250,7 @@ function renderHistory(chartId, rangeId, points) {
     return;
   }
   chartEl.innerHTML = buildLineChartSVG(points, 600, 140);
+  attachChartHover(chartId, points, 600, 140);
   if (rangeEl) {
     const first = new Date(points[0].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
     const last = new Date(points[points.length - 1].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
