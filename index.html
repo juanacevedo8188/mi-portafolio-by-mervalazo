@@ -65,6 +65,7 @@
         <h2>Brecha Cambiaria</h2>
         <span>venta, de menor a mayor</span>
       </div>
+      <div class="brecha-summary" id="brechaSummary"></div>
       <div class="dollar-bars" id="dollarBars"><div class="empty-note">Cargando…</div></div>
     </section>
 
@@ -136,6 +137,7 @@ function setStatus(state, text) {
 async function loadDollar() {
   const grid = document.getElementById('dollarGrid');
   const barsEl = document.getElementById('dollarBars');
+  const summaryEl = document.getElementById('brechaSummary');
   try {
     const rates = await getAllDolarRates();
     grid.innerHTML = rates.map(r => `
@@ -147,19 +149,33 @@ async function loadDollar() {
     `).join('');
     document.getElementById('dolarUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
 
+    const oficial = rates.find(r => r.casa === 'oficial');
+    const brechaOf = r => oficial ? ((r.venta / oficial.venta) - 1) * 100 : null;
+
+    if (oficial) {
+      const brechas = rates.filter(r => r.casa !== 'oficial').map(brechaOf);
+      const avgBrecha = brechas.reduce((s, v) => s + v, 0) / brechas.length;
+      summaryEl.innerHTML = `<span class="pill flat">Brecha promedio vs. oficial: <b class="mono">${fmtPct(avgBrecha)}</b></span>`;
+    } else {
+      summaryEl.innerHTML = '';
+    }
+
     const sorted = [...rates].sort((a, b) => a.venta - b.venta);
     const max = sorted[sorted.length - 1].venta;
-    barsEl.innerHTML = sorted.map(r => `
+    barsEl.innerHTML = sorted.map(r => {
+      const brecha = r.casa !== 'oficial' ? brechaOf(r) : null;
+      return `
       <div class="dbar-row">
         <span class="dbar-label">${r.nombre}</span>
         <span class="dbar-track"><span class="dbar-fill" style="width:${Math.max((r.venta / max) * 100, 4)}%"></span></span>
-        <span class="dbar-val mono">${fmtARS(r.venta)}</span>
-      </div>
-    `).join('');
+        <span class="dbar-val mono">${fmtARS(r.venta)}${brecha != null ? `<span class="dbar-brecha">${fmtPct(brecha)}</span>` : ''}</span>
+      </div>`;
+    }).join('');
   } catch (err) {
     console.error(err);
     grid.innerHTML = '<div class="empty-note">No se pudo cargar la cotización del dólar.</div>';
     barsEl.innerHTML = '<div class="empty-note">No se pudo cargar.</div>';
+    summaryEl.innerHTML = '';
   }
 }
 
