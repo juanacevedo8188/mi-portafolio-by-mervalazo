@@ -57,17 +57,31 @@ async function getAllDolarRates() {
 }
 
 // API publica y gratuita del BCRA (Banco Central de la Republica Argentina).
+// La API es propensa a fallas puntuales/lentitud, asi que reintenta antes
+// de darse por vencida en vez de mostrar un error por una falla transitoria.
+async function fetchBcra(url, retries) {
+  const attempts = retries == null ? 2 : retries;
+  let lastErr;
+  for (let i = 0; i <= attempts; i++) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('bcra failed: ' + res.status);
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts) await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function getBcraVariables() {
-  const res = await fetch('https://api.bcra.gob.ar/estadisticas/v4.0/monetarias?limit=1000', { cache: 'no-store' });
-  if (!res.ok) throw new Error('bcra failed: ' + res.status);
-  const data = await res.json();
+  const data = await fetchBcra('https://api.bcra.gob.ar/estadisticas/v4.0/monetarias?limit=1000');
   return data.results.filter(r => r.categoria === 'Principales Variables');
 }
 
 async function getBcraSeries(idVariable, limit) {
-  const res = await fetch(`https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/${idVariable}?limit=${limit || 1001}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('bcra series failed: ' + res.status);
-  const data = await res.json();
+  const data = await fetchBcra(`https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/${idVariable}?limit=${limit || 1001}`);
   return data.results[0].detalle; // [{ fecha, valor }], mas reciente primero
 }
 
