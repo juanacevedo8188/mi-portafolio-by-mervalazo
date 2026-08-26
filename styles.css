@@ -229,6 +229,16 @@ input:focus, select:focus{border-color:var(--accent-dim);}
 .btn-primary:disabled{opacity:.6;cursor:default;}
 .user-bar{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--text-dim);}
 
+.converter{padding:18px 20px;display:flex;align-items:end;gap:14px;}
+.converter-field{flex:1;}
+.converter-field label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;}
+.converter-field input{font-size:16px;font-weight:700;font-family:'JetBrains Mono',ui-monospace,monospace;}
+.converter-eq{color:var(--text-faint);font-size:15px;padding-bottom:11px;}
+@media (max-width:480px){
+  .converter{flex-direction:column;align-items:stretch;}
+  .converter-eq{display:none;}
+}
+
 .search-wrap{padding:18px 20px;position:relative;}
 .search-input{font-size:15px;padding:12px 14px;}
 .search-results{

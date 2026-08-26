@@ -43,6 +43,13 @@ async function getUsdArsRate() {
   return rates.reduce((s, v) => s + v, 0) / rates.length;
 }
 
+async function getOficialRate() {
+  const res = await fetch('https://dolarapi.com/v1/dolares/oficial', { cache: 'no-store' });
+  if (!res.ok) throw new Error('dolar oficial failed: ' + res.status);
+  const data = await res.json();
+  return { compra: data.compra, venta: data.venta };
+}
+
 // Cripto se cotiza en dólares (es lo natural para leer su precio) pero para
 // que sume bien en el total de la cartera (en pesos) tambien se guarda el
 // equivalente en ARS usando el dolar MEP promedio del momento.

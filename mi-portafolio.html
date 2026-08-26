@@ -120,6 +120,24 @@
 
     <section class="panel">
       <div class="panel-head">
+        <h2>Conversor USD / ARS</h2>
+        <span id="oficialRateLabel">—</span>
+      </div>
+      <div class="converter">
+        <div class="converter-field">
+          <label>Dólares</label>
+          <input type="number" id="convUsd" placeholder="100" min="0" step="any">
+        </div>
+        <span class="converter-eq">=</span>
+        <div class="converter-field">
+          <label>Pesos</label>
+          <input type="number" id="convArs" placeholder="153000" min="0" step="any">
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Radar rápido</h2>
       </div>
       <div class="quick-metrics" id="quickMetrics"></div>
@@ -610,6 +628,34 @@ async function loadHistory() {
     document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
   }
 }
+
+let oficialVenta = null;
+
+async function initConverter() {
+  try {
+    const { compra, venta } = await getOficialRate();
+    oficialVenta = venta;
+    document.getElementById('oficialRateLabel').textContent =
+      `Oficial: compra ${fmtARS(compra)} · venta ${fmtARS(venta)}`;
+  } catch (err) {
+    console.error(err);
+    document.getElementById('oficialRateLabel').textContent = 'No se pudo cargar la cotización';
+  }
+}
+
+document.getElementById('convUsd').addEventListener('input', e => {
+  if (!oficialVenta) return;
+  const usd = parseFloat(e.target.value);
+  document.getElementById('convArs').value = usd > 0 ? (usd * oficialVenta).toFixed(2) : '';
+});
+document.getElementById('convArs').addEventListener('input', e => {
+  if (!oficialVenta) return;
+  const ars = parseFloat(e.target.value);
+  document.getElementById('convUsd').value = ars > 0 ? (ars / oficialVenta).toFixed(2) : '';
+});
+
+initConverter();
+setInterval(initConverter, 60000);
 
 initTVHover();
 
