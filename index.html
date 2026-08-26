@@ -62,6 +62,24 @@
   <div class="dashboard-grid">
     <section class="panel">
       <div class="panel-head">
+        <h2>Brecha Cambiaria</h2>
+        <span>venta, de menor a mayor</span>
+      </div>
+      <div class="dollar-bars" id="dollarBars"><div class="empty-note">Cargando…</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Termómetro del Mercado</h2>
+        <span>acciones + CEDEARs, hoy</span>
+      </div>
+      <div id="marketBreadth"><div class="empty-note">Cargando…</div></div>
+    </section>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="panel">
+      <div class="panel-head">
         <h2>Mercado</h2>
         <div class="view-switch">
           <button class="vs-arrow" onclick="cycleView('market', -1)" title="Anterior">‹</button>
@@ -97,33 +115,8 @@
     <div id="topStocksArg"><div class="empty-note">Cargando…</div></div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Renta Fija — LECAPs</h2>
-      <span id="lecapUpdated">—</span>
-    </div>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Vencimiento</th>
-            <th>DTM</th>
-            <th>TEM</th>
-            <th>TNA</th>
-            <th>TEA</th>
-            <th>Precio</th>
-          </tr>
-        </thead>
-        <tbody id="lecapBody">
-          <tr><td colspan="7" class="empty-note">Cargando…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
   <footer>
-    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>, cotizaciones del dólar por <a href="https://dolarapi.com" target="_blank" rel="noopener">dolarapi.com</a> y datos de LECAPs por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
+    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y cotizaciones del dólar por <a href="https://dolarapi.com" target="_blank" rel="noopener">dolarapi.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
   </footer>
 </main>
 
@@ -142,6 +135,7 @@ function setStatus(state, text) {
 
 async function loadDollar() {
   const grid = document.getElementById('dollarGrid');
+  const barsEl = document.getElementById('dollarBars');
   try {
     const rates = await getAllDolarRates();
     grid.innerHTML = rates.map(r => `
@@ -152,9 +146,20 @@ async function loadDollar() {
       </div>
     `).join('');
     document.getElementById('dolarUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+
+    const sorted = [...rates].sort((a, b) => a.venta - b.venta);
+    const max = sorted[sorted.length - 1].venta;
+    barsEl.innerHTML = sorted.map(r => `
+      <div class="dbar-row">
+        <span class="dbar-label">${r.nombre}</span>
+        <span class="dbar-track"><span class="dbar-fill" style="width:${Math.max((r.venta / max) * 100, 4)}%"></span></span>
+        <span class="dbar-val mono">${fmtARS(r.venta)}</span>
+      </div>
+    `).join('');
   } catch (err) {
     console.error(err);
     grid.innerHTML = '<div class="empty-note">No se pudo cargar la cotización del dólar.</div>';
+    barsEl.innerHTML = '<div class="empty-note">No se pudo cargar.</div>';
   }
 }
 
@@ -222,6 +227,28 @@ function renderCrypto() {
   )).join('');
 }
 
+function renderMarketBreadth() {
+  const el = document.getElementById('marketBreadth');
+  const rows = panelData.market;
+  if (!rows.length) { el.innerHTML = '<div class="empty-note">Sin datos.</div>'; return; }
+  const up = rows.filter(r => r.pct_change > 0.005).length;
+  const down = rows.filter(r => r.pct_change < -0.005).length;
+  const flat = rows.length - up - down;
+  const pct = n => (n / rows.length) * 100;
+  el.innerHTML = `
+    <div class="breadth-bar">
+      <span class="breadth-seg up" style="width:${pct(up)}%"></span>
+      <span class="breadth-seg flat" style="width:${pct(flat)}%"></span>
+      <span class="breadth-seg down" style="width:${pct(down)}%"></span>
+    </div>
+    <div class="breadth-legend">
+      <span class="chg up">${up} suben</span>
+      <span class="chg flat">${flat} igual</span>
+      <span class="chg down">${down} bajan</span>
+    </div>
+  `;
+}
+
 async function loadTopGainers() {
   try {
     const [stocks, cedears] = await Promise.all([fetchFeed('arg_stocks'), fetchFeed('arg_cedears')]);
@@ -230,9 +257,11 @@ async function loadTopGainers() {
       ...cedears.map(s => ({ ...s, tipo: 'cedear' }))
     ].filter(s => s.v > 0 && typeof s.pct_change === 'number');
     renderMarket();
+    renderMarketBreadth();
   } catch (err) {
     console.error(err);
     document.getElementById('topGainers').innerHTML = '<div class="empty-note">No se pudo cargar el ranking.</div>';
+    document.getElementById('marketBreadth').innerHTML = '<div class="empty-note">No se pudo cargar.</div>';
   }
 }
 
@@ -258,40 +287,13 @@ async function loadTopCrypto() {
   }
 }
 
-async function loadLecaps() {
-  const body = document.getElementById('lecapBody');
-  try {
-    const data = await getLecapData();
-    if (!data.length) {
-      body.innerHTML = '<tr><td colspan="7" class="empty-note">No hay LECAPs vigentes en este momento.</td></tr>';
-      document.getElementById('lecapUpdated').textContent = '';
-      return;
-    }
-    body.innerHTML = data.map(l => `
-      <tr>
-        <td><span class="tk">${l.ticker}</span></td>
-        <td class="mono">${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-        <td class="mono">${l.dtm}</td>
-        <td class="mono">${fmtNum(l.tem)}%</td>
-        <td class="mono">${fmtNum(l.tna)}%</td>
-        <td class="mono">${fmtNum(l.tea)}%</td>
-        <td class="mono row-value">${fmtARS(l.price)}</td>
-      </tr>
-    `).join('');
-    document.getElementById('lecapUpdated').textContent = data.length + ' letras vigentes';
-  } catch (err) {
-    console.error(err);
-    body.innerHTML = '<tr><td colspan="7" class="empty-note">No se pudo cargar la información de LECAPs.</td></tr>';
-  }
-}
-
 async function loadAll(manual) {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
   btn.classList.add('spinning');
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
-    await Promise.all([loadDollar(), loadTopGainers(), loadTopCrypto(), loadTopStocksArg(), loadLecaps()]);
+    await Promise.all([loadDollar(), loadTopGainers(), loadTopCrypto(), loadTopStocksArg()]);
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
