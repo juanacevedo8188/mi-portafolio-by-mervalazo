@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Buscar</title>
+<meta name="description" content="Buscá cualquier acción o CEDEAR argentino, mirá su cotización y guardalo en tu lista de seguimiento.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Buscar activos">
+<meta property="og:description" content="Buscá cualquier acción o CEDEAR argentino, mirá su cotización y guardalo en tu lista de seguimiento.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/buscar.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Buscar activos">
+<meta name="twitter:description" content="Buscá cualquier acción o CEDEAR argentino, mirá su cotización y guardalo en tu lista de seguimiento.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .login-note{padding:16px 20px;color:var(--text-dim);font-size:13px;line-height:1.5;}
+  .login-note a{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Buscar</h1>
+        <p>Cualquier acción o CEDEAR de ByMA</p>
+      </div>
+    </div>
+    <div class="status" id="headerRight">
+      <a href="index.html" class="nav-link">← Cartera Mervalazo</a>
+      <a href="mi-portafolio.html" class="nav-link">Mi Portafolio →</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Buscar activo</h2>
+      <span id="searchStatus">—</span>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" class="search-input" placeholder="Buscá por ticker, ej: GGAL, AAPL, VIST…" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="detailPanel" style="display:none;">
+    <div class="detail-head">
+      <div class="dh-left">
+        <span class="tk" id="detailTicker" style="font-size:17px;font-weight:800;"></span>
+        <span class="tag" id="detailTag"></span>
+        <span class="chg" id="detailChg"></span>
+      </div>
+      <button class="follow-btn" id="followBtn" onclick="toggleFollow()">+ Seguir</button>
+    </div>
+    <div class="tv-chart-wrap" id="tvChartWrap"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Mi lista de seguimiento</h2>
+      <span id="watchlistStatus"></span>
+    </div>
+    <div id="watchlistBody">
+      <div class="login-note">Iniciá sesión en <a href="mi-portafolio.html">Mi Portafolio</a> para guardar y ver tu lista de seguimiento.</div>
+    </div>
+  </section>
+
+  <footer>
+    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> con demora de mercado, a título informativo. No constituye recomendación de inversión.
+    Gráficos por <a href="https://www.tradingview.com" target="_blank" rel="noopener">TradingView</a>.
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+let currentSession = null;
+let masterList = [];
+let watchlistCache = [];
+let activeTicker = null;
+let activeTipo = null;
+
+async function loadMasterList() {
+  document.getElementById('searchStatus').textContent = 'Cargando…';
+  try {
+    const [stocks, cedears] = await Promise.all([
+      fetchFeed('arg_stocks'),
+      fetchFeed('arg_cedears')
+    ]);
+    masterList = [
+      ...stocks.map(s => ({ ...s, tipo: 'accion' })),
+      ...cedears.map(s => ({ ...s, tipo: 'cedear' }))
+    ];
+    document.getElementById('searchStatus').textContent = masterList.length + ' activos disponibles';
+  } catch (err) {
+    console.error(err);
+    document.getElementById('searchStatus').textContent = 'No se pudo cargar el listado';
+  }
+}
+
+function renderSearchResults(query) {
+  const el = document.getElementById('searchResults');
+  if (!query) {
+    el.classList.remove('open');
+    el.innerHTML = '';
+    return;
+  }
+  const q = query.trim().toUpperCase();
+  const starts = masterList.filter(s => s.symbol.startsWith(q));
+  const includes = masterList.filter(s => !s.symbol.startsWith(q) && s.symbol.includes(q));
+  const matches = [...starts, ...includes].slice(0, 20);
+
+  if (!matches.length) {
+    el.innerHTML = '<div class="empty-note">Sin resultados para "' + query + '"</div>';
+    el.classList.add('open');
+    return;
+  }
+
+  el.innerHTML = matches.map(s => `
+    <div class="search-result-row" data-ticker="${s.symbol}" data-tipo="${s.tipo}">
+      <span class="tk">${s.symbol}</span>
+      <span class="tag ${s.tipo}">${s.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span>
+      <span class="sr-price mono">${fmtARS(s.c)} <span class="chg ${pctClass(s.pct_change)}">${fmtPct(s.pct_change)}</span></span>
+    </div>
+  `).join('');
+  el.classList.add('open');
+
+  el.querySelectorAll('.search-result-row').forEach(row => {
+    row.addEventListener('click', () => selectTicker(row.dataset.ticker, row.dataset.tipo));
+  });
+}
+
+function selectTicker(ticker, tipo) {
+  activeTicker = ticker;
+  activeTipo = tipo;
+  document.getElementById('searchInput').value = ticker;
+  document.getElementById('searchResults').classList.remove('open');
+
+  const q = masterList.find(s => s.symbol === ticker);
+  document.getElementById('detailTicker').textContent = ticker;
+  document.getElementById('detailTag').textContent = tipo === 'cedear' ? 'CEDEAR' : 'Acción';
+  document.getElementById('detailTag').className = 'tag ' + tipo;
+  const chgEl = document.getElementById('detailChg');
+  if (q) {
+    chgEl.textContent = fmtARS(q.c) + ' · ' + fmtPct(q.pct_change);
+    chgEl.className = 'chg ' + pctClass(q.pct_change);
+  } else {
+    chgEl.textContent = '';
+  }
+
+  const config = {
+    symbols: [['BCBA:' + ticker + '|1D']],
+    chartOnly: false, width: '100%', height: '100%', locale: 'es', colorTheme: 'dark',
+    autosize: true, showVolume: false, showMA: false, hideDateRanges: false,
+    hideMarketStatus: false, hideSymbolLogo: false, scalePosition: 'right', scaleMode: 'Normal',
+    fontFamily: 'Inter', fontSize: '10', noTimeScale: false, valuesTracking: '1',
+    changeMode: 'price-and-percent', chartType: 'area', isTransparent: false
+  };
+  const url = 'https://s.tradingview.com/embed-widget/symbol-overview/?t=' + encodeURIComponent(ticker) +
+    '#' + encodeURIComponent(JSON.stringify(config));
+  document.getElementById('tvChartWrap').innerHTML = `<iframe src="${url}" frameborder="0"></iframe>`;
+  document.getElementById('detailPanel').style.display = 'block';
+
+  updateFollowBtn();
+}
+
+function updateFollowBtn() {
+  const btn = document.getElementById('followBtn');
+  const isFollowing = watchlistCache.some(w => w.ticker === activeTicker);
+  btn.textContent = isFollowing ? '✓ Siguiendo' : '+ Seguir';
+  btn.className = 'follow-btn' + (isFollowing ? ' following' : '');
+}
+
+async function toggleFollow() {
+  if (!activeTicker) return;
+  if (!currentSession) {
+    alert('Iniciá sesión en Mi Portafolio para guardar tu lista de seguimiento.');
+    return;
+  }
+  const isFollowing = watchlistCache.some(w => w.ticker === activeTicker);
+  if (isFollowing) {
+    await sb.from('watchlist').delete().eq('ticker', activeTicker);
+  } else {
+    await sb.from('watchlist').insert({ ticker: activeTicker, tipo: activeTipo });
+  }
+  await loadWatchlist();
+  updateFollowBtn();
+}
+
+async function unfollow(ticker) {
+  await sb.from('watchlist').delete().eq('ticker', ticker);
+  await loadWatchlist();
+  if (ticker === activeTicker) updateFollowBtn();
+}
+
+async function loadWatchlist() {
+  if (!currentSession) {
+    watchlistCache = [];
+    document.getElementById('watchlistBody').innerHTML =
+      '<div class="login-note">Iniciá sesión en <a href="mi-portafolio.html">Mi Portafolio</a> para guardar y ver tu lista de seguimiento.</div>';
+    document.getElementById('watchlistStatus').textContent = '';
+    return;
+  }
+  const { data, error } = await sb.from('watchlist').select('*').order('created_at', { ascending: true });
+  if (error) {
+    console.error(error);
+    return;
+  }
+  watchlistCache = data;
+  renderWatchlist();
+}
+
+function renderWatchlist() {
+  const body = document.getElementById('watchlistBody');
+  document.getElementById('watchlistStatus').textContent = watchlistCache.length + ' activos';
+  if (!watchlistCache.length) {
+    body.innerHTML = '<div class="empty-note">Todavía no seguís ningún activo. Buscá uno arriba y tocá "+ Seguir".</div>';
+    return;
+  }
+  const priceOf = ticker => masterList.find(s => s.symbol === ticker);
+  body.innerHTML = watchlistCache.map(w => {
+    const q = priceOf(w.ticker);
+    return `<div class="watchlist-row">
+      ${tvLink(w.ticker)}
+      <span class="tag ${w.tipo}">${w.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span>
+      <span class="sr-price mono">${q ? fmtARS(q.c) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
+      <button class="icon-btn" onclick="unfollow('${w.ticker}')" title="Dejar de seguir">✕</button>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('searchInput').addEventListener('input', e => renderSearchResults(e.target.value));
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap')) {
+    document.getElementById('searchResults').classList.remove('open');
+  }
+});
+
+initTVHover();
+
+sb.auth.onAuthStateChange((_event, session) => {
+  currentSession = session;
+  const headerRight = document.getElementById('headerRight');
+  headerRight.innerHTML = session
+    ? '<a href="index.html" class="nav-link">← Cartera Mervalazo</a><a href="mi-portafolio.html" class="nav-link">Mi Portafolio →</a><span class="user-bar">' + session.user.email + '</span>'
+    : '<a href="index.html" class="nav-link">← Cartera Mervalazo</a><a href="mi-portafolio.html" class="nav-link">Mi Portafolio →</a>';
+  loadWatchlist();
+});
+
+loadMasterList().then(() => {
+  renderWatchlist();
+});
+setInterval(async () => {
+  await loadMasterList();
+  renderSearchResults(document.getElementById('searchInput').value);
+  renderWatchlist();
+}, 60000);
+</script>
+
+</body>
+</html>

@@ -210,7 +210,11 @@ function tvMiniWidgetUrl(ticker) {
     autosize: false,
     largeChartUrl: ''
   };
-  return 'https://s.tradingview.com/embed-widget/mini-symbol-overview/#' + encodeURIComponent(JSON.stringify(config));
+  // El query param con el ticker (no solo el hash) es necesario para que el
+  // iframe realmente recargue al cambiar de activo — si solo cambia el hash,
+  // algunos navegadores lo tratan como navegacion interna y no re-renderizan.
+  return 'https://s.tradingview.com/embed-widget/mini-symbol-overview/?t=' + encodeURIComponent(ticker) +
+    '#' + encodeURIComponent(JSON.stringify(config));
 }
 
 function tvLink(ticker) {
