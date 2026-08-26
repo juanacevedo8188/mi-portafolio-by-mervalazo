@@ -461,13 +461,13 @@ function render(priceMap) {
     const delCell = `<td><button class="del-btn" onclick="deleteHolding('${r.id}')" title="Eliminar">✕</button></td>`;
     if (!r.found) {
       return `<tr>
-        <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
         <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
         ${delCell}
       </tr>`;
     }
     return `<tr>
-      <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+      <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
       <td class="mono">${fmtNum(r.cantidad)}</td>
       <td class="mono">${fmtARS(r.precio_compra)}</td>
       <td class="mono">${fmtARS(r.price)}</td>
@@ -501,6 +501,8 @@ async function loadHistory() {
     document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
   }
 }
+
+initTVHover();
 
 sb.auth.onAuthStateChange((event, session) => {
   currentSession = session;

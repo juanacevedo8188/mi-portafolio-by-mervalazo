@@ -195,14 +195,14 @@ function render(priceMap) {
   const rowHtml = r => {
     if (!r.found) {
       return `<tr>
-        <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
         <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
         <td class="row-value">${fmtPct((r.value ?? r.cost) / totalValue * 100)}</td>
       </tr>`;
     }
     const weight = ((r.value ?? 0) / totalValue) * 100;
     return `<tr>
-      <td><div class="ticker-cell"><span class="tk">${r.ticker}</span><span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+      <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
       <td class="mono">${fmtNum(r.cantidad)}</td>
       <td class="mono">${fmtARS(r.precioCompra)}</td>
       <td class="mono">${fmtARS(r.price)}</td>
@@ -227,7 +227,7 @@ function render(priceMap) {
     const rowsHtml = list.map(r => {
       const weight = ((r.value ?? r.cost) / totalValue) * 100;
       return `<div class="comp-row">
-        <span class="tk">${r.ticker}</span>
+        ${tvLink(r.ticker)}
         <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 2)}%;background:${color};"></span></span>
         <span class="pct mono"><span class="amt">${fmtARS(r.value ?? r.cost)}</span>${fmtNum(weight)}%</span>
       </div>`;
@@ -252,6 +252,7 @@ async function loadHistory() {
   }
 }
 
+initTVHover();
 loadPrices(false);
 loadHistory();
 refreshTimer = setInterval(() => loadPrices(false), REFRESH_MS);

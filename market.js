@@ -124,6 +124,63 @@ function buildLineChartSVG(points, width, height) {
   </svg>`;
 }
 
+function tvMiniWidgetUrl(ticker) {
+  const config = {
+    symbol: 'BCBA:' + ticker,
+    width: 300,
+    height: 160,
+    locale: 'es',
+    dateRange: '1M',
+    colorTheme: 'dark',
+    isTransparent: false,
+    autosize: false,
+    largeChartUrl: ''
+  };
+  return 'https://s.tradingview.com/embed-widget/mini-symbol-overview/#' + encodeURIComponent(JSON.stringify(config));
+}
+
+function tvLink(ticker) {
+  return `<a href="https://www.tradingview.com/symbols/BCBA-${ticker}/" target="_blank" rel="noopener" class="tk tk-link" data-ticker="${ticker}">${ticker}</a>`;
+}
+
+let tvHoverInitialized = false;
+function initTVHover() {
+  if (tvHoverInitialized) return;
+  tvHoverInitialized = true;
+
+  const tooltip = document.createElement('div');
+  tooltip.id = 'tvPreview';
+  tooltip.innerHTML = '<iframe frameborder="0" width="300" height="160"></iframe>';
+  document.body.appendChild(tooltip);
+  const iframe = tooltip.querySelector('iframe');
+  let hideTimer = null;
+
+  document.addEventListener('mouseover', e => {
+    const link = e.target.closest('.tk-link');
+    if (!link) return;
+    clearTimeout(hideTimer);
+    const ticker = link.dataset.ticker;
+    if (iframe.dataset.ticker !== ticker) {
+      iframe.src = tvMiniWidgetUrl(ticker);
+      iframe.dataset.ticker = ticker;
+    }
+    const rect = link.getBoundingClientRect();
+    let left = rect.right + 10;
+    let top = rect.top;
+    if (left + 310 > window.innerWidth) left = rect.left - 310;
+    if (top + 170 > window.innerHeight) top = window.innerHeight - 170;
+    tooltip.style.left = Math.max(8, left) + 'px';
+    tooltip.style.top = Math.max(8, top) + 'px';
+    tooltip.style.display = 'block';
+  });
+
+  document.addEventListener('mouseout', e => {
+    const link = e.target.closest('.tk-link');
+    if (!link) return;
+    hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 100);
+  });
+}
+
 function renderHistory(chartId, rangeId, points) {
   const chartEl = document.getElementById(chartId);
   const rangeEl = document.getElementById(rangeId);
