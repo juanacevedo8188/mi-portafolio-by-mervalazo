@@ -99,6 +99,18 @@ let watchlistCache = [];
 let activeTicker = null;
 let activeTipo = null;
 
+let collapsedGroups = new Set();
+try {
+  collapsedGroups = new Set(JSON.parse(localStorage.getItem('mervalazo_collapsed_groups') || '[]'));
+} catch (e) { /* localStorage no disponible, arranca sin grupos colapsados */ }
+
+function toggleGroup(label) {
+  if (collapsedGroups.has(label)) collapsedGroups.delete(label);
+  else collapsedGroups.add(label);
+  try { localStorage.setItem('mervalazo_collapsed_groups', JSON.stringify([...collapsedGroups])); } catch (e) {}
+  renderWatchlist();
+}
+
 async function loadMasterList() {
   document.getElementById('searchStatus').textContent = 'Cargando…';
   try {
@@ -269,9 +281,12 @@ function renderWatchlist() {
     </div>`;
   };
 
-  body.innerHTML = datalistHtml + groupWatchlist(watchlistCache).map(g =>
-    `<div class="watch-group-header">${g.label}</div>${g.items.map(rowHtml).join('')}`
-  ).join('');
+  body.innerHTML = datalistHtml + groupWatchlist(watchlistCache).map(g => {
+    const isCollapsed = collapsedGroups.has(g.label);
+    return `<div class="watch-group-header${isCollapsed ? ' collapsed' : ''}" onclick="toggleGroup('${g.label.replace(/'/g, "\\'")}')">
+      <span class="wg-chevron">▾</span>${g.label}<span class="wg-count">${g.items.length}</span>
+    </div>${isCollapsed ? '' : g.items.map(rowHtml).join('')}`;
+  }).join('');
 }
 
 document.getElementById('searchInput').addEventListener('input', e => renderSearchResults(e.target.value));

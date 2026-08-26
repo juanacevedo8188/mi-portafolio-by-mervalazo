@@ -268,7 +268,16 @@ input:focus, select:focus{border-color:var(--accent-dim);}
 
 .watch-group-header{
   font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);
-  padding:14px 20px 6px;background:var(--bg-alt);border-bottom:1px solid var(--divider);
+  padding:12px 20px;background:var(--bg-alt);border-bottom:1px solid var(--divider);
+  cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;
+}
+.watch-group-header:hover{color:var(--text);}
+.wg-chevron{display:inline-block;transition:transform .15s;font-size:10px;color:var(--text-faint);}
+.watch-group-header.collapsed .wg-chevron{transform:rotate(-90deg);}
+.watch-group-header.collapsed{border-bottom:none;}
+.wg-count{
+  margin-left:auto;background:var(--card);border:1px solid var(--card-border);color:var(--text-faint);
+  padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700;
 }
 .group-input{
   width:130px;flex-shrink:0;background:transparent;border:1px dashed var(--card-border);color:var(--text-dim);
