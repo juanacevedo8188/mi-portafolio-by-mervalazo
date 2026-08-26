@@ -114,13 +114,15 @@ function toggleGroup(label) {
 async function loadMasterList() {
   document.getElementById('searchStatus').textContent = 'Cargando…';
   try {
-    const [stocks, cedears] = await Promise.all([
+    const [stocks, cedears, cryptoMap] = await Promise.all([
       fetchFeed('arg_stocks'),
-      fetchFeed('arg_cedears')
+      fetchFeed('arg_cedears'),
+      getCryptoMap().catch(err => { console.error('no se pudo cargar cripto', err); return new Map(); })
     ]);
     masterList = [
       ...stocks.map(s => ({ ...s, tipo: 'accion' })),
-      ...cedears.map(s => ({ ...s, tipo: 'cedear' }))
+      ...cedears.map(s => ({ ...s, tipo: 'cedear' })),
+      ...[...cryptoMap.values()].map(c => ({ ...c, tipo: 'cripto' }))
     ];
     document.getElementById('searchStatus').textContent = masterList.length + ' activos disponibles';
   } catch (err) {
@@ -150,7 +152,7 @@ function renderSearchResults(query) {
   el.innerHTML = matches.map(s => `
     <div class="search-result-row" data-ticker="${s.symbol}" data-tipo="${s.tipo}">
       <span class="tk">${s.symbol}</span>
-      <span class="tag ${s.tipo}">${s.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span>
+      <span class="tag ${s.tipo}">${tipoLabel(s.tipo)}</span>
       <span class="sr-price mono">${fmtARS(s.c)} <span class="chg ${pctClass(s.pct_change)}">${fmtPct(s.pct_change)}</span></span>
     </div>
   `).join('');
@@ -169,7 +171,7 @@ function selectTicker(ticker, tipo) {
 
   const q = masterList.find(s => s.symbol === ticker);
   document.getElementById('detailTicker').textContent = ticker;
-  document.getElementById('detailTag').textContent = tipo === 'cedear' ? 'CEDEAR' : 'Acción';
+  document.getElementById('detailTag').textContent = tipoLabel(tipo);
   document.getElementById('detailTag').className = 'tag ' + tipo;
   const chgEl = document.getElementById('detailChg');
   if (q) {
@@ -180,7 +182,7 @@ function selectTicker(ticker, tipo) {
   }
 
   const config = {
-    symbols: [['BCBA:' + ticker + '|1D']],
+    symbols: [[tvSymbol(ticker, tipo) + '|1D']],
     chartOnly: false, width: '100%', height: '100%', locale: 'es', colorTheme: 'dark',
     autosize: true, showVolume: false, showMA: false, hideDateRanges: false,
     hideMarketStatus: false, hideSymbolLogo: false, scalePosition: 'right', scaleMode: 'Normal',
@@ -273,8 +275,8 @@ function renderWatchlist() {
   const rowHtml = w => {
     const q = priceOf(w.ticker);
     return `<div class="watchlist-row">
-      ${tvLink(w.ticker)}
-      <span class="tag ${w.tipo}">${w.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span>
+      ${tvLink(w.ticker, w.tipo)}
+      <span class="tag ${w.tipo}">${tipoLabel(w.tipo)}</span>
       <input class="group-input" list="groupOptions" placeholder="Sin categoría" value="${w.grupo || ''}" onchange="updateGroup('${w.id}', this.value)">
       <span class="sr-price mono">${q ? fmtARS(q.c) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
       <button class="icon-btn" onclick="unfollow('${w.ticker}')" title="Dejar de seguir">✕</button>

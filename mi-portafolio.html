@@ -156,6 +156,7 @@
           <select id="fTipo">
             <option value="accion">Acción</option>
             <option value="cedear">CEDEAR</option>
+            <option value="cripto">Cripto</option>
           </select>
         </div>
         <div>
@@ -168,6 +169,7 @@
             <option value="Consumo">Consumo</option>
             <option value="Tecnología">Tecnología</option>
             <option value="Real Estate">Real Estate</option>
+            <option value="Cripto">Cripto</option>
             <option value="Otro">Otro</option>
           </select>
         </div>
@@ -385,7 +387,7 @@ async function loadHoldings() {
   }
   holdingsCache = data;
   try {
-    const priceMap = await getPriceMap();
+    const priceMap = await getPriceMap(true);
     render(priceMap);
     hasRenderedOnce = true;
     document.getElementById('lastUpdate').textContent =
@@ -412,17 +414,43 @@ async function addHolding(evt) {
 
   if (!ticker || !(cantidad > 0) || !(precioCompra > 0)) return;
 
-  const btn = document.getElementById('addBtn');
-  btn.disabled = true;
-  const { error } = await sb.from('holdings').insert({
-    ticker, tipo, sector, cantidad, precio_compra: precioCompra
-  });
-  btn.disabled = false;
+  const existing = holdingsCache.find(h => h.ticker === ticker);
 
-  if (error) {
-    errEl.textContent = error.message;
-    errEl.style.display = 'block';
-    return;
+  if (existing) {
+    const nuevaCantidad = existing.cantidad + cantidad;
+    const nuevoPromedio = (existing.cantidad * existing.precio_compra + cantidad * precioCompra) / nuevaCantidad;
+    const ok = confirm(
+      `Ya tenés ${fmtNum(existing.cantidad)} ${ticker} a ${fmtARS(existing.precio_compra)} de promedio.\n\n` +
+      `Sumando ${fmtNum(cantidad)} más a ${fmtARS(precioCompra)}, tu posición quedaría:\n` +
+      `${fmtNum(nuevaCantidad)} ${ticker} a ${fmtARS(nuevoPromedio)} de promedio.\n\n¿Confirmás?`
+    );
+    if (!ok) return;
+
+    const btn = document.getElementById('addBtn');
+    btn.disabled = true;
+    const { error } = await sb.from('holdings').update({
+      cantidad: nuevaCantidad, precio_compra: nuevoPromedio
+    }).eq('id', existing.id);
+    btn.disabled = false;
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      return;
+    }
+  } else {
+    const btn = document.getElementById('addBtn');
+    btn.disabled = true;
+    const { error } = await sb.from('holdings').insert({
+      ticker, tipo, sector, cantidad, precio_compra: precioCompra
+    });
+    btn.disabled = false;
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      return;
+    }
   }
   document.getElementById('fTicker').value = '';
   document.getElementById('fCantidad').value = '';
@@ -503,7 +531,7 @@ function render(priceMap) {
   const rowHtml = r => {
     if (r.id === editingId) {
       return `<tr>
-        <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
         <td><input class="edit-row-input" id="editCantidad-${r.id}" type="number" min="0" step="any" value="${r.cantidad}"></td>
         <td><input class="edit-row-input" id="editPrecio-${r.id}" type="number" min="0" step="any" value="${r.precio_compra}"></td>
         <td class="mono">${r.price != null ? fmtARS(r.price) : '—'}</td>
@@ -521,13 +549,13 @@ function render(priceMap) {
     </div></td>`;
     if (!r.found) {
       return `<tr>
-        <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
         <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
         ${actionCell}
       </tr>`;
     }
     return `<tr>
-      <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+      <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
       <td class="mono">${fmtNum(r.cantidad)}</td>
       <td class="mono">${fmtARS(r.precio_compra)}</td>
       <td class="mono">${fmtARS(r.price)}</td>

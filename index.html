@@ -235,14 +235,14 @@ function render(priceMap) {
   const rowHtml = r => {
     if (!r.found) {
       return `<tr>
-        <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+        <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
         <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
         <td class="row-value">${fmtPct((r.value ?? r.cost) / totalValue * 100)}</td>
       </tr>`;
     }
     const weight = ((r.value ?? 0) / totalValue) * 100;
     return `<tr>
-      <td><div class="ticker-cell">${tvLink(r.ticker)}<span class="tag ${r.tipo}">${r.tipo === 'cedear' ? 'CEDEAR' : 'Acción'}</span></div></td>
+      <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
       <td class="mono">${fmtNum(r.cantidad)}</td>
       <td class="mono">${fmtARS(r.precioCompra)}</td>
       <td class="mono">${fmtARS(r.price)}</td>

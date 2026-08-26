@@ -9,14 +9,63 @@ async function fetchFeed(path) {
   return res.json();
 }
 
-async function getPriceMap() {
+const CRYPTO_LIST = [
+  { id: 'bitcoin', symbol: 'BTC' },
+  { id: 'ethereum', symbol: 'ETH' },
+  { id: 'binancecoin', symbol: 'BNB' },
+  { id: 'ripple', symbol: 'XRP' },
+  { id: 'solana', symbol: 'SOL' },
+  { id: 'cardano', symbol: 'ADA' },
+  { id: 'dogecoin', symbol: 'DOGE' },
+  { id: 'tron', symbol: 'TRX' },
+  { id: 'polkadot', symbol: 'DOT' },
+  { id: 'avalanche-2', symbol: 'AVAX' },
+  { id: 'chainlink', symbol: 'LINK' },
+  { id: 'litecoin', symbol: 'LTC' },
+  { id: 'bitcoin-cash', symbol: 'BCH' },
+  { id: 'cosmos', symbol: 'ATOM' },
+  { id: 'ethereum-classic', symbol: 'ETC' },
+  { id: 'stellar', symbol: 'XLM' },
+  { id: 'shiba-inu', symbol: 'SHIB' },
+  { id: 'matic-network', symbol: 'MATIC' },
+  { id: 'tether', symbol: 'USDT' },
+  { id: 'usd-coin', symbol: 'USDC' }
+];
+
+async function getCryptoMap() {
+  const ids = CRYPTO_LIST.map(c => c.id).join(',');
+  const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=ars&ids=' + ids, { cache: 'no-store' });
+  if (!res.ok) throw new Error('crypto feed failed: ' + res.status);
+  const data = await res.json();
+  const map = new Map();
+  data.forEach(coin => {
+    const entry = CRYPTO_LIST.find(c => c.id === coin.id);
+    if (!entry) return;
+    map.set(entry.symbol, { symbol: entry.symbol, c: coin.current_price, pct_change: coin.price_change_percentage_24h, name: coin.name });
+  });
+  return map;
+}
+
+async function getPriceMap(includeCrypto) {
   const [stocks, cedears] = await Promise.all([
     fetchFeed('arg_stocks'),
     fetchFeed('arg_cedears')
   ]);
   const priceMap = new Map();
   [...stocks, ...cedears].forEach(row => priceMap.set(row.symbol, row));
+  if (includeCrypto) {
+    try {
+      const cryptoMap = await getCryptoMap();
+      cryptoMap.forEach((v, k) => priceMap.set(k, v));
+    } catch (err) {
+      console.error('no se pudo cargar precios de cripto', err);
+    }
+  }
   return priceMap;
+}
+
+function tipoLabel(tipo) {
+  return tipo === 'cedear' ? 'CEDEAR' : tipo === 'cripto' ? 'Cripto' : 'Acción';
 }
 
 const DONUT_PALETTE = ['#f1a887', '#4fa8a0', '#f2c879', '#7fa8d9', '#d98880', '#8cc7b5', '#b39ddb', '#93a3a1'];
@@ -198,9 +247,19 @@ function attachChartHover(containerId, points, width, height) {
   });
 }
 
-function tvMiniWidgetUrl(ticker) {
+function tvSymbol(ticker, tipo) {
+  return tipo === 'cripto' ? 'BINANCE:' + ticker + 'USDT' : 'BCBA:' + ticker;
+}
+
+function tvUrl(ticker, tipo) {
+  return tipo === 'cripto'
+    ? 'https://www.tradingview.com/symbols/' + ticker + 'USDT/'
+    : 'https://www.tradingview.com/symbols/BCBA-' + ticker + '/';
+}
+
+function tvMiniWidgetUrl(ticker, tipo) {
   const config = {
-    symbol: 'BCBA:' + ticker,
+    symbol: tvSymbol(ticker, tipo),
     width: 300,
     height: 160,
     locale: 'es',
@@ -217,8 +276,8 @@ function tvMiniWidgetUrl(ticker) {
     '#' + encodeURIComponent(JSON.stringify(config));
 }
 
-function tvLink(ticker) {
-  return `<a href="https://www.tradingview.com/symbols/BCBA-${ticker}/" target="_blank" rel="noopener" class="tk tk-link" data-ticker="${ticker}">${ticker}</a>`;
+function tvLink(ticker, tipo) {
+  return `<a href="${tvUrl(ticker, tipo)}" target="_blank" rel="noopener" class="tk tk-link" data-ticker="${ticker}" data-tipo="${tipo || 'accion'}">${ticker}</a>`;
 }
 
 let tvHoverInitialized = false;
@@ -238,8 +297,9 @@ function initTVHover() {
     if (!link) return;
     clearTimeout(hideTimer);
     const ticker = link.dataset.ticker;
+    const tipo = link.dataset.tipo;
     if (iframe.dataset.ticker !== ticker) {
-      iframe.src = tvMiniWidgetUrl(ticker);
+      iframe.src = tvMiniWidgetUrl(ticker, tipo);
       iframe.dataset.ticker = ticker;
     }
     const rect = link.getBoundingClientRect();
