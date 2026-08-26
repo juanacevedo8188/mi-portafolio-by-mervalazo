@@ -26,7 +26,10 @@ async function fetchOne(entry) {
     const meta = result.meta;
     const closes = (result.indicators.quote[0].close || []).filter(v => v != null);
     const price = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose;
+    // meta.chartPreviousClose queda relativo al INICIO del rango pedido (acá 1
+    // mes), no al dia anterior real -- por eso el cierre previo se calcula a
+    // mano con el anteultimo valor de la serie diaria, que si es de ayer.
+    const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
     return {
       key: entry.key,
       name: entry.name,
