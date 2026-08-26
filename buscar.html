@@ -153,7 +153,7 @@ function renderSearchResults(query) {
     <div class="search-result-row" data-ticker="${s.symbol}" data-tipo="${s.tipo}">
       <span class="tk">${s.symbol}</span>
       <span class="tag ${s.tipo}">${tipoLabel(s.tipo)}</span>
-      <span class="sr-price mono">${fmtARS(s.c)} <span class="chg ${pctClass(s.pct_change)}">${fmtPct(s.pct_change)}</span></span>
+      <span class="sr-price mono">${s.tipo === 'cripto' ? fmtUSD(s.usd) : fmtARS(s.c)} <span class="chg ${pctClass(s.pct_change)}">${fmtPct(s.pct_change)}</span></span>
     </div>
   `).join('');
   el.classList.add('open');
@@ -175,7 +175,7 @@ function selectTicker(ticker, tipo) {
   document.getElementById('detailTag').className = 'tag ' + tipo;
   const chgEl = document.getElementById('detailChg');
   if (q) {
-    chgEl.textContent = fmtARS(q.c) + ' · ' + fmtPct(q.pct_change);
+    chgEl.textContent = (tipo === 'cripto' ? fmtUSD(q.usd) : fmtARS(q.c)) + ' · ' + fmtPct(q.pct_change);
     chgEl.className = 'chg ' + pctClass(q.pct_change);
   } else {
     chgEl.textContent = '';
@@ -278,7 +278,7 @@ function renderWatchlist() {
       ${tvLink(w.ticker, w.tipo)}
       <span class="tag ${w.tipo}">${tipoLabel(w.tipo)}</span>
       <input class="group-input" list="groupOptions" placeholder="Sin categoría" value="${w.grupo || ''}" onchange="updateGroup('${w.id}', this.value)">
-      <span class="sr-price mono">${q ? fmtARS(q.c) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
+      <span class="sr-price mono">${q ? (w.tipo === 'cripto' ? fmtUSD(q.usd) : fmtARS(q.c)) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
       <button class="icon-btn" onclick="unfollow('${w.ticker}')" title="Dejar de seguir">✕</button>
     </div>`;
   };

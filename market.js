@@ -1,4 +1,8 @@
 const fmtARS = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+const fmtUSD = n => {
+  const digits = Math.abs(n) < 1 ? 6 : 2;
+  return 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+};
 const fmtNum = n => n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 const fmtPct = n => (n > 0 ? '+' : '') + n.toFixed(2) + '%';
 const pctClass = n => n > 0.005 ? 'up' : n < -0.005 ? 'down' : 'flat';
@@ -32,17 +36,37 @@ const CRYPTO_LIST = [
   { id: 'usd-coin', symbol: 'USDC' }
 ];
 
+async function getUsdArsRate() {
+  const data = await fetchFeed('mep');
+  const rates = data.map(d => d.close).filter(v => typeof v === 'number' && v > 0);
+  if (!rates.length) throw new Error('sin datos de dólar MEP');
+  return rates.reduce((s, v) => s + v, 0) / rates.length;
+}
+
+// Cripto se cotiza en dólares (es lo natural para leer su precio) pero para
+// que sume bien en el total de la cartera (en pesos) tambien se guarda el
+// equivalente en ARS usando el dolar MEP promedio del momento.
 async function getCryptoMap() {
   const ids = CRYPTO_LIST.map(c => c.id).join(',');
-  const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=ars&ids=' + ids, { cache: 'no-store' });
+  const [res, usdArsRate] = await Promise.all([
+    fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=' + ids, { cache: 'no-store' }),
+    getUsdArsRate()
+  ]);
   if (!res.ok) throw new Error('crypto feed failed: ' + res.status);
   const data = await res.json();
   const map = new Map();
   data.forEach(coin => {
     const entry = CRYPTO_LIST.find(c => c.id === coin.id);
     if (!entry) return;
-    map.set(entry.symbol, { symbol: entry.symbol, c: coin.current_price, pct_change: coin.price_change_percentage_24h, name: coin.name });
+    map.set(entry.symbol, {
+      symbol: entry.symbol,
+      usd: coin.current_price,
+      c: coin.current_price * usdArsRate,
+      pct_change: coin.price_change_percentage_24h,
+      name: coin.name
+    });
   });
+  map.usdArsRate = usdArsRate;
   return map;
 }
 
@@ -57,6 +81,7 @@ async function getPriceMap(includeCrypto) {
     try {
       const cryptoMap = await getCryptoMap();
       cryptoMap.forEach((v, k) => priceMap.set(k, v));
+      priceMap.usdArsRate = cryptoMap.usdArsRate;
     } catch (err) {
       console.error('no se pudo cargar precios de cripto', err);
     }

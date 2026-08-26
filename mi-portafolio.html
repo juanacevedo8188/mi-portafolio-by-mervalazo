@@ -153,7 +153,7 @@
         </div>
         <div>
           <label>Tipo</label>
-          <select id="fTipo">
+          <select id="fTipo" onchange="onTipoChange()">
             <option value="accion">Acción</option>
             <option value="cedear">CEDEAR</option>
             <option value="cripto">Cripto</option>
@@ -178,7 +178,7 @@
           <input type="number" id="fCantidad" placeholder="100" min="0" step="any" required>
         </div>
         <div>
-          <label>Precio compra</label>
+          <label id="fPrecioLabel">Precio compra</label>
           <input type="number" id="fPrecio" placeholder="6200" min="0" step="any" required>
         </div>
         <button type="submit" class="btn-primary" id="addBtn">Agregar</button>
@@ -402,6 +402,20 @@ async function loadHoldings() {
   }
 }
 
+function onTipoChange() {
+  const tipo = document.getElementById('fTipo').value;
+  const label = document.getElementById('fPrecioLabel');
+  const precioInput = document.getElementById('fPrecio');
+  if (tipo === 'cripto') {
+    label.textContent = 'Precio compra (USD)';
+    precioInput.placeholder = '65000';
+    document.getElementById('fSector').value = 'Cripto';
+  } else {
+    label.textContent = 'Precio compra';
+    precioInput.placeholder = '6200';
+  }
+}
+
 async function addHolding(evt) {
   evt.preventDefault();
   const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
@@ -419,10 +433,11 @@ async function addHolding(evt) {
   if (existing) {
     const nuevaCantidad = existing.cantidad + cantidad;
     const nuevoPromedio = (existing.cantidad * existing.precio_compra + cantidad * precioCompra) / nuevaCantidad;
+    const fmt = tipo === 'cripto' ? fmtUSD : fmtARS;
     const ok = confirm(
-      `Ya tenés ${fmtNum(existing.cantidad)} ${ticker} a ${fmtARS(existing.precio_compra)} de promedio.\n\n` +
-      `Sumando ${fmtNum(cantidad)} más a ${fmtARS(precioCompra)}, tu posición quedaría:\n` +
-      `${fmtNum(nuevaCantidad)} ${ticker} a ${fmtARS(nuevoPromedio)} de promedio.\n\n¿Confirmás?`
+      `Ya tenés ${fmtNum(existing.cantidad)} ${ticker} a ${fmt(existing.precio_compra)} de promedio.\n\n` +
+      `Sumando ${fmtNum(cantidad)} más a ${fmt(precioCompra)}, tu posición quedaría:\n` +
+      `${fmtNum(nuevaCantidad)} ${ticker} a ${fmt(nuevoPromedio)} de promedio.\n\n¿Confirmás?`
     );
     if (!ok) return;
 
@@ -484,14 +499,18 @@ async function saveEdit(id) {
 
 function render(priceMap) {
   lastPriceMap = priceMap;
+  const usdArsRate = priceMap.usdArsRate;
   const rows = holdingsCache.map(h => {
     const q = priceMap.get(h.ticker);
-    const price = q ? q.c : null;
+    const isCrypto = h.tipo === 'cripto';
+    // Para cripto, el precio que se muestra es en USD (mas natural para leer),
+    // pero value/cost siempre quedan en ARS para que el total de la cartera sume bien.
+    const price = q ? (isCrypto ? q.usd : q.c) : null;
     const dailyPct = q ? q.pct_change : null;
-    const value = price != null ? price * h.cantidad : null;
-    const cost = h.precio_compra * h.cantidad;
+    const value = q ? q.c * h.cantidad : null;
+    const cost = isCrypto && usdArsRate ? h.precio_compra * h.cantidad * usdArsRate : h.precio_compra * h.cantidad;
     const totalPct = price != null ? ((price - h.precio_compra) / h.precio_compra) * 100 : null;
-    return { ...h, price, dailyPct, value, cost, totalPct, found: !!q };
+    return { ...h, price, dailyPct, value, cost, totalPct, isCrypto, found: !!q };
   });
 
   const totalValue = rows.reduce((s, r) => s + (r.value ?? r.cost), 0);
@@ -534,7 +553,7 @@ function render(priceMap) {
         <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
         <td><input class="edit-row-input" id="editCantidad-${r.id}" type="number" min="0" step="any" value="${r.cantidad}"></td>
         <td><input class="edit-row-input" id="editPrecio-${r.id}" type="number" min="0" step="any" value="${r.precio_compra}"></td>
-        <td class="mono">${r.price != null ? fmtARS(r.price) : '—'}</td>
+        <td class="mono">${r.price != null ? (r.isCrypto ? fmtUSD(r.price) : fmtARS(r.price)) : '—'}</td>
         <td colspan="2"></td>
         <td class="mono row-value">${r.value != null ? fmtARS(r.value) : '—'}</td>
         <td><div class="edit-actions">
@@ -557,8 +576,8 @@ function render(priceMap) {
     return `<tr>
       <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
       <td class="mono">${fmtNum(r.cantidad)}</td>
-      <td class="mono">${fmtARS(r.precio_compra)}</td>
-      <td class="mono">${fmtARS(r.price)}</td>
+      <td class="mono">${r.isCrypto ? fmtUSD(r.precio_compra) : fmtARS(r.precio_compra)}</td>
+      <td class="mono">${r.isCrypto ? fmtUSD(r.price) : fmtARS(r.price)}</td>
       <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
       <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
       <td class="mono row-value">${fmtARS(r.value)}</td>
