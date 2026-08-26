@@ -19,7 +19,7 @@ async function getPriceMap() {
   return priceMap;
 }
 
-const DONUT_PALETTE = ['#3fd3c6', '#5b9cf6', '#c39bff', '#f5a623', '#f4515f', '#7dd490', '#e879c2', '#8b98a9'];
+const DONUT_PALETTE = ['#f1a887', '#4fa8a0', '#f2c879', '#7fa8d9', '#d98880', '#8cc7b5', '#b39ddb', '#93a3a1'];
 function donutColor(i) { return DONUT_PALETTE[i % DONUT_PALETTE.length]; }
 
 function groupBySector(rows) {
