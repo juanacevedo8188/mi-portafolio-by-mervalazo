@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Calculadora de Inflación</title>
+<meta name="description" content="Calculá cuánto valdría hoy una compra, inversión o deuda del pasado, con datos oficiales del BCRA.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Calculadora de Inflación">
+<meta property="og:description" content="Calculá cuánto valdría hoy una compra, inversión o deuda del pasado, con datos oficiales del BCRA.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/inflacion.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Calculadora de Inflación">
+<meta name="twitter:description" content="Calculá cuánto valdría hoy una compra, inversión o deuda del pasado, con datos oficiales del BCRA.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Calculadora de Inflación</h1>
+        <p>Con datos oficiales del BCRA</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Cargando…</span></span>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>¿Cuánto valdría hoy?</h2>
+      <span id="calcStatus"></span>
+    </div>
+
+    <div class="infl-form">
+      <div class="infl-row">
+        <span>Si compré algo a</span>
+        <span class="infl-amount">$<input type="number" id="inflAmount" value="1000" min="0" step="any"></span>
+        <span>en</span>
+        <select id="fromMonth"></select>
+        <select id="fromYear"></select>
+      </div>
+      <div class="infl-row">
+        <span>entonces en</span>
+        <select id="toMonth"></select>
+        <select id="toYear"></select>
+        <span>ese mismo ítem valdría</span>
+      </div>
+    </div>
+
+    <div class="infl-result" id="inflResult">—</div>
+
+    <div class="quick-metrics" id="inflStats"></div>
+
+    <div class="panel-head" style="border-top:1px solid var(--divider);">
+      <h2>Evolución del monto</h2>
+      <span id="inflRange"></span>
+    </div>
+    <div class="history-chart" id="inflChart"></div>
+
+    <div class="curve-info" style="border-top:1px solid var(--divider);padding-top:14px;">
+      <p>Se calcula componiendo mes a mes la <b>inflación mensual oficial del BCRA</b> (índice de precios al consumidor) entre las dos fechas elegidas. No es una proyección — usa exclusivamente datos ya publicados.</p>
+    </div>
+  </section>
+
+  <footer>
+    Datos de inflación provistos por la <a href="https://api.bcra.gob.ar" target="_blank" rel="noopener">API pública del BCRA</a>. A título informativo.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+let inflationByMonth = new Map(); // 'YYYY-MM' -> tasa mensual %
+let monthsAvailable = []; // ['YYYY-MM', ...] ordenado ascendente
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function fillSelect(el, options, selectedValue) {
+  el.innerHTML = options.map(o => `<option value="${o.value}"${o.value === selectedValue ? ' selected' : ''}>${o.label}</option>`).join('');
+}
+
+function populateSelectors() {
+  const monthOptions = MESES.map((m, i) => ({ value: String(i + 1).padStart(2, '0'), label: m }));
+  const years = [...new Set(monthsAvailable.map(m => m.slice(0, 4)))].sort((a, b) => b - a);
+  const yearOptions = years.map(y => ({ value: y, label: y }));
+
+  fillSelect(document.getElementById('fromMonth'), monthOptions);
+  fillSelect(document.getElementById('fromYear'), yearOptions);
+  fillSelect(document.getElementById('toMonth'), monthOptions);
+  fillSelect(document.getElementById('toYear'), yearOptions);
+
+  const latest = monthsAvailable[monthsAvailable.length - 1];
+  const tenYearsAgo = monthsAvailable[Math.max(0, monthsAvailable.length - 121)];
+  document.getElementById('fromMonth').value = tenYearsAgo.slice(5, 7);
+  document.getElementById('fromYear').value = tenYearsAgo.slice(0, 4);
+  document.getElementById('toMonth').value = latest.slice(5, 7);
+  document.getElementById('toYear').value = latest.slice(0, 4);
+}
+
+// Factor acumulado componiendo la inflacion mensual de cada mes DESPUES de
+// "from" hasta "to" inclusive (from y to en formato 'YYYY-MM').
+function cumulativeFactor(from, to) {
+  const idx = monthsAvailable.indexOf(from);
+  const idxTo = monthsAvailable.indexOf(to);
+  if (idx === -1 || idxTo === -1) return null;
+  let factor = 1;
+  const path = [{ key: from, factor: 1 }];
+  const [start, end] = idx <= idxTo ? [idx, idxTo] : [idxTo, idx];
+  for (let i = start + 1; i <= end; i++) {
+    const rate = inflationByMonth.get(monthsAvailable[i]) || 0;
+    factor *= (1 + rate / 100);
+    path.push({ key: monthsAvailable[i], factor });
+  }
+  return { factor, months: end - start, path, inverted: idxTo < idx };
+}
+
+function calcular() {
+  const amount = parseFloat(document.getElementById('inflAmount').value);
+  const from = document.getElementById('fromYear').value + '-' + document.getElementById('fromMonth').value;
+  const to = document.getElementById('toYear').value + '-' + document.getElementById('toMonth').value;
+  const resultEl = document.getElementById('inflResult');
+  const statsEl = document.getElementById('inflStats');
+
+  if (!(amount > 0)) {
+    resultEl.textContent = '—';
+    statsEl.innerHTML = '';
+    document.getElementById('inflChart').innerHTML = '';
+    return;
+  }
+
+  const calc = cumulativeFactor(from, to);
+  if (!calc || calc.months === 0) {
+    resultEl.textContent = calc && calc.months === 0 ? fmtARS(amount) : 'Sin datos para ese rango';
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  const factor = calc.inverted ? 1 / calc.factor : calc.factor;
+  const result = amount * factor;
+  const totalPct = (factor - 1) * 100;
+  const monthlyAvgPct = (Math.pow(factor, 1 / calc.months) - 1) * 100;
+  const annualPct = (Math.pow(factor, 12 / calc.months) - 1) * 100;
+
+  resultEl.textContent = fmtARS(result);
+  statsEl.innerHTML = `
+    <div class="quick-stat">
+      <div class="label">Incremento Total</div>
+      <div class="val">${fmtPct(totalPct)}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Incremento Mensual Promedio</div>
+      <div class="val">${fmtPct(monthlyAvgPct)}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Incremento Anualizado</div>
+      <div class="val">${fmtPct(annualPct)}</div>
+    </div>
+  `;
+
+  const path = calc.inverted ? [...calc.path].reverse() : calc.path;
+  const points = path.map(p => ({ date: p.key + '-01', value: amount * (calc.inverted ? 1 / p.factor : p.factor) }));
+  const chartEl = document.getElementById('inflChart');
+  if (points.length >= 2) {
+    chartEl.innerHTML = buildLineChartSVG(points, 700, 160);
+    attachChartHover('inflChart', points, 700, 160);
+    document.getElementById('inflRange').textContent = `${from} — ${to}`;
+  } else {
+    chartEl.innerHTML = '<div class="empty-note">Elegí un rango de más de un mes para ver la evolución.</div>';
+    document.getElementById('inflRange').textContent = '';
+  }
+}
+
+async function init() {
+  setStatus('', 'Cargando historial de inflación…');
+  try {
+    const serie = await getBcraSeries(27, 1001);
+    serie.forEach(d => inflationByMonth.set(d.fecha.slice(0, 7), d.valor));
+    monthsAvailable = [...inflationByMonth.keys()].sort();
+    populateSelectors();
+    ['inflAmount', 'fromMonth', 'fromYear', 'toMonth', 'toYear'].forEach(id => {
+      document.getElementById(id).addEventListener('input', calcular);
+      document.getElementById(id).addEventListener('change', calcular);
+    });
+    calcular();
+    setStatus('live', 'Datos del BCRA cargados');
+  } catch (err) {
+    console.error(err);
+    setStatus('err', 'No se pudo cargar el historial de inflación');
+    document.getElementById('inflResult').textContent = 'No se pudo cargar';
+  }
+}
+
+renderNavTabs('inflacion');
+init();
+</script>
+
+</body>
+</html>
