@@ -115,6 +115,7 @@ async function loadMacro(manual) {
   const body = document.getElementById('macroBody');
   try {
     const vars = await getBcraVariables();
+    if (!vars.length) throw new Error('BCRA devolvió una respuesta vacía');
     const groups = groupVariables(vars);
     body.innerHTML = groups.map(g => `
       <div class="watch-group-header">${g.label}<span class="wg-count">${g.items.length}</span></div>
@@ -132,8 +133,8 @@ async function loadMacro(manual) {
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<div class="empty-note">No se pudo cargar la información del BCRA.</div>';
-    setStatus('err', 'No se pudo conectar');
+    body.innerHTML = '<div class="empty-note">No se pudo cargar la información del BCRA en este momento. Reintentando automáticamente cada 60 segundos…</div>';
+    setStatus('err', 'No se pudo conectar con la API del BCRA');
   } finally {
     btn.disabled = false;
     btn.classList.remove('spinning');

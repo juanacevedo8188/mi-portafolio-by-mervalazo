@@ -341,6 +341,79 @@ function attachChartHover(containerId, points, width, height) {
   });
 }
 
+// Reemplaza un <select> nativo por un dropdown propio: la lista abierta de
+// un select nativo no se puede restylar de forma confiable entre
+// navegadores (queda "de fabrica" aunque el select cerrado si se pueda).
+// El select original queda oculto pero sigue siendo la fuente de verdad
+// (.value, evento 'change'), asi el resto del codigo no cambia.
+function enhanceSelect(selectEl) {
+  if (!selectEl || selectEl.dataset.enhanced) return;
+  selectEl.dataset.enhanced = '1';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cs-wrap';
+  selectEl.parentNode.insertBefore(wrap, selectEl);
+  selectEl.classList.add('cs-native');
+  wrap.appendChild(selectEl);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cs-btn';
+  btn.innerHTML = '<span class="cs-btn-label"></span><span class="cs-caret">▾</span>';
+  wrap.appendChild(btn);
+
+  const menu = document.createElement('div');
+  menu.className = 'cs-menu';
+  wrap.appendChild(menu);
+
+  const label = btn.querySelector('.cs-btn-label');
+
+  function renderMenu() {
+    menu.innerHTML = [...selectEl.options].map(o =>
+      `<div class="cs-item${o.value === selectEl.value ? ' active' : ''}" data-value="${o.value.replace(/"/g, '&quot;')}">${o.textContent}</div>`
+    ).join('');
+  }
+  function syncLabel() {
+    const opt = selectEl.options[selectEl.selectedIndex];
+    label.textContent = opt ? opt.textContent : '';
+  }
+
+  renderMenu();
+  syncLabel();
+  selectEl._csSync = () => { renderMenu(); syncLabel(); };
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasOpen = wrap.classList.contains('open');
+    document.querySelectorAll('.cs-wrap.open').forEach(w => w.classList.remove('open'));
+    if (!wasOpen) {
+      renderMenu();
+      const rect = btn.getBoundingClientRect();
+      menu.style.top = (rect.bottom + 6) + 'px';
+      menu.style.left = rect.left + 'px';
+      menu.style.minWidth = rect.width + 'px';
+      wrap.classList.add('open');
+    }
+  });
+
+  menu.addEventListener('click', e => {
+    const item = e.target.closest('.cs-item');
+    if (!item) return;
+    selectEl.value = item.dataset.value;
+    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    syncLabel();
+    wrap.classList.remove('open');
+  });
+}
+
+function enhanceAllSelects(root) {
+  (root || document).querySelectorAll('select').forEach(enhanceSelect);
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.cs-wrap.open').forEach(w => w.classList.remove('open'));
+});
+
 function buildSparklineSVG(values, width, height) {
   width = width || 70;
   height = height || 24;

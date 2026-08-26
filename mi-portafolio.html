@@ -409,7 +409,9 @@ function onTipoChange() {
   if (tipo === 'cripto') {
     label.textContent = 'Precio compra (USD)';
     precioInput.placeholder = '65000';
-    document.getElementById('fSector').value = 'Cripto';
+    const fSector = document.getElementById('fSector');
+    fSector.value = 'Cripto';
+    if (fSector._csSync) fSector._csSync();
   } else {
     label.textContent = 'Precio compra';
     precioInput.placeholder = '6200';
@@ -670,6 +672,7 @@ setInterval(initOficialRate, 60000);
 
 renderNavTabs('portafolio');
 initTVHover();
+enhanceAllSelects();
 
 sb.auth.onAuthStateChange((event, session) => {
   currentSession = session;

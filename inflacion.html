@@ -204,6 +204,7 @@ async function init() {
     serie.forEach(d => inflationByMonth.set(d.fecha.slice(0, 7), d.valor));
     monthsAvailable = [...inflationByMonth.keys()].sort();
     populateSelectors();
+    enhanceAllSelects();
     ['inflAmount', 'fromMonth', 'fromYear', 'toMonth', 'toYear'].forEach(id => {
       document.getElementById(id).addEventListener('input', calcular);
       document.getElementById(id).addEventListener('change', calcular);

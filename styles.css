@@ -259,6 +259,38 @@ select{
 }
 select:hover{border-color:var(--accent-dim);}
 select option{background:var(--card);color:var(--text);}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+input[type=number]{-moz-appearance:textfield;}
+
+/* Dropdown propio: reemplaza <select> — la lista abierta de un select
+   nativo no se puede restylar de forma confiable entre navegadores. */
+.cs-wrap{position:relative;display:block;width:100%;}
+.cs-wrap select.cs-native{display:none;}
+.cs-btn{
+  display:inline-flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;min-width:110px;background:var(--bg-alt);border:1px solid var(--card-border);color:var(--text);
+  padding:10px 12px;border-radius:8px;font-size:13.5px;font-family:inherit;cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;
+}
+.cs-btn:hover{border-color:var(--accent-dim);}
+.cs-wrap.open .cs-btn{border-color:var(--accent-dim);box-shadow:0 0 0 3px rgba(241,168,135,0.12);}
+.cs-btn-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cs-caret{font-size:9px;color:var(--text-faint);flex-shrink:0;transition:transform .2s cubic-bezier(.4,0,.2,1);}
+.cs-wrap.open .cs-caret{transform:rotate(180deg);}
+.cs-menu{
+  position:fixed;background:var(--card);border:1px solid var(--card-border);border-radius:10px;
+  padding:6px;box-shadow:0 16px 36px rgba(0,0,0,.45);max-height:260px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:2px;z-index:200;
+  opacity:0;pointer-events:none;transform:translateY(-6px);
+  transition:opacity .15s cubic-bezier(.4,0,.2,1),transform .15s cubic-bezier(.4,0,.2,1);
+}
+.cs-wrap.open .cs-menu{opacity:1;pointer-events:auto;transform:translateY(0);}
+.cs-item{padding:8px 12px;border-radius:7px;font-size:13px;color:var(--text-dim);cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;}
+.cs-item:hover{background:var(--bg-alt);color:var(--text);}
+.cs-item.active{color:var(--accent);background:var(--bg-alt);}
+
 .btn-primary{
   width:100%;background:var(--accent);color:#12302c;border:none;font-weight:700;
   padding:10px 12px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:inherit;margin-top:12px;
@@ -361,7 +393,8 @@ select option{background:var(--card);color:var(--text);}
 
 .infl-form{padding:20px 20px 4px;display:flex;flex-direction:column;gap:14px;}
 .infl-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:14px;color:var(--text-dim);}
-.infl-row select{width:auto;min-width:112px;}
+.infl-row .cs-wrap{width:auto;}
+.infl-row .cs-btn{width:auto;min-width:112px;}
 .infl-amount{display:inline-flex;align-items:center;gap:2px;color:var(--text);font-weight:700;}
 .infl-amount input{width:130px;font-weight:700;color:var(--text);}
 .infl-result{
