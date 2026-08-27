@@ -757,7 +757,26 @@ function buildFlatTreemapHTML(items, width, height, colorScale) {
   return renderTiles(nodes, 0, colorScale);
 }
 
+// Registro de la ultima llamada por chartId, para poder re-dibujar en
+// resize con el ancho real del contenedor (ver historyResizeRedraw abajo).
+const historyRenderRegistry = {};
+let historyResizeInitialized = false;
+
 function renderHistory(chartId, rangeId, points, pctId) {
+  historyRenderRegistry[chartId] = { rangeId, points, pctId };
+  if (!historyResizeInitialized) {
+    historyResizeInitialized = true;
+    let t = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        Object.entries(historyRenderRegistry).forEach(([id, args]) => {
+          if (document.getElementById(id)) renderHistory(id, args.rangeId, args.points, args.pctId);
+        });
+      }, 200);
+    });
+  }
+
   const chartEl = document.getElementById(chartId);
   const rangeEl = document.getElementById(rangeId);
   const pctEl = pctId ? document.getElementById(pctId) : null;
@@ -767,8 +786,10 @@ function renderHistory(chartId, rangeId, points, pctId) {
     if (pctEl) pctEl.textContent = '—';
     return;
   }
-  chartEl.innerHTML = buildLineChartSVG(points, 600, 140);
-  attachChartHover(chartId, points, 600, 140);
+  const width = chartEl.clientWidth || 600;
+  const height = Math.round(Math.min(140, Math.max(110, width * 0.24)));
+  chartEl.innerHTML = buildLineChartSVG(points, width, height);
+  attachChartHover(chartId, points, width, height);
   if (rangeEl) {
     const first = new Date(points[0].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
     const last = new Date(points[points.length - 1].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
@@ -779,4 +800,38 @@ function renderHistory(chartId, rangeId, points, pctId) {
     pctEl.textContent = fmtPct(periodPct);
     pctEl.className = 'history-pct-val ' + pctClass(periodPct);
   }
+}
+
+// Modal centrado genérico y reusable (el detalle de un día del calendario
+// de earnings, la explicación de una variable macro, etc.) — se centra en
+// pantalla en vez de anclarse a un elemento, asi se comporta igual en
+// mobile y desktop sin necesitar layouts distintos por breakpoint.
+let modalInitialized = false;
+function initModal() {
+  if (modalInitialized) return;
+  modalInitialized = true;
+  const backdrop = document.createElement('div');
+  backdrop.id = 'sharedModalBackdrop';
+  backdrop.className = 'modal-backdrop';
+  const box = document.createElement('div');
+  box.id = 'sharedModalBox';
+  box.className = 'modal-box';
+  document.body.appendChild(backdrop);
+  document.body.appendChild(box);
+  backdrop.addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+}
+
+function openModal(html) {
+  initModal();
+  document.getElementById('sharedModalBox').innerHTML = html;
+  document.getElementById('sharedModalBackdrop').classList.add('open');
+  document.getElementById('sharedModalBox').classList.add('open');
+}
+
+function closeModal() {
+  const backdrop = document.getElementById('sharedModalBackdrop');
+  const box = document.getElementById('sharedModalBox');
+  if (backdrop) backdrop.classList.remove('open');
+  if (box) box.classList.remove('open');
 }

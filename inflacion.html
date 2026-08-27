@@ -188,8 +188,9 @@ function calcular() {
   const points = path.map(p => ({ date: p.key + '-01', value: amount * (calc.inverted ? 1 / p.factor : p.factor) }));
   const chartEl = document.getElementById('inflChart');
   if (points.length >= 2) {
-    chartEl.innerHTML = buildLineChartSVG(points, 700, 160);
-    attachChartHover('inflChart', points, 700, 160);
+    const width = chartEl.clientWidth || 700;
+    chartEl.innerHTML = buildLineChartSVG(points, width, 160);
+    attachChartHover('inflChart', points, width, 160);
     document.getElementById('inflRange').textContent = `${from} — ${to}`;
   } else {
     chartEl.innerHTML = '<div class="empty-note">Elegí un rango de más de un mes para ver la evolución.</div>';
@@ -217,6 +218,12 @@ async function init() {
     document.getElementById('inflResult').textContent = 'No se pudo cargar';
   }
 }
+
+let inflResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(inflResizeTimer);
+  inflResizeTimer = setTimeout(calcular, 200);
+});
 
 renderNavTabs('inflacion');
 init();

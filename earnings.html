@@ -63,7 +63,6 @@
     </div>
     <div class="earn-grid" id="earnGrid"><div class="empty-note">Cargando…</div></div>
   </section>
-  <div class="earn-popover" id="earnPopover"></div>
 
   <footer>
     Datos de earnings vía la API pública de <a href="https://www.nasdaq.com/market-activity/earnings" target="_blank" rel="noopener">Nasdaq</a>. Cobertura limitada a empresas que cotizan en EEUU (la mayoría con CEDEAR en Argentina) — no incluye balances de empresas que solo cotizan en ByMA. A título informativo.
@@ -79,7 +78,6 @@ const now = new Date();
 let viewYear = now.getFullYear();
 let viewMonth = now.getMonth(); // 0-indexed
 let earningsByDate = {};
-let openDate = null;
 const monthCache = new Map(); // 'YYYY-M' -> { date: rows }
 
 function setStatus(state, text) {
@@ -97,12 +95,6 @@ function fmtCap(n) {
 }
 
 function skeletonGrid() {
-  document.querySelector('.earn-grid-head').style.display = isMobileView() ? 'none' : 'grid';
-  if (isMobileView()) {
-    document.getElementById('earnGrid').innerHTML =
-      Array.from({ length: 4 }, () => '<div class="earn-agenda-day skeleton"></div>').join('');
-    return;
-  }
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDow = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
   const leadingEmpty = firstDow <= 4 ? firstDow : 0;
@@ -116,23 +108,19 @@ function skeletonGrid() {
 }
 
 // Chip puramente visual (sin <a>, sin href) — dentro de una celda del
-// calendario el click tiene que abrir el día, no navegar a un ticker. El
-// link real a TradingView solo vive adentro del popover del día.
+// calendario el click tiene que abrir el modal del día, no navegar a un
+// ticker. El link real a TradingView solo vive adentro del modal.
 function chipHtml(r) {
   const logoUrl = tickerLogoUrl(r.symbol, 'global');
   const logo = logoUrl ? `<img class="tk-logo" src="${logoUrl}" alt="" onerror="this.style.display='none'">` : '';
   return `<span class="earn-chip">${logo}${r.symbol}</span>`;
 }
 
-function isMobileView() {
-  return window.innerWidth <= 640;
-}
-
+// Misma grilla Lun-Vie en mobile y desktop — solo cambia, por CSS, cuánto
+// espacio ocupa cada celda. El detalle de cada día siempre se ve en el
+// mismo modal centrado, en cualquier tamaño de pantalla.
 function buildCalendarGrid() {
   document.getElementById('calMonthLabel').textContent = `${MESES[viewMonth]} ${viewYear}`;
-  document.querySelector('.earn-grid-head').style.display = isMobileView() ? 'none' : 'grid';
-
-  if (isMobileView()) { buildAgendaList(); return; }
 
   const firstDow = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // lunes=0
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -151,69 +139,24 @@ function buildCalendarGrid() {
     const dateStr = dateObj.toISOString().slice(0, 10);
     const rows = earningsByDate[dateStr] || [];
     const isToday = dateStr === todayStr;
-    const chips = rows.slice(0, 2).map(chipHtml).join('');
-    const more = rows.length > 2 ? `<span class="earn-more">+${rows.length - 2}</span>` : '';
+    const chip = rows.length ? chipHtml(rows[0]) : '';
+    const more = rows.length > 1 ? `<span class="earn-more">+${rows.length - 1}</span>` : '';
     cells += `
-      <div class="earn-cell${rows.length ? ' has-data' : ''}${isToday ? ' today' : ''}${openDate === dateStr ? ' open' : ''}"
-           id="cell-${dateStr}" ${rows.length ? `onclick="toggleDay('${dateStr}', event)"` : ''}>
+      <div class="earn-cell${rows.length ? ' has-data' : ''}${isToday ? ' today' : ''}"
+           ${rows.length ? `onclick="openDayModal('${dateStr}')"` : ''}>
         <span class="earn-daynum">${d}</span>
-        <div class="earn-chips">${chips}${more}</div>
+        <div class="earn-chips">${chip}${more}</div>
       </div>`;
   }
   document.getElementById('earnGrid').innerHTML = cells;
 }
 
-// En pantallas chicas la grilla de 5 columnas queda ilegible — se
-// reemplaza por una lista tipo agenda: un renglón por día CON earnings
-// (se saltean los días sin datos), con el detalle ya expandido inline.
-function buildAgendaList() {
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const todayStr = now.toISOString().slice(0, 10);
-  const days = [];
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(viewYear, viewMonth, d);
-    if (((dateObj.getDay() + 6) % 7) > 4) continue;
-    const dateStr = dateObj.toISOString().slice(0, 10);
-    const rows = earningsByDate[dateStr];
-    if (rows && rows.length) days.push({ dateStr, dateObj, rows });
-  }
-  if (!days.length) {
-    document.getElementById('earnGrid').innerHTML = '<div class="empty-note">Sin earnings relevantes este mes.</div>';
-    return;
-  }
-  document.getElementById('earnGrid').innerHTML = days.map(({ dateStr, dateObj, rows }) => `
-    <div class="earn-agenda-day${dateStr === todayStr ? ' today' : ''}">
-      <div class="earn-agenda-date">${dateObj.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
-      <div class="earn-day-list">
-        ${rows.map(r => `
-          <div class="earn-day-row">
-            ${tvLink(r.symbol, 'global')}
-            <span class="earn-day-name">${r.name}</span>
-            <span class="earn-day-cap mono">${fmtCap(r.marketCap)}</span>
-            <span class="earn-day-time">${r.time === 'time-pre-market' ? 'Antes de apertura' : r.time === 'time-after-hours' ? 'Después del cierre' : '—'}</span>
-          </div>`).join('')}
-      </div>
-    </div>`).join('');
-  initTVHover();
-}
-
-function toggleDay(dateStr, evt) {
-  const pop = document.getElementById('earnPopover');
-  if (openDate === dateStr) {
-    openDate = null;
-    pop.classList.remove('open');
-    document.getElementById(`cell-${dateStr}`)?.classList.remove('open');
-    return;
-  }
-  document.querySelectorAll('.earn-cell.open').forEach(c => c.classList.remove('open'));
-  openDate = dateStr;
-  const cell = evt.currentTarget;
-  cell.classList.add('open');
-
+function openDayModal(dateStr) {
   const rows = earningsByDate[dateStr] || [];
   const label = new Date(dateStr + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-  pop.innerHTML = `
-    <div class="earn-day-head">${label}<button class="earn-pop-close" onclick="toggleDay('${dateStr}')">✕</button></div>
+  openModal(`
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">${label}</div>
     <div class="earn-day-list">
       ${rows.map(r => `
         <div class="earn-day-row">
@@ -222,30 +165,12 @@ function toggleDay(dateStr, evt) {
           <span class="earn-day-cap mono">${fmtCap(r.marketCap)}</span>
           <span class="earn-day-time">${r.time === 'time-pre-market' ? 'Antes de apertura' : r.time === 'time-after-hours' ? 'Después del cierre' : '—'}</span>
         </div>`).join('')}
-    </div>`;
-
-  const rect = cell.getBoundingClientRect();
-  const popW = 340;
-  let left = rect.left;
-  if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12;
-  pop.style.left = Math.max(12, left) + 'px';
-  pop.style.top = (rect.bottom + 8) + 'px';
-  pop.classList.add('open');
+    </div>`);
   initTVHover();
 }
 
-document.addEventListener('click', e => {
-  if (e.target.closest('.earn-cell') || e.target.closest('.earn-popover')) return;
-  if (!openDate) return;
-  openDate = null;
-  document.querySelectorAll('.earn-cell.open').forEach(c => c.classList.remove('open'));
-  document.getElementById('earnPopover').classList.remove('open');
-});
-
 async function loadEarnings(manual) {
   const key = `${viewYear}-${viewMonth}`;
-  openDate = null;
-  document.getElementById('earnPopover').classList.remove('open');
 
   if (monthCache.has(key) && !manual) {
     earningsByDate = monthCache.get(key);
@@ -284,23 +209,7 @@ function changeMonth(delta) {
   loadEarnings(false);
 }
 
-let lastIsMobile = null;
-let resizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {
-    const mobile = isMobileView();
-    if (mobile === lastIsMobile) return;
-    lastIsMobile = mobile;
-    openDate = null;
-    document.getElementById('earnPopover').classList.remove('open');
-    buildCalendarGrid();
-  }, 200);
-});
-
 renderNavTabs('earnings');
-initTVHover();
-lastIsMobile = isMobileView();
 loadEarnings(false);
 </script>
 

@@ -179,6 +179,24 @@ function attachCurveInteraction(points) {
   });
 }
 
+// El viewBox del SVG se arma con el ancho real del contenedor (no un
+// numero fijo) — asi 1 unidad de SVG equivale a 1px real en cualquier
+// pantalla, y el texto de los ejes no queda diminuto en mobile.
+function paintCurve() {
+  if (!lecapCache.length) return;
+  const curveEl = document.getElementById('curveChart');
+  const width = curveEl.clientWidth || 700;
+  const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
+  curveEl.innerHTML = buildCurveSVG(lecapCache, width, height);
+  attachCurveInteraction(lecapCache);
+}
+
+let curveResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(curveResizeTimer);
+  curveResizeTimer = setTimeout(paintCurve, 200);
+});
+
 async function loadLecaps() {
   const body = document.getElementById('lecapBody');
   const curveEl = document.getElementById('curveChart');
@@ -205,8 +223,7 @@ async function loadLecaps() {
     `).join('');
     document.getElementById('lecapUpdated').textContent = data.length + ' letras vigentes';
 
-    curveEl.innerHTML = buildCurveSVG(data, 700, 300);
-    attachCurveInteraction(data);
+    paintCurve();
     document.getElementById('curveUpdated').textContent = data.length + ' puntos';
   } catch (err) {
     console.error(err);

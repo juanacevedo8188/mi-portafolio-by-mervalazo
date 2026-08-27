@@ -206,13 +206,28 @@ async function toggleBrechaChart(casa, nombre) {
     if (!dolarHistoryCache[casa]) dolarHistoryCache[casa] = await getDolarHistory(casa, 30);
     const points = dolarHistoryCache[casa];
     slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div id="brechaChartSvg"></div>`;
-    document.getElementById('brechaChartSvg').innerHTML = buildLineChartSVG(points, 460, 110);
-    attachChartHover('brechaChartSvg', points, 460, 110);
+    const svgEl = document.getElementById('brechaChartSvg');
+    const width = svgEl.clientWidth || 460;
+    document.getElementById('brechaChartSvg').innerHTML = buildLineChartSVG(points, width, 110);
+    attachChartHover('brechaChartSvg', points, width, 110);
   } catch (err) {
     console.error(err);
     slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div class="empty-note">No se pudo cargar el histórico.</div>`;
   }
 }
+
+let brechaResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(brechaResizeTimer);
+  brechaResizeTimer = setTimeout(() => {
+    const svgEl = document.getElementById('brechaChartSvg');
+    if (!svgEl || !activeBrechaCasa || !dolarHistoryCache[activeBrechaCasa]) return;
+    const width = svgEl.clientWidth || 460;
+    const points = dolarHistoryCache[activeBrechaCasa];
+    svgEl.innerHTML = buildLineChartSVG(points, width, 110);
+    attachChartHover('brechaChartSvg', points, width, 110);
+  }, 200);
+});
 
 function rankRow(rank, tickerHtml, priceLabel, pct) {
   return `<div class="rank-row">

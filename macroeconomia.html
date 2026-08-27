@@ -85,6 +85,57 @@ const MACRO_GROUPS = [
   { label: 'Préstamos y Sector Privado', test: d => /préstamos|privado/i.test(d) }
 ];
 
+// Explicaciones cortas por idVariable (el id numérico del BCRA, estable —
+// más confiable que matchear por texto de la descripción).
+const MACRO_EXPLANATIONS = {
+  1: 'Los dólares y otros activos líquidos que tiene el BCRA para responder pagos externos y sostener el tipo de cambio. Cuanto más altas, más margen tiene el Central para intervenir en el mercado cambiario.',
+  4: 'El precio del dólar oficial al que bancos y casas de cambio te lo venden al público — la referencia habitual del "dólar oficial".',
+  5: 'El precio del dólar en el mercado mayorista (entre bancos y grandes operadores), base para el comercio exterior y para calcular otras cotizaciones oficiales.',
+  7: 'Tasa que pagan los bancos privados por depósitos a plazo fijo de más de un millón de pesos. Referencia clave para el costo del crédito y para ajustar contratos financieros.',
+  8: 'Tasa promedio de plazos fijos de 30-35 días por montos mayores a $20M en bancos privados — otra referencia de tasas mayoristas.',
+  11: 'Tasa a la que los bancos se prestan pesos entre sí a un día. Refleja qué tan líquida o "apretada" está la plaza en el muy corto plazo.',
+  12: 'Tasa promedio que pagan los bancos por plazos fijos a 30 días — termómetro de cuánto rinde ahorrar en pesos a corto plazo.',
+  13: 'Lo que cobran los bancos por adelantar fondos sobre una cuenta corriente en descubierto. Suele ser de las tasas más altas del sistema.',
+  14: 'Tasa promedio que cobran los bancos por préstamos personales — referencia del costo del crédito al consumo.',
+  15: 'Total de pesos que emitió el BCRA (billetes y monedas en circulación + depósitos de los bancos en el Central). La variable más seguida para medir cuántos pesos hay en la economía.',
+  16: 'Billetes y monedas que circulan fuera del BCRA (en la calle y en los bancos), sin contar las reservas bancarias depositadas en el Central.',
+  17: 'Cuánto efectivo tiene la gente y las empresas fuera del sistema bancario — no incluye lo depositado en bancos.',
+  18: 'Billetes y monedas que los bancos tienen físicamente en sus bóvedas y cajeros, sin depositar en el BCRA.',
+  19: 'Los pesos que los bancos mantienen depositados en el Banco Central (parte de los encajes) — un componente clave de la base monetaria.',
+  21: 'Total de depósitos en pesos que el público tiene en los bancos: cuentas corrientes, cajas de ahorro y plazo fijo combinados.',
+  22: 'La parte de los depósitos del público que está en cuentas corrientes.',
+  23: 'La parte de los depósitos del público que está en cajas de ahorro.',
+  24: 'La parte de los depósitos del público colocada a plazo fijo — el ahorro que la gente eligió inmovilizar a cambio de una tasa.',
+  25: 'Cuánto creció en el último año la cantidad de pesos "líquidos" en manos del sector privado (efectivo + depósitos a la vista) — un indicador que el mercado mira para anticipar inflación futura.',
+  26: 'Cuánto le prestaron los bancos a empresas y familias — buen indicador de cuánto crédito hay disponible y de la actividad económica en general.',
+  27: 'La variación mes a mes del índice de precios al consumidor (IPC) — el dato de inflación que se publica y comenta cada mes.',
+  28: 'Cuánto subieron los precios comparado con el mismo mes del año anterior — la forma más habitual de dimensionar la inflación acumulada.',
+  29: 'La expectativa de inflación a 12 meses que releva el BCRA entre consultoras y bancos (REM). Muestra qué inflación "espera" el mercado, no la que ya pasó.',
+  30: 'El Coeficiente de Estabilización de Referencia (CER) ajusta contratos, deuda y alquileres según la inflación pasada. Muchos bonos e instrumentos "CER" ajustan su capital con este coeficiente.',
+  31: 'La Unidad de Valor Adquisitivo (UVA) se usa en créditos hipotecarios y otros contratos de largo plazo, y ajusta por inflación (CER) más una pequeña tasa.',
+  32: 'La Unidad de Vivienda (UVI) es similar a la UVA pero pensada específicamente para créditos hipotecarios, con una fórmula de ajuste algo distinta.',
+  35: 'La misma tasa BADLAR de bancos privados, pero expresada como Tasa Efectiva Anual (con capitalización) en vez de nominal anual — por eso da un número más alto que la variable 7 para la misma tasa real.',
+  40: 'El Índice para Contratos de Locación (ICL) se usa para ajustar el valor de los alquileres, combinando inflación (IPC) y salarios (RIPTE).',
+  43: 'Tasa de referencia que fija el BCRA para que la Justicia la use al calcular intereses en causas judiciales — no es una tasa de mercado de uso directo.',
+  44: 'La tasa TAMAR es la tasa mayorista de plazo fijo a 30-35 días de bancos privados por depósitos grandes (más de $1.000M) — reemplazó a la BADLAR como principal referencia para instrumentos en pesos.',
+  45: 'La tasa TAMAR es la tasa mayorista de plazo fijo a 30-35 días de bancos privados por depósitos grandes (más de $1.000M) — reemplazó a la BADLAR como principal referencia para instrumentos en pesos.'
+};
+
+let lastMacroVars = {};
+
+function openMacroExplain(idVariable) {
+  const v = lastMacroVars[idVariable];
+  if (!v) return;
+  const explain = MACRO_EXPLANATIONS[idVariable];
+  openModal(`
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">${v.descripcion.trim()}</div>
+    <div class="macro-modal-val mono">${formatValor(v)}</div>
+    <div class="macro-modal-date">Últ. act: ${new Date(v.ultFechaInformada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
+    <p class="macro-modal-explain">${explain || 'Todavía no agregamos una explicación para esta variable.'}</p>
+  `);
+}
+
 function groupVariables(vars) {
   const groups = new Map();
   vars.forEach(v => {
@@ -120,13 +171,15 @@ async function loadMacro(manual) {
     body.innerHTML = groups.map(g => `
       <div class="watch-group-header">${g.label}<span class="wg-count">${g.items.length}</span></div>
       <div class="macro-grid">
-        ${g.items.map(v => `
-          <div class="macro-tile">
+        ${g.items.map(v => {
+          lastMacroVars[v.idVariable] = v;
+          return `
+          <div class="macro-tile" onclick="openMacroExplain(${v.idVariable})">
             <div class="macro-desc">${v.descripcion.trim()}</div>
             <div class="macro-val mono">${formatValor(v)}</div>
             <div class="macro-date">Últ. act: ${new Date(v.ultFechaInformada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
     `).join('');
     document.getElementById('macroUpdated').textContent = vars.length + ' variables';
