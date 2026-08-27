@@ -158,6 +158,7 @@
         <div>
           <label>Ticker</label>
           <input type="text" id="fTicker" placeholder="GGAL" required style="text-transform:uppercase;">
+          <select id="fTickerLetra" style="display:none;"></select>
         </div>
         <div>
           <label>Tipo</label>
@@ -165,6 +166,7 @@
             <option value="accion">Acción</option>
             <option value="cedear">CEDEAR</option>
             <option value="cripto">Cripto</option>
+            <option value="letra">Letra (LECAP/BONCAP)</option>
           </select>
         </div>
         <div>
@@ -178,6 +180,7 @@
             <option value="Tecnología">Tecnología</option>
             <option value="Real Estate">Real Estate</option>
             <option value="Cripto">Cripto</option>
+            <option value="Renta Fija">Renta Fija</option>
             <option value="Otro">Otro</option>
           </select>
         </div>
@@ -390,7 +393,7 @@ async function loadHoldings() {
   }
   holdingsCache = data;
   try {
-    const priceMap = await getPriceMap(true);
+    const priceMap = await getPriceMap(true, true);
     render(priceMap);
     hasRenderedOnce = true;
     document.getElementById('lastUpdate').textContent =
@@ -405,16 +408,57 @@ async function loadHoldings() {
   }
 }
 
+// Las LECAP/BONCAP tienen tickers crípticos (S31G6, etc.) que cambian a
+// medida que vencen — en vez de texto libre, se elige de la lista de
+// letras vigentes (mismo dato que ya usa Renta Fija).
+let letraOptionsLoaded = false;
+
+function setTickerFieldMode(isLetra) {
+  const textInput = document.getElementById('fTicker');
+  const letraSelect = document.getElementById('fTickerLetra');
+  const letraWrap = letraSelect.closest('.cs-wrap') || letraSelect;
+  textInput.style.display = isLetra ? 'none' : 'block';
+  textInput.required = !isLetra;
+  letraWrap.style.display = isLetra ? 'block' : 'none';
+}
+
+async function ensureLetraOptions() {
+  const select = document.getElementById('fTickerLetra');
+  if (letraOptionsLoaded) return;
+  select.innerHTML = '<option>Cargando…</option>';
+  if (select.dataset.enhanced) select._csSync(); else enhanceSelect(select);
+  try {
+    const letras = await getLecapData();
+    letraOptionsLoaded = true;
+    select.innerHTML = letras.map(l =>
+      `<option value="${l.ticker}">${l.ticker} — TEA ${fmtNum(l.tea)}% — vto ${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</option>`
+    ).join('');
+  } catch (err) {
+    console.error(err);
+    select.innerHTML = '<option value="">No se pudieron cargar las letras</option>';
+  }
+  if (select.dataset.enhanced) select._csSync(); else enhanceSelect(select);
+}
+
 function onTipoChange() {
   const tipo = document.getElementById('fTipo').value;
   const label = document.getElementById('fPrecioLabel');
   const precioInput = document.getElementById('fPrecio');
+  const fSector = document.getElementById('fSector');
+
+  setTickerFieldMode(tipo === 'letra');
+
   if (tipo === 'cripto') {
     label.textContent = 'Precio compra (USD)';
     precioInput.placeholder = '65000';
-    const fSector = document.getElementById('fSector');
     fSector.value = 'Cripto';
     if (fSector._csSync) fSector._csSync();
+  } else if (tipo === 'letra') {
+    label.textContent = 'Precio compra (c/ 100 VN)';
+    precioInput.placeholder = '127';
+    fSector.value = 'Renta Fija';
+    if (fSector._csSync) fSector._csSync();
+    ensureLetraOptions();
   } else {
     label.textContent = 'Precio compra';
     precioInput.placeholder = '6200';
@@ -423,8 +467,10 @@ function onTipoChange() {
 
 async function addHolding(evt) {
   evt.preventDefault();
-  const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
   const tipo = document.getElementById('fTipo').value;
+  const ticker = tipo === 'letra'
+    ? document.getElementById('fTickerLetra').value
+    : document.getElementById('fTicker').value.trim().toUpperCase();
   const sector = document.getElementById('fSector').value;
   const cantidad = parseFloat(document.getElementById('fCantidad').value);
   const precioCompra = parseFloat(document.getElementById('fPrecio').value);
@@ -676,6 +722,7 @@ setInterval(initOficialRate, 60000);
 renderNavTabs('portafolio');
 initTVHover();
 enhanceAllSelects();
+setTickerFieldMode(false);
 
 sb.auth.onAuthStateChange((event, session) => {
   currentSession = session;

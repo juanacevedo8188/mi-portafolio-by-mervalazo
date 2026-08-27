@@ -164,7 +164,18 @@ async function getCryptoMap() {
   return map;
 }
 
-async function getPriceMap(includeCrypto) {
+// Precios de LECAP/BONCAP con la misma forma {c, pct_change} que ya usan
+// las filas de acciones/CEDEARs — asi se puede mergear en el mismo Map y
+// el resto del codigo (render, fmtPrice, etc.) no necesita casos especiales
+// por tipo de activo.
+async function getLetraPriceMap() {
+  const letras = await getLecapData();
+  const map = new Map();
+  letras.forEach(l => map.set(l.ticker, { c: l.price, pct_change: l.pctChange }));
+  return map;
+}
+
+async function getPriceMap(includeCrypto, includeLetras) {
   const [stocks, cedears] = await Promise.all([
     fetchFeed('arg_stocks'),
     fetchFeed('arg_cedears')
@@ -180,11 +191,22 @@ async function getPriceMap(includeCrypto) {
       console.error('no se pudo cargar precios de cripto', err);
     }
   }
+  if (includeLetras) {
+    try {
+      const letraMap = await getLetraPriceMap();
+      letraMap.forEach((v, k) => priceMap.set(k, v));
+    } catch (err) {
+      console.error('no se pudo cargar precios de letras', err);
+    }
+  }
   return priceMap;
 }
 
 function tipoLabel(tipo) {
-  return tipo === 'cedear' ? 'CEDEAR' : tipo === 'cripto' ? 'Cripto' : 'Acción';
+  if (tipo === 'cedear') return 'CEDEAR';
+  if (tipo === 'cripto') return 'Cripto';
+  if (tipo === 'letra') return 'Letra';
+  return 'Acción';
 }
 
 const DONUT_PALETTE = ['#f0904f', '#29a89c', '#f0b429', '#4f8fd9', '#e0655a', '#4fbf9a', '#9b6fd4', '#6b93a0'];
