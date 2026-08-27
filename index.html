@@ -172,6 +172,11 @@ async function loadDollar() {
         <span class="dbar-val mono">${fmtARS(r.venta)}${brecha != null ? `<span class="dbar-brecha">${fmtPct(brecha)}</span>` : ''}</span>
       </div>`;
     }).join('');
+
+    if (!brechaDefaulted) {
+      brechaDefaulted = true;
+      toggleBrechaChart('oficial', 'Oficial');
+    }
   } catch (err) {
     console.error(err);
     grid.innerHTML = '<div class="empty-note">No se pudo cargar la cotización del dólar.</div>';
@@ -181,6 +186,7 @@ async function loadDollar() {
 }
 
 let activeBrechaCasa = null;
+let brechaDefaulted = false;
 const dolarHistoryCache = {};
 
 async function toggleBrechaChart(casa, nombre) {
