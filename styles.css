@@ -68,6 +68,51 @@ header{
 }
 .nav-dropdown-item:hover{background:var(--bg-alt);color:var(--text);}
 .nav-dropdown-item.active{color:var(--accent);background:var(--bg-alt);}
+
+/* Mobile: la barra de tabs (con scroll horizontal) se reemplaza por un
+   botón hamburguesa + panel lateral, para no ocupar tanto espacio arriba
+   de la pantalla. En desktop sigue la barra de siempre. */
+.hamburger-btn{
+  display:none;flex-direction:column;justify-content:center;gap:4px;
+  width:36px;height:36px;background:none;border:1px solid var(--card-border);border-radius:8px;
+  cursor:pointer;flex-shrink:0;
+}
+.hamburger-btn span{display:block;width:16px;height:2px;background:var(--text-dim);margin:0 auto;border-radius:1px;}
+.drawer-backdrop{
+  position:fixed;inset:0;background:rgba(5,12,11,0.72);z-index:600;
+  opacity:0;pointer-events:none;transition:opacity .2s cubic-bezier(.4,0,.2,1);
+}
+.drawer-backdrop.open{opacity:1;pointer-events:auto;}
+.drawer{
+  position:fixed;top:0;left:0;bottom:0;width:270px;max-width:82vw;background:var(--card);
+  border-right:1px solid var(--card-border);z-index:601;transform:translateX(-100%);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow-y:auto;
+}
+.drawer.open{transform:translateX(0);}
+.drawer-head{
+  display:flex;align-items:center;justify-content:space-between;padding:16px 18px;
+  border-bottom:1px solid var(--divider);
+}
+.drawer-title{font-size:15px;font-weight:800;color:var(--text);}
+.drawer-close{background:none;border:none;color:var(--text-faint);font-size:15px;cursor:pointer;padding:6px 9px;border-radius:6px;}
+.drawer-close:hover{color:var(--text);background:var(--bg-alt);}
+.drawer-items{padding:8px;display:flex;flex-direction:column;}
+.drawer-item{
+  display:block;padding:11px 12px;border-radius:8px;font-size:14px;font-weight:600;
+  color:var(--text-dim);text-decoration:none;transition:background .12s,color .12s;
+}
+.drawer-item:hover{background:var(--bg-alt);color:var(--text);}
+.drawer-item.active{color:var(--accent);background:var(--bg-alt);}
+.drawer-subitem{padding-left:24px;font-weight:500;}
+.drawer-group-label{
+  padding:14px 12px 4px;font-size:10.5px;font-weight:700;color:var(--text-faint);
+  text-transform:uppercase;letter-spacing:.4px;
+}
+@media (max-width:760px){
+  .hamburger-btn{display:flex;}
+  .nav-tabs{display:none;}
+}
+
 .brand{display:flex;align-items:center;gap:12px;}
 .brand-mark{
   width:38px;height:38px;border-radius:10px;
@@ -95,6 +140,22 @@ header{
 @keyframes spin{to{transform:rotate(360deg)}}
 
 main{max-width:1140px;margin:0 auto;padding:28px 24px;}
+
+/* Un item de grid/flex sin min-width explicito no puede achicarse mas
+   alla del contenido que tenga adentro (min-width:auto por default) — un
+   numero largo sin espacios en una tarjeta angosta empuja toda la
+   columna, y con ella la grilla entera, mas ancha que la pantalla. Esto
+   fuerza a que puedan achicarse y el texto haga wrap en vez de desbordar
+   invisible (con el overflow-x:hidden del body ya puesto). */
+.summary-grid > *, .quick-metrics > *, .dollar-grid > *, .macro-grid > *,
+.opt-form > *, .infl-form > *, .dashboard-grid > *, .comp-row, .earn-day-row,
+.dbar-row, .opt-legs-actions > * {
+  min-width: 0;
+}
+.summary-card .value, .quick-stat .val, .dollar-card .rate,
+.macro-tile .macro-val, .opt-form input, .opt-form select {
+  overflow-wrap: break-word;
+}
 
 .summary-grid{
   display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;
@@ -545,12 +606,17 @@ input[type=number]{-moz-appearance:textfield;}
   .opt-trade-sub{display:none;}
 }
 
-.infl-form{padding:20px 20px 4px;display:flex;flex-direction:column;gap:14px;}
-.infl-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:14px;color:var(--text-dim);}
-.infl-row .cs-wrap{width:auto;}
-.infl-row .cs-btn{width:auto;min-width:112px;}
-.infl-amount{display:inline-flex;align-items:center;gap:2px;color:var(--text);font-weight:700;}
-.infl-amount input{width:130px;font-weight:700;color:var(--text);}
+.infl-form{padding:16px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;border-bottom:1px solid var(--divider);}
+.infl-field label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.infl-date-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.infl-amount{display:flex;align-items:center;gap:6px;color:var(--text);font-weight:700;}
+.infl-amount input{font-weight:700;color:var(--text);}
+@media (max-width:640px){
+  .infl-form{grid-template-columns:1fr 1fr;}
+}
+@media (max-width:400px){
+  .infl-form{grid-template-columns:1fr;}
+}
 .infl-result{
   text-align:center;font-size:clamp(26px,6vw,38px);font-weight:800;padding:22px 20px;
   font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--accent);
@@ -648,6 +714,10 @@ input[type=number]{-moz-appearance:textfield;}
 @media (max-width:480px){
   .summary-grid{grid-template-columns:1fr 1fr;}
   .summary-card{padding:14px 16px;}
-  .summary-card .value{font-size:19px;}
+  .summary-card .value{font-size:18px;}
   thead th:nth-child(3), tbody td:nth-child(3){display:none;}
+}
+@media (max-width:400px){
+  .summary-grid{grid-template-columns:1fr;}
+  .opt-form{grid-template-columns:1fr;}
 }

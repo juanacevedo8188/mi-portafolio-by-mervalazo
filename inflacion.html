@@ -52,18 +52,23 @@
     </div>
 
     <div class="infl-form">
-      <div class="infl-row">
-        <span>Si compré algo a</span>
-        <span class="infl-amount">$<input type="number" id="inflAmount" value="1000" min="0" step="any"></span>
-        <span>en</span>
-        <select id="fromMonth"></select>
-        <select id="fromYear"></select>
+      <div class="infl-field">
+        <label>Monto</label>
+        <span class="infl-amount">$<input type="text" inputmode="numeric" id="inflAmount" value="1.000" oninput="onInflAmountInput(event)"></span>
       </div>
-      <div class="infl-row">
-        <span>entonces en</span>
-        <select id="toMonth"></select>
-        <select id="toYear"></select>
-        <span>ese mismo ítem valdría</span>
+      <div class="infl-field">
+        <label>Desde</label>
+        <div class="infl-date-pair">
+          <select id="fromMonth"></select>
+          <select id="fromYear"></select>
+        </div>
+      </div>
+      <div class="infl-field">
+        <label>Hasta</label>
+        <div class="infl-date-pair">
+          <select id="toMonth"></select>
+          <select id="toYear"></select>
+        </div>
       </div>
     </div>
 
@@ -141,8 +146,24 @@ function cumulativeFactor(from, to) {
   return { factor, months: end - start, path, inverted: idxTo < idx };
 }
 
+// Formatea el monto con puntos de miles a medida que se escribe (10000 ->
+// 10.000), sin permitir letras ni otros caracteres — el input es de texto
+// (no number) justamente para poder mostrar los puntos.
+function formatThousands(raw) {
+  const digits = raw.replace(/\D/g, '');
+  return digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+}
+function onInflAmountInput(evt) {
+  const input = evt.target;
+  const fromEnd = input.value.length - input.selectionStart;
+  input.value = formatThousands(input.value);
+  const pos = Math.max(0, input.value.length - fromEnd);
+  input.setSelectionRange(pos, pos);
+  calcular();
+}
+
 function calcular() {
-  const amount = parseFloat(document.getElementById('inflAmount').value);
+  const amount = parseFloat(document.getElementById('inflAmount').value.replace(/\./g, ''));
   const from = document.getElementById('fromYear').value + '-' + document.getElementById('fromMonth').value;
   const to = document.getElementById('toYear').value + '-' + document.getElementById('toMonth').value;
   const resultEl = document.getElementById('inflResult');
@@ -206,7 +227,7 @@ async function init() {
     monthsAvailable = [...inflationByMonth.keys()].sort();
     populateSelectors();
     enhanceAllSelects();
-    ['inflAmount', 'fromMonth', 'fromYear', 'toMonth', 'toYear'].forEach(id => {
+    ['fromMonth', 'fromYear', 'toMonth', 'toYear'].forEach(id => {
       document.getElementById(id).addEventListener('input', calcular);
       document.getElementById(id).addEventListener('change', calcular);
     });

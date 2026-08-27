@@ -27,26 +27,96 @@ const NAV_GROUPS = [
 
 function renderNavTabs(active) {
   const el = document.getElementById('navTabs');
-  if (!el) return;
+  if (el) {
+    const renderLink = item => {
+      const isActive = item.key === active;
+      const attrs = item.external ? ' target="_blank" rel="noopener"' : '';
+      return `<a href="${item.href}"${attrs} class="nav-tab${isActive ? ' active' : ''}">${item.label}</a>`;
+    };
 
-  const renderLink = item => {
-    const isActive = item.key === active;
-    const attrs = item.external ? ' target="_blank" rel="noopener"' : '';
-    return `<a href="${item.href}"${attrs} class="nav-tab${isActive ? ' active' : ''}">${item.label}</a>`;
-  };
+    el.innerHTML = NAV_GROUPS.map(entry => {
+      if (!entry.items) return renderLink(entry);
+      const activeItem = entry.items.find(i => i.key === active);
+      return `<div class="nav-dropdown">
+        <button class="nav-tab nav-dropdown-btn${activeItem ? ' active' : ''}" onclick="toggleNavDropdown(event)">
+          ${activeItem ? activeItem.label : entry.label}<span class="nav-caret">▾</span>
+        </button>
+        <div class="nav-dropdown-menu">
+          ${entry.items.map(i => `<a href="${i.href}" class="nav-dropdown-item${i.key === active ? ' active' : ''}">${i.label}</a>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+  }
 
-  el.innerHTML = NAV_GROUPS.map(entry => {
-    if (!entry.items) return renderLink(entry);
-    const activeItem = entry.items.find(i => i.key === active);
-    return `<div class="nav-dropdown">
-      <button class="nav-tab nav-dropdown-btn${activeItem ? ' active' : ''}" onclick="toggleNavDropdown(event)">
-        ${activeItem ? activeItem.label : entry.label}<span class="nav-caret">▾</span>
-      </button>
-      <div class="nav-dropdown-menu">
-        ${entry.items.map(i => `<a href="${i.href}" class="nav-dropdown-item${i.key === active ? ' active' : ''}">${i.label}</a>`).join('')}
-      </div>
-    </div>`;
+  ensureDrawer();
+  const drawerItems = document.getElementById('drawerItems');
+  if (drawerItems) drawerItems.innerHTML = buildDrawerItemsHtml(active);
+}
+
+// En mobile la barra de arriba (con scroll horizontal) se reemplaza por
+// un botón hamburguesa + panel lateral, para no "inundar" la parte de
+// arriba de la pantalla — en desktop sigue igual, con CSS decidiendo cuál
+// de los dos se ve segun el ancho (ver .hamburger-btn/.nav-tabs en
+// styles.css).
+function buildDrawerItemsHtml(active) {
+  return NAV_GROUPS.map(entry => {
+    if (!entry.items) {
+      const isActive = entry.key === active;
+      const attrs = entry.external ? ' target="_blank" rel="noopener"' : '';
+      return `<a href="${entry.href}"${attrs} class="drawer-item${isActive ? ' active' : ''}">${entry.label}</a>`;
+    }
+    const groupHead = `<div class="drawer-group-label">${entry.label}</div>`;
+    const items = entry.items.map(i =>
+      `<a href="${i.href}" class="drawer-item drawer-subitem${i.key === active ? ' active' : ''}">${i.label}</a>`
+    ).join('');
+    return groupHead + items;
   }).join('');
+}
+
+function ensureDrawer() {
+  if (document.getElementById('navDrawer')) return;
+
+  const headerInner = document.querySelector('.header-inner');
+  if (headerInner) {
+    const btn = document.createElement('button');
+    btn.className = 'hamburger-btn';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Abrir menú');
+    btn.onclick = toggleDrawer;
+    btn.innerHTML = '<span></span><span></span><span></span>';
+    headerInner.insertBefore(btn, headerInner.firstChild);
+  }
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'drawerBackdrop';
+  backdrop.className = 'drawer-backdrop';
+  backdrop.onclick = closeDrawer;
+  document.body.appendChild(backdrop);
+
+  const drawer = document.createElement('nav');
+  drawer.id = 'navDrawer';
+  drawer.className = 'drawer';
+  drawer.innerHTML = `
+    <div class="drawer-head">
+      <span class="drawer-title">Mervalazo</span>
+      <button class="drawer-close" type="button" onclick="closeDrawer()" aria-label="Cerrar menú">✕</button>
+    </div>
+    <div class="drawer-items" id="drawerItems"></div>
+  `;
+  document.body.appendChild(drawer);
+}
+
+function toggleDrawer() {
+  const drawer = document.getElementById('navDrawer');
+  if (drawer.classList.contains('open')) closeDrawer(); else openDrawer();
+}
+function openDrawer() {
+  document.getElementById('navDrawer').classList.add('open');
+  document.getElementById('drawerBackdrop').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('drawerBackdrop').classList.remove('open');
 }
 
 function toggleNavDropdown(e) {
