@@ -524,8 +524,27 @@ function tvMiniWidgetUrl(ticker, tipo) {
     '#' + encodeURIComponent(JSON.stringify(config));
 }
 
+// financialmodelingprep.com sirve logos por ticker de forma gratuita y sin
+// key, pero solo cubre simbolos que cotizan en EEUU — para acciones
+// argentinas que NO tienen ADR (o cotizan bajo otro simbolo en EEUU) no hay
+// logo disponible y el <img> simplemente no se muestra (onerror).
+const TICKER_LOGO_OVERRIDE = {
+  YPFD: 'YPF', PAMP: 'PAM', TGSU2: 'TGS', TXAR: 'TX', CRES: 'CRESY',
+  IRSA: 'IRS', TECO2: 'TEO'
+};
+
+function tickerLogoUrl(ticker, tipo) {
+  if (tipo === 'cripto') return null;
+  const symbol = TICKER_LOGO_OVERRIDE[ticker] || ticker;
+  return `https://financialmodelingprep.com/image-stock/${symbol}.png`;
+}
+
 function tvLink(ticker, tipo) {
-  return `<a href="${tvUrl(ticker, tipo)}" target="_blank" rel="noopener" class="tk tk-link" data-ticker="${ticker}" data-tipo="${tipo || 'accion'}">${ticker}</a>`;
+  const logoUrl = tickerLogoUrl(ticker, tipo);
+  const logo = logoUrl
+    ? `<img class="tk-logo" src="${logoUrl}" alt="" onerror="this.style.display='none'">`
+    : '';
+  return `<a href="${tvUrl(ticker, tipo)}" target="_blank" rel="noopener" class="tk tk-link" data-ticker="${ticker}" data-tipo="${tipo || 'accion'}">${logo}${ticker}</a>`;
 }
 
 let tvHoverInitialized = false;

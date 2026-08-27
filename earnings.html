@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Calendario de Earnings</title>
+<meta name="description" content="Calendario mensual de presentación de balances (earnings) de las principales empresas de EEUU, muchas con CEDEAR en Argentina.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Calendario de Earnings">
+<meta property="og:description" content="Calendario mensual de presentación de balances (earnings) de las principales empresas de EEUU, muchas con CEDEAR en Argentina.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/earnings.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Calendario de Earnings">
+<meta name="twitter:description" content="Calendario mensual de presentación de balances (earnings), muchas con CEDEAR en Argentina.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Calendario de Earnings</h1>
+        <p>Presentación de balances del mes</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Cargando…</span></span>
+      <button id="refreshBtn" onclick="loadEarnings(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2 id="calMonthLabel">Earnings</h2>
+      <span>top empresas por market cap, por día</span>
+    </div>
+    <div class="earn-grid-head">
+      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+    </div>
+    <div class="earn-grid" id="earnGrid"><div class="empty-note">Cargando…</div></div>
+    <div class="earn-day-detail" id="earnDayDetail" style="display:none;"></div>
+  </section>
+
+  <footer>
+    Datos de earnings vía la API pública de <a href="https://www.nasdaq.com/market-activity/earnings" target="_blank" rel="noopener">Nasdaq</a>. Cobertura limitada a empresas que cotizan en EEUU (la mayoría con CEDEAR en Argentina) — no incluye balances de empresas que solo cotizan en ByMA. A título informativo.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+let earningsByDate = {};
+let selectedDate = null;
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function fmtCap(n) {
+  if (!n) return '';
+  if (n >= 1e12) return 'US$' + (n / 1e12).toFixed(2) + 'T';
+  if (n >= 1e9) return 'US$' + (n / 1e9).toFixed(1) + 'B';
+  return 'US$' + (n / 1e6).toFixed(0) + 'M';
+}
+
+function buildCalendarGrid() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  document.getElementById('calMonthLabel').textContent = `Earnings — ${MESES[month]} ${year}`;
+
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // lunes=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = now.toISOString().slice(0, 10);
+
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += '<div class="earn-cell empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = new Date(year, month, d).toISOString().slice(0, 10);
+    const rows = earningsByDate[dateStr] || [];
+    const isToday = dateStr === today;
+    const chips = rows.slice(0, 3).map(r => tvLink(r.symbol, 'global')).join('');
+    const more = rows.length > 3 ? `<span class="earn-more">+${rows.length - 3} más</span>` : '';
+    cells += `
+      <div class="earn-cell${rows.length ? ' has-data' : ''}${isToday ? ' today' : ''}${selectedDate === dateStr ? ' selected' : ''}"
+           ${rows.length ? `onclick="selectDay('${dateStr}')"` : ''}>
+        <span class="earn-daynum">${d}</span>
+        <div class="earn-chips">${chips}${more}</div>
+      </div>`;
+  }
+  document.getElementById('earnGrid').innerHTML = cells;
+  if (selectedDate) initTVHover();
+}
+
+function selectDay(dateStr) {
+  selectedDate = selectedDate === dateStr ? null : dateStr;
+  buildCalendarGrid();
+  const detail = document.getElementById('earnDayDetail');
+  if (!selectedDate) { detail.style.display = 'none'; return; }
+  const rows = earningsByDate[selectedDate] || [];
+  const label = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  detail.style.display = 'block';
+  detail.innerHTML = `
+    <div class="earn-day-head">${label}</div>
+    <div class="earn-day-list">
+      ${rows.map(r => `
+        <div class="earn-day-row">
+          ${tvLink(r.symbol, 'global')}
+          <span class="earn-day-name">${r.name}</span>
+          <span class="earn-day-cap mono">${fmtCap(r.marketCap)}</span>
+          <span class="earn-day-time">${r.time === 'time-pre-market' ? 'Antes de apertura' : r.time === 'time-after-hours' ? 'Después del cierre' : '—'}</span>
+        </div>`).join('')}
+    </div>`;
+  initTVHover();
+}
+
+async function loadEarnings(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Cargando…');
+  try {
+    const res = await fetch('/.netlify/functions/earnings-calendar', { cache: 'no-store' });
+    if (!res.ok) throw new Error('earnings failed: ' + res.status);
+    earningsByDate = await res.json();
+    buildCalendarGrid();
+    setStatus('live', 'En vivo');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('earnGrid').innerHTML = '<div class="empty-note">No se pudo cargar el calendario de earnings en este momento.</div>';
+    setStatus('err', 'No se pudo conectar');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+renderNavTabs('earnings');
+initTVHover();
+loadEarnings(false);
+</script>
+
+</body>
+</html>

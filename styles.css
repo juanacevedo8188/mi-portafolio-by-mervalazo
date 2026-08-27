@@ -141,8 +141,9 @@ tbody tr:last-child td{border-bottom:none;}
 tbody tr:hover{background:var(--bg-alt);}
 .ticker-cell{display:flex;align-items:center;gap:9px;}
 .ticker-cell .tk{font-weight:700;font-size:14px;}
-.tk-link{color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-faint);cursor:pointer;}
+.tk-link{color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-faint);cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
 .tk-link:hover{border-bottom-color:var(--accent);color:var(--accent);}
+.tk-logo{width:16px;height:16px;border-radius:4px;object-fit:contain;background:#fff;flex-shrink:0;}
 
 #tvPreview{
   position:fixed;z-index:1000;pointer-events:none;background:var(--card);
@@ -207,6 +208,45 @@ footer a{color:var(--text-dim);}
 .hm-legend-note{flex:1;min-width:220px;}
 @media (max-width:640px){
   .hm-legend-note{width:100%;}
+}
+
+.earn-grid-head{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:14px 20px 0;
+  font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;text-align:center;
+}
+.earn-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:8px 20px 20px;background:var(--divider);border-radius:8px;overflow:hidden;}
+.earn-cell{
+  background:var(--card);min-height:78px;padding:6px;display:flex;flex-direction:column;gap:4px;
+  transition:background .12s;
+}
+.earn-cell.empty{background:var(--bg-alt);}
+.earn-cell.has-data{cursor:pointer;}
+.earn-cell.has-data:hover{background:var(--bg-alt);}
+.earn-cell.selected{background:var(--bg-alt);box-shadow:inset 0 0 0 2px var(--accent-dim);}
+.earn-cell.today .earn-daynum{color:var(--accent);font-weight:800;}
+.earn-daynum{font-size:11px;color:var(--text-faint);font-variant-numeric:tabular-nums;}
+.earn-chips{display:flex;flex-direction:column;gap:2px;overflow:hidden;}
+.earn-chips .tk-link{font-size:10.5px;border-bottom:none;}
+.earn-chips .tk-logo{width:12px;height:12px;}
+.earn-more{font-size:10px;color:var(--text-faint);}
+@media (max-width:760px){
+  .earn-cell{min-height:52px;}
+  .earn-daynum{font-size:10px;}
+  .earn-chips .tk-link span, .earn-chips .tk-link{font-size:0;}
+  .earn-chips .tk-logo{width:14px;height:14px;font-size:0;}
+}
+
+.earn-day-detail{padding:0 20px 20px;border-top:1px solid var(--divider);margin-top:4px;}
+.earn-day-head{font-size:12px;color:var(--text-faint);text-transform:capitalize;padding:14px 0 10px;}
+.earn-day-list{display:flex;flex-direction:column;gap:8px;}
+.earn-day-row{display:grid;grid-template-columns:90px 1fr auto auto;gap:12px;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px solid var(--divider);}
+.earn-day-row:last-child{border-bottom:none;}
+.earn-day-name{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.earn-day-cap{color:var(--text-faint);text-align:right;}
+.earn-day-time{font-size:11px;color:var(--text-faint);text-align:right;white-space:nowrap;}
+@media (max-width:640px){
+  .earn-day-row{grid-template-columns:80px 1fr;grid-template-areas:"tk name" "cap time";}
+  .earn-day-cap,.earn-day-time{text-align:left;}
 }
 
 .quick-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:18px 20px;}

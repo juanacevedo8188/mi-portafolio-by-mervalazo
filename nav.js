@@ -6,7 +6,8 @@ const NAV_GROUPS = [
       { key: 'dashboard', label: 'Dashboard', href: 'index.html' },
       { key: 'heatmap', label: 'Heatmap', href: 'heatmap.html' },
       { key: 'rentafija', label: 'Renta Fija', href: 'renta-fija.html' },
-      { key: 'commodities', label: 'Commodities', href: 'commodities.html' }
+      { key: 'commodities', label: 'Commodities', href: 'commodities.html' },
+      { key: 'earnings', label: 'Calendario de Earnings', href: 'earnings.html' }
     ]
   },
   { key: 'cartera', label: 'Cartera Mervalazo', href: 'cartera.html' },
