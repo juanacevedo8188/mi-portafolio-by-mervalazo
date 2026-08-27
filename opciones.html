@@ -82,8 +82,8 @@
         <input type="number" id="oPrima" placeholder="80" min="0" step="any" oninput="calcular()">
       </div>
       <div>
-        <label>Cantidad (1 lote = 100)</label>
-        <input type="number" id="oCantidad" value="100" min="1" step="1" oninput="calcular()">
+        <label>Lotes (1 lote = 100 opciones)</label>
+        <input type="number" id="oCantidad" value="1" min="1" step="1" oninput="calcular()">
       </div>
     </div>
 
@@ -279,7 +279,69 @@ function buildPayoffChartSVG(points, width, height, breakeven, spot, subyacente)
     ${breakevenMark}
     ${xTicks.join('')}
     ${axisTitleX}
+    <circle class="payoff-hover-dot" r="5" fill="var(--text)" stroke="var(--card)" stroke-width="2" style="opacity:0;"/>
   </svg>`;
+}
+
+// Tooltip al pasar el mouse (o tocar, en mobile) sobre la curva — muestra
+// el precio del subyacente y el resultado en ese punto exacto.
+function attachPayoffHover(points) {
+  const container = document.getElementById('payoffChart');
+  const svg = container.querySelector('svg');
+  const dot = container.querySelector('.payoff-hover-dot');
+  if (!svg) return;
+
+  let tooltip = document.getElementById('chartTooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'chartTooltip';
+    tooltip.className = 'chart-tooltip';
+    document.body.appendChild(tooltip);
+  }
+
+  const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+  const width = vb[2], height = vb[3];
+  const compact = width < 420;
+  const padL = compact ? 46 : 58, padR = 14;
+  const prices = points.map(p => p.price);
+  const pnls = points.map(p => p.pnl);
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
+  const minPnl = Math.min(...pnls, 0), maxPnl = Math.max(...pnls, 0);
+  const rangePnl = (maxPnl - minPnl) || 1;
+  const padT = 22, padB = compact ? 34 : 40;
+  const xPx = price => padL + ((price - minP) / ((maxP - minP) || 1)) * (width - padL - padR);
+  const yPx = pnl => height - padB - ((pnl - minPnl) / rangePnl) * (height - padT - padB);
+
+  function handleMove(clientX, clientY) {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const relX = (clientX - rect.left) * scaleX;
+    const t = Math.max(0, Math.min(1, (relX - padL) / (width - padL - padR)));
+    const idx = Math.round(t * (points.length - 1));
+    const p = points[idx];
+    dot.setAttribute('cx', xPx(p.price).toFixed(1));
+    dot.setAttribute('cy', yPx(p.pnl).toFixed(1));
+    dot.style.opacity = '1';
+    const cls = p.pnl > 0.005 ? 'up' : p.pnl < -0.005 ? 'down' : 'flat';
+    tooltip.innerHTML = `<div class="ct-date">Al vencimiento</div>
+      <div class="ct-value mono">${fmtARS(p.price)}</div>
+      <div class="ct-change ${cls}">${p.pnl >= 0 ? '+' : ''}${fmtARS(p.pnl)}</div>`;
+    tooltip.style.left = Math.min(clientX + 14, window.innerWidth - 200) + 'px';
+    tooltip.style.top = Math.max(8, clientY - 60) + 'px';
+    tooltip.style.display = 'block';
+  }
+  function hide() {
+    dot.style.opacity = '0';
+    tooltip.style.display = 'none';
+  }
+
+  svg.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+  svg.addEventListener('mouseleave', hide);
+  svg.addEventListener('click', e => handleMove(e.clientX, e.clientY));
+  svg.addEventListener('touchmove', e => {
+    if (e.touches[0]) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }
+  }, { passive: false });
+  svg.addEventListener('touchend', () => setTimeout(hide, 1500));
 }
 
 function calcular() {
@@ -287,7 +349,8 @@ function calcular() {
   const posicion = document.getElementById('oPosicion').value;
   const strike = parseFloat(document.getElementById('oStrike').value);
   const prima = parseFloat(document.getElementById('oPrima').value);
-  const cantidad = parseFloat(document.getElementById('oCantidad').value) || 100;
+  const lotes = parseFloat(document.getElementById('oCantidad').value) || 1;
+  const cantidad = lotes * 100; // 1 lote = 100 opciones
   const statsEl = document.getElementById('optStats');
   const chartEl = document.getElementById('payoffChart');
   const rangeEl = document.getElementById('optRange');
@@ -355,7 +418,8 @@ function calcular() {
   const height = Math.round(Math.min(280, Math.max(220, width * 0.38)));
   const subyacente = document.getElementById('oSubyacente').value;
   chartEl.innerHTML = buildPayoffChartSVG(points, width, height, breakeven, center, subyacente);
-  rangeEl.textContent = `Resultado total del lote (${fmtNum(cantidad)} opciones) según el precio de ${document.getElementById('oSubyacente').value} al vencimiento`;
+  attachPayoffHover(points);
+  rangeEl.textContent = `Resultado total (${fmtNum(lotes)} lote${lotes === 1 ? '' : 's'} · ${fmtNum(cantidad)} opciones) según el precio de ${document.getElementById('oSubyacente').value} al vencimiento`;
 }
 
 let optResizeTimer = null;
@@ -379,7 +443,7 @@ function tradeRowHtml(t) {
   return `<div class="opt-trade-row" onclick="loadTrade('${t.id}')">
     <span class="tag ${t.tipo === 'call' ? 'accion' : 'cripto'}">${t.tipo === 'call' ? 'CALL' : 'PUT'}</span>
     <span class="opt-trade-main">${t.subyacente} · ${t.posicion === 'long' ? 'Titular' : 'Lanzador'} · strike ${fmtARS(t.strike)}${t.opex ? ' · ' + t.opex : ''}</span>
-    <span class="opt-trade-sub mono">${fmtNum(t.cantidad)} × ${fmtARS(t.prima)} · ${fecha}</span>
+    <span class="opt-trade-sub mono">${fmtNum(t.cantidad)} lote${t.cantidad == 1 ? '' : 's'} × ${fmtARS(t.prima)} · ${fecha}</span>
     <button class="opt-trade-del" onclick="event.stopPropagation(); deleteTrade('${t.id}')" title="Borrar">✕</button>
   </div>`;
 }
@@ -399,7 +463,7 @@ async function saveTrade() {
   if (!currentSession) return;
   const strike = parseFloat(document.getElementById('oStrike').value);
   const prima = parseFloat(document.getElementById('oPrima').value);
-  const cantidad = parseFloat(document.getElementById('oCantidad').value) || 100;
+  const cantidad = parseFloat(document.getElementById('oCantidad').value) || 1; // lotes (1 lote = 100 opciones)
   const msg = document.getElementById('saveMsg');
   msg.style.display = 'none';
   if (!(strike > 0) || !(prima >= 0)) {
