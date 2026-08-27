@@ -49,6 +49,13 @@
 </header>
 
 <main>
+  <div class="currency-toggle-row">
+    <span id="oficialRateLabel" class="rate-note">—</span>
+    <div class="currency-toggle">
+      <button class="ct-btn active" id="ctArsBtn" onclick="setDisplayCurrency('ARS')">$ ARS</button>
+      <button class="ct-btn" id="ctUsdBtn" onclick="setDisplayCurrency('USD')">US$ USD</button>
+    </div>
+  </div>
   <div class="summary-grid" id="summaryGrid">
     <div class="summary-card">
       <div class="label">Valor de cartera</div>
@@ -82,7 +89,10 @@
   <section class="panel">
     <div class="panel-head">
       <h2>Evolución</h2>
-      <span id="historyRange"></span>
+      <div class="history-pct-badge">
+        <span id="historyPct" class="history-pct-val">—</span>
+        <span id="historyRange" class="history-pct-range"></span>
+      </div>
     </div>
     <div class="history-chart" id="historyChart"><div class="empty-note">Cargando historial…</div></div>
   </section>
@@ -190,39 +200,68 @@ function render(priceMap) {
   const { nombre, holdings } = window.PORTFOLIO;
   document.getElementById('portfolioName').textContent = nombre || 'Mervalazo';
 
+  const isUsd = displayCurrency === 'USD';
+  const fmtPrice = (arsVal, usdVal) => {
+    if (isUsd) return usdVal != null ? fmtUSD(usdVal) : '—';
+    return arsVal != null ? fmtARS(arsVal) : '—';
+  };
+
   const rows = holdings.map(h => {
     const q = priceMap.get(h.ticker);
-    const price = q ? q.c : null;
+    const priceArs = q ? q.c : null;
+    const priceUsd = q && oficialVenta ? q.c / oficialVenta : null;
     const dailyPct = q ? q.pct_change : null;
-    const value = price != null ? price * h.cantidad : null;
-    const cost = h.precioCompra * h.cantidad;
-    const totalPct = price != null ? ((price - h.precioCompra) / h.precioCompra) * 100 : null;
-    return { ...h, price, dailyPct, value, cost, totalPct, found: !!q };
+
+    const valueArs = priceArs != null ? priceArs * h.cantidad : null;
+    const valueUsd = priceUsd != null ? priceUsd * h.cantidad : null;
+
+    const precioCompraUsd = oficialVenta ? h.precioCompra / oficialVenta : null;
+    const costArs = h.precioCompra * h.cantidad;
+    const costUsd = precioCompraUsd != null ? precioCompraUsd * h.cantidad : null;
+
+    const totalPct = priceArs != null ? ((priceArs - h.precioCompra) / h.precioCompra) * 100 : null;
+    return {
+      ...h, dailyPct, totalPct, found: !!q,
+      priceArs, priceUsd, precioCompraUsd, valueArs, valueUsd, costArs, costUsd,
+      value: valueArs, cost: costArs // usados por groupBySector/quickMetrics (siempre en ARS)
+    };
   });
 
-  const totalValue = rows.reduce((s, r) => s + (r.value ?? r.cost), 0);
-  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
-  const totalGain = totalValue - totalCost;
-  const totalGainPct = totalCost ? (totalGain / totalCost) * 100 : 0;
-  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.value ?? 0) : 0), 0) / (totalValue || 1);
-  const dailyDelta = totalValue * (weightedDaily / 100);
+  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  const totalValueUsd = rows.reduce((s, r) => s + (r.valueUsd ?? r.costUsd ?? 0), 0);
+  const totalCostArs = rows.reduce((s, r) => s + r.costArs, 0);
+  const totalCostUsd = rows.reduce((s, r) => s + (r.costUsd ?? 0), 0);
+  const totalGainArs = totalValueArs - totalCostArs;
+  const totalGainUsd = totalValueUsd - totalCostUsd;
+  const totalGainPctArs = totalCostArs ? (totalGainArs / totalCostArs) * 100 : 0;
+  const totalGainPctUsd = totalCostUsd ? (totalGainUsd / totalCostUsd) * 100 : 0;
+  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.valueArs ?? 0) : 0), 0) / (totalValueArs || 1);
+  const dailyDeltaArs = totalValueArs * (weightedDaily / 100);
+  const dailyDeltaUsd = totalValueUsd * (weightedDaily / 100);
 
-  document.getElementById('sumValue').textContent = fmtARS(totalValue);
+  const totalValue = isUsd ? totalValueUsd : totalValueArs;
+  const totalCost = isUsd ? totalCostUsd : totalCostArs;
+  const totalGain = isUsd ? totalGainUsd : totalGainArs;
+  const totalGainPct = isUsd ? totalGainPctUsd : totalGainPctArs;
+  const dailyDelta = isUsd ? dailyDeltaUsd : dailyDeltaArs;
+  const fmtTotal = isUsd ? fmtUSD : fmtARS;
+
+  document.getElementById('sumValue').textContent = totalValue ? fmtTotal(totalValue) : '—';
   document.getElementById('sumValueSub').innerHTML = `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)} hoy</span>`;
 
-  document.getElementById('sumDaily').textContent = (dailyDelta >= 0 ? '+' : '') + fmtARS(dailyDelta);
+  document.getElementById('sumDaily').textContent = (dailyDelta >= 0 ? '+' : '') + fmtTotal(dailyDelta);
   document.getElementById('sumDaily').className = 'value mono ' + (dailyDelta >= 0 ? '' : '');
   document.getElementById('sumDailySub').innerHTML = `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)}</span>`;
 
-  document.getElementById('sumTotal').textContent = (totalGain >= 0 ? '+' : '') + fmtARS(totalGain);
+  document.getElementById('sumTotal').textContent = (totalGain >= 0 ? '+' : '') + fmtTotal(totalGain);
   document.getElementById('sumTotalSub').innerHTML = `<span class="pill ${pctClass(totalGainPct)}">${fmtPct(totalGainPct)} desde compra</span>`;
 
-  document.getElementById('sumCost').textContent = fmtARS(totalCost);
+  document.getElementById('sumCost').textContent = totalCost ? fmtTotal(totalCost) : '—';
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${holdings.length} posiciones</span>`;
 
   const sectors = groupBySector(rows);
   renderQuickMetrics('quickMetrics', rows, priceMap, weightedDaily);
-  renderDonut('donutContainer', sectors, totalValue, activeSectorFilter, toggleSectorFilter);
+  renderDonut('donutContainer', sectors, totalValueArs, activeSectorFilter, toggleSectorFilter);
 
   const filterBadge = document.getElementById('sectorFilterBadge');
   filterBadge.innerHTML = activeSectorFilter
@@ -236,25 +275,25 @@ function render(priceMap) {
       return `<tr>
         <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
         <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
-        <td class="row-value">${fmtPct((r.value ?? r.cost) / totalValue * 100)}</td>
+        <td class="row-value">${fmtPct((r.value ?? r.cost) / totalValueArs * 100)}</td>
       </tr>`;
     }
-    const weight = ((r.value ?? 0) / totalValue) * 100;
+    const weight = ((r.value ?? 0) / totalValueArs) * 100;
     return `<tr>
       <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabel(r.tipo)}</span></div></td>
       <td class="mono">${fmtNum(r.cantidad)}</td>
-      <td class="mono">${fmtARS(r.precioCompra)}</td>
-      <td class="mono">${fmtARS(r.price)}</td>
+      <td class="mono">${fmtPrice(r.precioCompra, r.precioCompraUsd)}</td>
+      <td class="mono">${fmtPrice(r.priceArs, r.priceUsd)}</td>
       <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
       <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
-      <td class="mono row-value">${fmtARS(r.value)}</td>
+      <td class="mono row-value">${fmtPrice(r.valueArs, r.valueUsd)}</td>
       <td class="mono">${fmtNum(weight)}%</td>
     </tr>`;
   };
 
   const body = document.getElementById('holdingsBody');
   body.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
-    const sectorWeight = (sectorValue / totalValue) * 100;
+    const sectorWeight = (sectorValue / totalValueArs) * 100;
     const isActive = activeSectorFilter === sector;
     return `<tr class="sector-row${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
       + list.map(rowHtml).join('');
@@ -263,11 +302,11 @@ function render(priceMap) {
   const compList = document.getElementById('compositionList');
   compList.innerHTML = visibleSectors.map(({ sector, list, sectorValue }) => {
     const sectorIndex = sectors.findIndex(s => s.sector === sector);
-    const sectorWeight = (sectorValue / totalValue) * 100;
+    const sectorWeight = (sectorValue / totalValueArs) * 100;
     const color = donutColor(sectorIndex);
     const isActive = activeSectorFilter === sector;
     const rowsHtml = list.map(r => {
-      const weight = ((r.value ?? r.cost) / totalValue) * 100;
+      const weight = ((r.value ?? r.cost) / totalValueArs) * 100;
       return `<div class="comp-row">
         <span class="tk">${r.ticker}</span>
         <span class="comp-bar-track"><span class="comp-bar-fill" style="width:${Math.max(weight, 2)}%;background:${color};"></span></span>
@@ -287,17 +326,42 @@ async function loadHistory() {
     if (!res.ok) throw new Error('history fetch failed: ' + res.status);
     const data = await res.json();
     const points = data.map(d => ({ date: d.snapshot_date, value: d.total_value }));
-    renderHistory('historyChart', 'historyRange', points);
+    renderHistory('historyChart', 'historyRange', points, 'historyPct');
   } catch (err) {
     console.error(err);
     document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
   }
 }
 
+let oficialVenta = null;
+let displayCurrency = 'ARS';
+
+async function initOficialRate() {
+  try {
+    const { compra, venta } = await getOficialRate();
+    oficialVenta = venta;
+    document.getElementById('oficialRateLabel').textContent =
+      `Dólar oficial: compra ${fmtARS(compra)} · venta ${fmtARS(venta)}`;
+  } catch (err) {
+    console.error(err);
+    document.getElementById('oficialRateLabel').textContent = 'No se pudo cargar la cotización del dólar';
+  }
+  if (lastPriceMap) render(lastPriceMap);
+}
+
+function setDisplayCurrency(cur) {
+  displayCurrency = cur;
+  document.getElementById('ctArsBtn').classList.toggle('active', cur === 'ARS');
+  document.getElementById('ctUsdBtn').classList.toggle('active', cur === 'USD');
+  if (lastPriceMap) render(lastPriceMap);
+}
+
 renderNavTabs('cartera');
 initTVHover();
 loadPrices(false);
 loadHistory();
+initOficialRate();
+setInterval(initOficialRate, 60000);
 refreshTimer = setInterval(() => loadPrices(false), REFRESH_MS);
 </script>
 

@@ -738,12 +738,14 @@ function buildFlatTreemapHTML(items, width, height, colorScale) {
   return renderTiles(nodes, 0, colorScale);
 }
 
-function renderHistory(chartId, rangeId, points) {
+function renderHistory(chartId, rangeId, points, pctId) {
   const chartEl = document.getElementById(chartId);
   const rangeEl = document.getElementById(rangeId);
+  const pctEl = pctId ? document.getElementById(pctId) : null;
   if (points.length < 2) {
     chartEl.innerHTML = '<div class="empty-note">Todavía no hay suficiente historial para graficar la evolución — se guarda una foto por día, volvé en un par de días.</div>';
     if (rangeEl) rangeEl.textContent = '';
+    if (pctEl) pctEl.textContent = '—';
     return;
   }
   chartEl.innerHTML = buildLineChartSVG(points, 600, 140);
@@ -752,5 +754,10 @@ function renderHistory(chartId, rangeId, points) {
     const first = new Date(points[0].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
     const last = new Date(points[points.length - 1].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
     rangeEl.textContent = `${first} — ${last}`;
+  }
+  if (pctEl) {
+    const periodPct = ((points[points.length - 1].value - points[0].value) / points[0].value) * 100;
+    pctEl.textContent = fmtPct(periodPct);
+    pctEl.className = 'history-pct-val ' + pctClass(periodPct);
   }
 }

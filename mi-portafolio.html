@@ -133,7 +133,10 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Evolución</h2>
-        <span id="historyRange"></span>
+        <div class="history-pct-badge">
+          <span id="historyPct" class="history-pct-val">—</span>
+          <span id="historyRange" class="history-pct-range"></span>
+        </div>
       </div>
       <div class="history-chart" id="historyChart"><div class="empty-note">Cargando historial…</div></div>
     </section>
@@ -637,7 +640,7 @@ async function loadHistory() {
       .order('snapshot_date', { ascending: true });
     if (error) throw error;
     const points = data.map(d => ({ date: d.snapshot_date, value: d.total_value }));
-    renderHistory('historyChart', 'historyRange', points);
+    renderHistory('historyChart', 'historyRange', points, 'historyPct');
   } catch (err) {
     console.error(err);
     document.getElementById('historyChart').innerHTML = '<div class="empty-note">No se pudo cargar el historial.</div>';
