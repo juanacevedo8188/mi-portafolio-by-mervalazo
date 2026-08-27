@@ -176,7 +176,7 @@ function tipoLabel(tipo) {
   return tipo === 'cedear' ? 'CEDEAR' : tipo === 'cripto' ? 'Cripto' : 'Acción';
 }
 
-const DONUT_PALETTE = ['#f1a887', '#4fa8a0', '#f2c879', '#7fa8d9', '#d98880', '#8cc7b5', '#b39ddb', '#93a3a1'];
+const DONUT_PALETTE = ['#f0904f', '#29a89c', '#f0b429', '#4f8fd9', '#e0655a', '#4fbf9a', '#9b6fd4', '#6b93a0'];
 function donutColor(i) { return DONUT_PALETTE[i % DONUT_PALETTE.length]; }
 
 function groupBySector(rows) {
