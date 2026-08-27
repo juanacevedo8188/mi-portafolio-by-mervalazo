@@ -4,6 +4,7 @@ const NAV_GROUPS = [
     label: 'Mercado',
     items: [
       { key: 'dashboard', label: 'Dashboard', href: 'index.html' },
+      { key: 'heatmap', label: 'Heatmap', href: 'heatmap.html' },
       { key: 'rentafija', label: 'Renta Fija', href: 'renta-fija.html' },
       { key: 'commodities', label: 'Commodities', href: 'commodities.html' }
     ]

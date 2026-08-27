@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Heatmap</title>
+<meta name="description" content="Mapa de calor del mercado: Merval y las principales acciones globales, coloreadas por variación diaria.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Heatmap">
+<meta property="og:description" content="Mapa de calor del mercado: Merval y las principales acciones globales, coloreadas por variación diaria.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/heatmap.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Heatmap">
+<meta name="twitter:description" content="Mapa de calor del mercado: Merval y las principales acciones globales, coloreadas por variación diaria.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Heatmap</h1>
+        <p>Mapa de calor del mercado</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Cargando…</span></span>
+      <button id="refreshBtn" onclick="loadHeatmap(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Mapa de calor</h2>
+      <div class="hm-toggle" id="hmToggle">
+        <button class="hm-toggle-btn active" data-universe="ar">Merval</button>
+        <button class="hm-toggle-btn" data-universe="global">Global</button>
+      </div>
+    </div>
+    <div class="hm-canvas" id="hmCanvas"><div class="empty-note">Cargando…</div></div>
+    <div class="hm-legend">
+      <span class="hm-legend-item"><span class="hm-swatch" style="background:rgba(217,136,128,0.75);"></span>Baja</span>
+      <span class="hm-legend-item"><span class="hm-swatch" style="background:rgba(139,152,169,0.25);"></span>Sin datos</span>
+      <span class="hm-legend-item"><span class="hm-swatch" style="background:rgba(79,168,160,0.75);"></span>Sube</span>
+      <span class="hm-legend-note">Tamaño de cada caja ≈ capitalización de mercado (aproximada). Pasá el mouse por un ticker para ver el gráfico, o hacé clic para abrirlo en TradingView.</span>
+    </div>
+  </section>
+
+  <footer>
+    Precios de Merval vía <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>, precios globales vía Yahoo Finance. La capitalización de mercado usada para el tamaño de las cajas es aproximada — a título informativo, no es una recomendación de inversión.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+let currentUniverse = 'ar';
+let cache = { ar: null, global: null };
+let resizeTimer = null;
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function groupForTreemap(rows) {
+  const groups = new Map();
+  rows.forEach(r => {
+    if (!groups.has(r.sector)) groups.set(r.sector, []);
+    groups.get(r.sector).push(r);
+  });
+  return [...groups.entries()].map(([label, items]) => ({ label, items }));
+}
+
+function paint() {
+  const canvas = document.getElementById('hmCanvas');
+  const rows = cache[currentUniverse];
+  if (!rows) return;
+  const width = canvas.clientWidth || 900;
+  const height = currentUniverse === 'ar' ? 420 : 620;
+  canvas.style.height = height + 'px';
+  canvas.innerHTML = buildTreemapHTML(groupForTreemap(rows), width, height);
+}
+
+async function loadHeatmap(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Cargando…');
+  const canvas = document.getElementById('hmCanvas');
+  try {
+    const rows = currentUniverse === 'ar' ? await getArHeatmapData() : await getGlobalHeatmapData();
+    if (!rows.length) throw new Error('sin datos');
+    cache[currentUniverse] = rows;
+    paint();
+    setStatus('live', 'En vivo · actualiza cada 60s');
+  } catch (err) {
+    console.error(err);
+    canvas.innerHTML = '<div class="empty-note">No se pudo cargar el heatmap en este momento. Reintentando automáticamente cada 60 segundos…</div>';
+    setStatus('err', 'No se pudo conectar');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+document.getElementById('hmToggle').addEventListener('click', e => {
+  const btn = e.target.closest('.hm-toggle-btn');
+  if (!btn || btn.classList.contains('active')) return;
+  document.querySelectorAll('.hm-toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentUniverse = btn.dataset.universe;
+  if (cache[currentUniverse]) { paint(); setStatus('live', 'En vivo · actualiza cada 60s'); }
+  else loadHeatmap(false);
+});
+
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(paint, 200);
+});
+
+renderNavTabs('heatmap');
+initTVHover();
+loadHeatmap(false);
+setInterval(() => loadHeatmap(false), 60000);
+</script>
+
+</body>
+</html>

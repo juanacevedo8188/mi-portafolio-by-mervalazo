@@ -443,13 +443,15 @@ function buildSparklineSVG(values, width, height) {
 }
 
 function tvSymbol(ticker, tipo) {
-  return tipo === 'cripto' ? 'BINANCE:' + ticker + 'USDT' : 'BCBA:' + ticker;
+  if (tipo === 'cripto') return 'BINANCE:' + ticker + 'USDT';
+  if (tipo === 'global') return ticker;
+  return 'BCBA:' + ticker;
 }
 
 function tvUrl(ticker, tipo) {
-  return tipo === 'cripto'
-    ? 'https://www.tradingview.com/symbols/' + ticker + 'USDT/'
-    : 'https://www.tradingview.com/symbols/BCBA-' + ticker + '/';
+  if (tipo === 'cripto') return 'https://www.tradingview.com/symbols/' + ticker + 'USDT/';
+  if (tipo === 'global') return 'https://www.tradingview.com/symbols/' + ticker + '/';
+  return 'https://www.tradingview.com/symbols/BCBA-' + ticker + '/';
 }
 
 function tvMiniWidgetUrl(ticker, tipo) {
@@ -512,6 +514,141 @@ function initTVHover() {
     if (!link) return;
     hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 100);
   });
+}
+
+// Heatmap — universo Argentina: acciones reales del Merval (sin CEDEARs,
+// que ya cubre el heatmap Global). Precio/variación % en vivo via data912;
+// sector y market cap (miles de millones de USD, aproximado) cargados a
+// mano porque el feed no los trae — solo definen el TAMAÑO relativo de
+// cada caja, no un dato financiero exacto.
+const ARG_HEATMAP_LIST = [
+  ['GGAL', 'Bancos y Financiero', 8], ['BMA', 'Bancos y Financiero', 4],
+  ['SUPV', 'Bancos y Financiero', 1.2], ['BBAR', 'Bancos y Financiero', 2.5],
+  ['VALO', 'Bancos y Financiero', 0.4], ['BYMA', 'Bancos y Financiero', 0.5],
+  ['YPFD', 'Energía y Utilities', 9], ['PAMP', 'Energía y Utilities', 5],
+  ['TGSU2', 'Energía y Utilities', 1.5], ['TGNO4', 'Energía y Utilities', 1],
+  ['CEPU', 'Energía y Utilities', 1.2], ['EDN', 'Energía y Utilities', 0.8],
+  ['TRAN', 'Energía y Utilities', 0.5], ['CGPA2', 'Energía y Utilities', 0.3],
+  ['TXAR', 'Materiales e Industria', 1], ['ALUA', 'Materiales e Industria', 1.3],
+  ['LOMA', 'Materiales e Industria', 1.5], ['FERR', 'Materiales e Industria', 0.4],
+  ['AGRO', 'Materiales e Industria', 0.3],
+  ['IRSA', 'Real Estate', 1.2], ['IRCP', 'Real Estate', 0.5], ['CRES', 'Real Estate', 0.7],
+  ['MOLI', 'Consumo', 0.4], ['MIRG', 'Consumo', 0.6], ['LEDE', 'Consumo', 0.3],
+  ['TECO2', 'Telecom y Medios', 1], ['CVH', 'Telecom y Medios', 0.3],
+  ['COME', 'Holdings', 0.3], ['BOLT', 'Holdings', 0.15], ['RIGO', 'Holdings', 0.3]
+];
+
+async function getArHeatmapData() {
+  const stocks = await fetchFeed('arg_stocks');
+  const priceMap = new Map(stocks.map(r => [r.symbol, r]));
+  return ARG_HEATMAP_LIST
+    .map(([symbol, sector, marketCap]) => {
+      const row = priceMap.get(symbol);
+      if (!row) return null;
+      return { symbol, sector, marketCap, price: row.c, pct_change: row.pct_change, tipo: 'accion' };
+    })
+    .filter(Boolean);
+}
+
+async function getGlobalHeatmapData() {
+  const res = await fetch('/.netlify/functions/heatmap-global', { cache: 'no-store' });
+  if (!res.ok) throw new Error('heatmap global failed: ' + res.status);
+  const rows = await res.json();
+  return rows.map(r => ({ ...r, tipo: 'global' }));
+}
+
+// Layout "squarified treemap" (Bruls, Huizing, van Wijk): acomoda `items`
+// (necesitan .value > 0) dentro del rectangulo x,y,w,h intentando que cada
+// caja quede lo mas cuadrada posible, en vez de tiras finitas. Devuelve los
+// mismos items con .x/.y/.w/.h asignados.
+function squarify(items, x, y, w, h) {
+  const nodes = items.filter(i => i.value > 0).sort((a, b) => b.value - a.value);
+  const total = nodes.reduce((s, n) => s + n.value, 0) || 1;
+  const scale = (w * h) / total;
+  nodes.forEach(n => { n._area = n.value * scale; });
+
+  function worst(row, sideLen) {
+    if (!row.length) return Infinity;
+    const sum = row.reduce((s, n) => s + n._area, 0);
+    const max = Math.max(...row.map(n => n._area));
+    const min = Math.min(...row.map(n => n._area));
+    const s2 = sideLen * sideLen;
+    return Math.max((s2 * max) / (sum * sum), (sum * sum) / (s2 * min));
+  }
+
+  function layoutRow(row, rect) {
+    const sum = row.reduce((s, n) => s + n._area, 0);
+    const vertical = rect.w >= rect.h;
+    const sideLen = vertical ? rect.h : rect.w;
+    const thickness = sideLen > 0 ? sum / sideLen : 0;
+    let offset = 0;
+    row.forEach(n => {
+      const len = thickness > 0 ? n._area / thickness : 0;
+      if (vertical) { n.x = rect.x; n.y = rect.y + offset; n.w = thickness; n.h = len; }
+      else { n.x = rect.x + offset; n.y = rect.y; n.w = len; n.h = thickness; }
+      offset += len;
+    });
+    return vertical
+      ? { x: rect.x + thickness, y: rect.y, w: Math.max(0, rect.w - thickness), h: rect.h }
+      : { x: rect.x, y: rect.y + thickness, w: rect.w, h: Math.max(0, rect.h - thickness) };
+  }
+
+  let rect = { x, y, w, h };
+  const remaining = nodes.slice();
+  let row = [];
+  while (remaining.length) {
+    const sideLen = Math.min(rect.w, rect.h);
+    const trial = [...row, remaining[0]];
+    if (worst(row, sideLen) >= worst(trial, sideLen)) {
+      row.push(remaining.shift());
+    } else {
+      rect = layoutRow(row, rect);
+      row = [];
+    }
+  }
+  if (row.length) layoutRow(row, rect);
+  return nodes;
+}
+
+// Treemap de dos niveles: primero acomoda los sectores (peso = suma de sus
+// items) en todo el lienzo, y adentro de cada caja de sector vuelve a
+// aplicar squarify con sus items individuales, debajo de un header con el
+// nombre del sector.
+function heatColor(pct) {
+  if (pct == null || isNaN(pct)) return 'rgba(139,152,169,0.25)';
+  const clamped = Math.max(-4, Math.min(4, pct));
+  const t = Math.abs(clamped) / 4;
+  const alpha = 0.28 + t * 0.55;
+  return clamped >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(244,81,95,${alpha})`;
+}
+
+function buildTreemapHTML(sectorGroups, width, height) {
+  const HEADER_H = 24;
+  const sectorNodes = sectorGroups.map(g => ({
+    ...g, value: g.items.reduce((s, i) => s + i.marketCap, 0)
+  }));
+  squarify(sectorNodes, 0, 0, width, height);
+
+  return sectorNodes.map(sector => {
+    const innerH = Math.max(0, sector.h - HEADER_H);
+    const items = sector.items.map(i => ({ ...i, value: i.marketCap }));
+    squarify(items, 0, 0, sector.w, innerH);
+    const tiles = items.map(it => {
+      const tvTipo = it.tipo === 'global' ? 'global' : 'accion';
+      const showText = it.w > 40 && it.h > 26;
+      return `
+        <a class="hm-tile tk-link" data-ticker="${it.symbol}" data-tipo="${tvTipo}"
+           href="${tvUrl(it.symbol, tvTipo)}" target="_blank" rel="noopener"
+           style="left:${it.x}px;top:${it.y + HEADER_H}px;width:${it.w}px;height:${it.h}px;background:${heatColor(it.pct_change)};">
+          ${showText ? `<span class="hm-tk">${it.symbol}</span><span class="hm-pct">${fmtPct(it.pct_change)}</span>` : ''}
+        </a>`;
+    }).join('');
+    return `
+      <div class="hm-sector" style="left:${sector.x}px;top:${sector.y}px;width:${sector.w}px;height:${sector.h}px;">
+        <div class="hm-sector-head" style="width:${sector.w}px;">${sector.label}</div>
+        ${tiles}
+      </div>`;
+  }).join('');
 }
 
 function renderHistory(chartId, rangeId, points) {
