@@ -126,6 +126,7 @@ async function getLecapData() {
         vencimiento: l.fechaVencimiento,
         dtm,
         price: q.c,
+        pctChange: q.pct_change,
         tem: (Math.pow(ratio, 30 / dtm) - 1) * 100,
         tna: (ratio - 1) * (365 / dtm) * 100,
         tea: (Math.pow(ratio, 365 / dtm) - 1) * 100

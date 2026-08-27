@@ -80,10 +80,11 @@
             <th>TNA</th>
             <th>TEA</th>
             <th>Precio</th>
+            <th>Var. Diaria</th>
           </tr>
         </thead>
         <tbody id="lecapBody">
-          <tr><td colspan="7" class="empty-note">Cargando…</td></tr>
+          <tr><td colspan="8" class="empty-note">Cargando…</td></tr>
         </tbody>
       </table>
     </div>
@@ -137,8 +138,15 @@ function buildCurveSVG(points, width, height) {
     `<text x="${x(d).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${d}d</text>`
   );
 
+  // Cada punto se colorea segun la variacion diaria de precio de esa letra
+  // (suben en verde, bajan en rojo) — asi la curva también muestra de un
+  // vistazo qué letras se movieron hoy, no solo su tasa.
+  const dotColor = p => {
+    const cls = pctClass(p.pctChange);
+    return cls === 'up' ? 'var(--up)' : cls === 'down' ? 'var(--down)' : 'var(--accent)';
+  };
   const dots = coords.map((c, i) =>
-    `<circle class="yc-dot" data-idx="${i}" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`
+    `<circle class="yc-dot" data-idx="${i}" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="5" fill="${dotColor(points[i])}" stroke="var(--card)" stroke-width="2"/>`
   ).join('');
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
@@ -162,7 +170,8 @@ function attachCurveInteraction(points) {
     const p = points[idx];
     tooltip.innerHTML = `<div class="ct-date">${p.ticker} · vto ${new Date(p.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</div>
       <div class="ct-value mono">TEA ${fmtNum(p.tea)}%</div>
-      <div class="ct-change flat">TNA ${fmtNum(p.tna)}% · ${p.dtm}d · ${fmtARS(p.price)}</div>`;
+      <div class="ct-change ${pctClass(p.pctChange)}">${fmtARS(p.price)} · ${fmtPct(p.pctChange)} hoy</div>
+      <div class="ct-change flat">TNA ${fmtNum(p.tna)}% · ${p.dtm}d</div>`;
     tooltip.style.left = Math.min(clientX + 14, window.innerWidth - 200) + 'px';
     tooltip.style.top = Math.max(8, clientY - 60) + 'px';
     tooltip.style.display = 'block';
@@ -204,7 +213,7 @@ async function loadLecaps() {
     const data = await getLecapData();
     lecapCache = data;
     if (!data.length) {
-      body.innerHTML = '<tr><td colspan="7" class="empty-note">No hay LECAPs vigentes en este momento.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="empty-note">No hay LECAPs vigentes en este momento.</td></tr>';
       curveEl.innerHTML = '<div class="empty-note">No hay datos para graficar.</div>';
       document.getElementById('lecapUpdated').textContent = '';
       document.getElementById('curveUpdated').textContent = '';
@@ -219,6 +228,7 @@ async function loadLecaps() {
         <td class="mono">${fmtNum(l.tna)}%</td>
         <td class="mono">${fmtNum(l.tea)}%</td>
         <td class="mono row-value">${fmtARS(l.price)}</td>
+        <td class="mono chg ${pctClass(l.pctChange)}">${fmtPct(l.pctChange)}</td>
       </tr>
     `).join('');
     document.getElementById('lecapUpdated').textContent = data.length + ' letras vigentes';
@@ -227,7 +237,7 @@ async function loadLecaps() {
     document.getElementById('curveUpdated').textContent = data.length + ' puntos';
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<tr><td colspan="7" class="empty-note">No se pudo cargar la información de LECAPs.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="empty-note">No se pudo cargar la información de LECAPs.</td></tr>';
     curveEl.innerHTML = '<div class="empty-note">No se pudo cargar la curva.</div>';
   }
 }
