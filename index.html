@@ -67,6 +67,7 @@
       </div>
       <div class="brecha-summary" id="brechaSummary"></div>
       <div class="dollar-bars" id="dollarBars"><div class="empty-note">Cargando…</div></div>
+      <div class="brecha-chart" id="brechaChart" style="display:none;"></div>
     </section>
 
     <section class="panel">
@@ -165,7 +166,7 @@ async function loadDollar() {
     barsEl.innerHTML = sorted.map(r => {
       const brecha = r.casa !== 'oficial' ? brechaOf(r) : null;
       return `
-      <div class="dbar-row">
+      <div class="dbar-row${activeBrechaCasa === r.casa ? ' active' : ''}" data-casa="${r.casa}" onclick="toggleBrechaChart('${r.casa}','${r.nombre}')">
         <span class="dbar-label">${r.nombre}</span>
         <span class="dbar-track"><span class="dbar-fill" style="width:${Math.max((r.venta / max) * 100, 4)}%"></span></span>
         <span class="dbar-val mono">${fmtARS(r.venta)}${brecha != null ? `<span class="dbar-brecha">${fmtPct(brecha)}</span>` : ''}</span>
@@ -176,6 +177,34 @@ async function loadDollar() {
     grid.innerHTML = '<div class="empty-note">No se pudo cargar la cotización del dólar.</div>';
     barsEl.innerHTML = '<div class="empty-note">No se pudo cargar.</div>';
     summaryEl.innerHTML = '';
+  }
+}
+
+let activeBrechaCasa = null;
+const dolarHistoryCache = {};
+
+async function toggleBrechaChart(casa, nombre) {
+  const slot = document.getElementById('brechaChart');
+  const rows = document.querySelectorAll('.dbar-row');
+  if (activeBrechaCasa === casa) {
+    activeBrechaCasa = null;
+    slot.style.display = 'none';
+    rows.forEach(r => r.classList.remove('active'));
+    return;
+  }
+  activeBrechaCasa = casa;
+  rows.forEach(r => r.classList.toggle('active', r.dataset.casa === casa));
+  slot.style.display = 'block';
+  slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div class="empty-note">Cargando…</div>`;
+  try {
+    if (!dolarHistoryCache[casa]) dolarHistoryCache[casa] = await getDolarHistory(casa, 30);
+    const points = dolarHistoryCache[casa];
+    slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div id="brechaChartSvg"></div>`;
+    document.getElementById('brechaChartSvg').innerHTML = buildLineChartSVG(points, 460, 110);
+    attachChartHover('brechaChartSvg', points, 460, 110);
+  } catch (err) {
+    console.error(err);
+    slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div class="empty-note">No se pudo cargar el histórico.</div>`;
   }
 }
 

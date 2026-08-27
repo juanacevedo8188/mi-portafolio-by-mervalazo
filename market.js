@@ -56,6 +56,16 @@ async function getAllDolarRates() {
   return res.json();
 }
 
+// Historico diario por tipo de dolar (casa: oficial/blue/bolsa/mayorista/
+// cripto/tarjeta/contadoconliqui) — mismos slugs que devuelve dolarapi.com,
+// asi que no hace falta traducir nombres entre las dos APIs.
+async function getDolarHistory(casa, days) {
+  const res = await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/${casa}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('dolar historico failed: ' + res.status);
+  const data = await res.json();
+  return data.slice(-(days || 30)).map(d => ({ date: d.fecha, value: d.venta }));
+}
+
 // API publica y gratuita del BCRA (Banco Central de la Republica Argentina).
 // La API es propensa a fallas puntuales/lentitud, asi que reintenta antes
 // de darse por vencida en vez de mostrar un error por una falla transitoria.

@@ -364,7 +364,13 @@ input[type=number]{-moz-appearance:textfield;}
 .brecha-summary .pill b{color:var(--accent);font-weight:700;margin-left:2px;}
 
 .dollar-bars{padding:14px 20px 18px;display:flex;flex-direction:column;gap:10px;}
-.dbar-row{display:grid;grid-template-columns:130px 1fr 130px;gap:12px;align-items:center;font-size:13px;}
+.dbar-row{
+  display:grid;grid-template-columns:130px 1fr 130px;gap:12px;align-items:center;font-size:13px;
+  cursor:pointer;padding:4px 6px;margin:-4px -6px;border-radius:7px;transition:background .12s;
+}
+.dbar-row:hover{background:var(--bg-alt);}
+.dbar-row.active{background:var(--bg-alt);}
+.dbar-row.active .dbar-label{color:var(--accent);}
 .dbar-label{color:var(--text-dim);}
 .dbar-track{height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;}
 .dbar-fill{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent-dim),var(--accent));}
@@ -373,6 +379,10 @@ input[type=number]{-moz-appearance:textfield;}
 @media (max-width:480px){
   .dbar-row{grid-template-columns:90px 1fr 100px;gap:8px;}
 }
+
+.brecha-chart{padding:2px 20px 18px;border-top:1px solid var(--divider);margin-top:4px;}
+.brecha-chart-head{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;padding-top:14px;margin-bottom:8px;}
+.brecha-chart svg{width:100%;height:110px;display:block;}
 
 .breadth-bar{display:flex;height:20px;border-radius:8px;overflow:hidden;margin:18px 20px 12px;}
 .breadth-seg{display:block;height:100%;}
