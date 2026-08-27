@@ -55,6 +55,7 @@
       <div class="hm-toggle" id="hmToggle">
         <button class="hm-toggle-btn active" data-universe="ar">Merval</button>
         <button class="hm-toggle-btn" data-universe="global">Global</button>
+        <button class="hm-toggle-btn" data-universe="crypto">Cripto</button>
       </div>
     </div>
     <div class="hm-canvas" id="hmCanvas"><div class="empty-note">Cargando…</div></div>
@@ -76,7 +77,10 @@
 <script src="nav.js"></script>
 <script>
 let currentUniverse = 'ar';
-let cache = { ar: null, global: null };
+let cache = { ar: null, global: null, crypto: null };
+const UNIVERSE_HEIGHT = { ar: 420, global: 620, crypto: 300 };
+const UNIVERSE_SCALE = { ar: 4, global: 4, crypto: 8 };
+const UNIVERSE_LOADER = { ar: getArHeatmapData, global: getGlobalHeatmapData, crypto: getCryptoHeatmapData };
 let resizeTimer = null;
 
 function setStatus(state, text) {
@@ -100,9 +104,9 @@ function paint() {
   const rows = cache[currentUniverse];
   if (!rows) return;
   const width = canvas.clientWidth || 900;
-  const height = currentUniverse === 'ar' ? 420 : 620;
+  const height = UNIVERSE_HEIGHT[currentUniverse];
   canvas.style.height = height + 'px';
-  canvas.innerHTML = buildTreemapHTML(groupForTreemap(rows), width, height);
+  canvas.innerHTML = buildTreemapHTML(groupForTreemap(rows), width, height, UNIVERSE_SCALE[currentUniverse]);
 }
 
 async function loadHeatmap(manual) {
@@ -112,7 +116,7 @@ async function loadHeatmap(manual) {
   setStatus('', manual ? 'Actualizando…' : 'Cargando…');
   const canvas = document.getElementById('hmCanvas');
   try {
-    const rows = currentUniverse === 'ar' ? await getArHeatmapData() : await getGlobalHeatmapData();
+    const rows = await UNIVERSE_LOADER[currentUniverse]();
     if (!rows.length) throw new Error('sin datos');
     cache[currentUniverse] = rows;
     paint();

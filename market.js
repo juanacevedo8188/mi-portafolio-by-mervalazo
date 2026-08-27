@@ -557,6 +557,31 @@ async function getGlobalHeatmapData() {
   return rows.map(r => ({ ...r, tipo: 'global' }));
 }
 
+const CRYPTO_CATEGORY = {
+  BTC: 'Mayores', ETH: 'Mayores',
+  BNB: 'Layer 1', SOL: 'Layer 1', ADA: 'Layer 1', DOT: 'Layer 1',
+  AVAX: 'Layer 1', ATOM: 'Layer 1', TRX: 'Layer 1', ETC: 'Layer 1',
+  XRP: 'Pagos', LTC: 'Pagos', BCH: 'Pagos', XLM: 'Pagos',
+  LINK: 'DeFi y Oráculos',
+  DOGE: 'Meme', SHIB: 'Meme',
+  MATIC: 'Escalado',
+  USDT: 'Stablecoins', USDC: 'Stablecoins'
+};
+
+async function getCryptoHeatmapData() {
+  const map = await getCryptoMap();
+  return [...map.values()]
+    .filter(c => c.marketCap > 0)
+    .map(c => ({
+      symbol: c.symbol,
+      sector: CRYPTO_CATEGORY[c.symbol] || 'Otras',
+      marketCap: c.marketCap,
+      price: c.usd,
+      pct_change: c.pct_change,
+      tipo: 'cripto'
+    }));
+}
+
 // Layout "squarified treemap" (Bruls, Huizing, van Wijk): acomoda `items`
 // (necesitan .value > 0) dentro del rectangulo x,y,w,h intentando que cada
 // caja quede lo mas cuadrada posible, en vez de tiras finitas. Devuelve los
@@ -614,15 +639,16 @@ function squarify(items, x, y, w, h) {
 // items) en todo el lienzo, y adentro de cada caja de sector vuelve a
 // aplicar squarify con sus items individuales, debajo de un header con el
 // nombre del sector.
-function heatColor(pct) {
+function heatColor(pct, scale) {
+  scale = scale || 4;
   if (pct == null || isNaN(pct)) return 'rgba(139,152,169,0.25)';
-  const clamped = Math.max(-4, Math.min(4, pct));
-  const t = Math.abs(clamped) / 4;
+  const clamped = Math.max(-scale, Math.min(scale, pct));
+  const t = Math.abs(clamped) / scale;
   const alpha = 0.28 + t * 0.55;
   return clamped >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(244,81,95,${alpha})`;
 }
 
-function buildTreemapHTML(sectorGroups, width, height) {
+function buildTreemapHTML(sectorGroups, width, height, colorScale) {
   const HEADER_H = 24;
   const sectorNodes = sectorGroups.map(g => ({
     ...g, value: g.items.reduce((s, i) => s + i.marketCap, 0)
@@ -634,12 +660,12 @@ function buildTreemapHTML(sectorGroups, width, height) {
     const items = sector.items.map(i => ({ ...i, value: i.marketCap }));
     squarify(items, 0, 0, sector.w, innerH);
     const tiles = items.map(it => {
-      const tvTipo = it.tipo === 'global' ? 'global' : 'accion';
+      const tvTipo = it.tipo || 'accion';
       const showText = it.w > 40 && it.h > 26;
       return `
         <a class="hm-tile tk-link" data-ticker="${it.symbol}" data-tipo="${tvTipo}"
            href="${tvUrl(it.symbol, tvTipo)}" target="_blank" rel="noopener"
-           style="left:${it.x}px;top:${it.y + HEADER_H}px;width:${it.w}px;height:${it.h}px;background:${heatColor(it.pct_change)};">
+           style="left:${it.x}px;top:${it.y + HEADER_H}px;width:${it.w}px;height:${it.h}px;background:${heatColor(it.pct_change, colorScale)};">
           ${showText ? `<span class="hm-tk">${it.symbol}</span><span class="hm-pct">${fmtPct(it.pct_change)}</span>` : ''}
         </a>`;
     }).join('');
