@@ -136,6 +136,20 @@ async function getLecapData() {
     .sort((a, b) => a.dtm - b.dtm);
 }
 
+// A diferencia de getLecapData() (que filtra las letras ya vencidas),
+// esto trae el vencimiento real de TODAS, incluidas las vencidas — se usa
+// para dar de baja automáticamente una letra vencida de una cartera
+// personal, basado en la fecha real y no en si sigue apareciendo en el
+// feed de precios en vivo (que podria faltar por una falla transitoria).
+async function getLetraVencimientos() {
+  const res = await fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' });
+  if (!res.ok) throw new Error('letras vencimientos failed: ' + res.status);
+  const data = await res.json();
+  const map = new Map();
+  data.forEach(l => { if (l.ticker && l.fechaVencimiento) map.set(l.ticker, l.fechaVencimiento); });
+  return map;
+}
+
 // Cripto se cotiza en dólares (es lo natural para leer su precio) pero para
 // que sume bien en el total de la cartera (en pesos) tambien se guarda el
 // equivalente en ARS usando el dolar MEP promedio del momento.

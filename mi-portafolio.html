@@ -93,6 +93,10 @@
   </div>
 
   <div id="app">
+    <div class="matured-notice" id="maturedNotice" style="display:none;">
+      <span id="maturedNoticeText"></span>
+      <button onclick="document.getElementById('maturedNotice').style.display='none'" title="Cerrar">✕</button>
+    </div>
     <div class="currency-toggle-row">
       <span id="oficialRateLabel" class="rate-note">—</span>
       <div class="currency-toggle">
@@ -385,6 +389,36 @@ async function signOut() {
 
 let hasRenderedOnce = false;
 
+// Da de baja sola una letra que ya venció, en vez de dejarla en la cartera
+// mostrando "sin datos" para siempre. Se basa en la fecha real de
+// vencimiento (no en si el ticker sigue apareciendo en el feed de precios
+// en vivo) para no borrar algo por una falla transitoria de una API.
+async function removeMaturedLetras() {
+  const letraHoldings = holdingsCache.filter(h => h.tipo === 'letra');
+  if (!letraHoldings.length) return;
+  try {
+    const vencimientos = await getLetraVencimientos();
+    const today = new Date().toISOString().slice(0, 10);
+    const matured = letraHoldings.filter(h => {
+      const venc = vencimientos.get(h.ticker);
+      return venc && venc < today;
+    });
+    if (!matured.length) return;
+
+    for (const h of matured) {
+      await sb.from('holdings').delete().eq('id', h.id);
+    }
+    holdingsCache = holdingsCache.filter(h => !matured.some(m => m.id === h.id));
+
+    const notice = document.getElementById('maturedNotice');
+    document.getElementById('maturedNoticeText').textContent =
+      `Se retiraron automáticamente de tu cartera (ya vencieron): ${matured.map(h => h.ticker).join(', ')}.`;
+    notice.style.display = 'flex';
+  } catch (err) {
+    console.error('no se pudo chequear vencimientos de letras', err);
+  }
+}
+
 async function loadHoldings() {
   const { data, error } = await sb.from('holdings').select('*').order('created_at', { ascending: true });
   if (error) {
@@ -392,6 +426,7 @@ async function loadHoldings() {
     return;
   }
   holdingsCache = data;
+  await removeMaturedLetras();
   try {
     const priceMap = await getPriceMap(true, true);
     render(priceMap);
