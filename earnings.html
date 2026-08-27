@@ -51,15 +51,19 @@
 <main>
   <section class="panel">
     <div class="panel-head">
-      <h2 id="calMonthLabel">Earnings</h2>
-      <span>top empresas por market cap, por día</span>
+      <h2>Calendario de Earnings</h2>
+      <div class="view-switch">
+        <button class="vs-arrow" onclick="changeMonth(-1)" title="Mes anterior">‹</button>
+        <span id="calMonthLabel">—</span>
+        <button class="vs-arrow" onclick="changeMonth(1)" title="Mes siguiente">›</button>
+      </div>
     </div>
     <div class="earn-grid-head">
-      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span>
     </div>
     <div class="earn-grid" id="earnGrid"><div class="empty-note">Cargando…</div></div>
-    <div class="earn-day-detail" id="earnDayDetail" style="display:none;"></div>
   </section>
+  <div class="earn-popover" id="earnPopover"></div>
 
   <footer>
     Datos de earnings vía la API pública de <a href="https://www.nasdaq.com/market-activity/earnings" target="_blank" rel="noopener">Nasdaq</a>. Cobertura limitada a empresas que cotizan en EEUU (la mayoría con CEDEAR en Argentina) — no incluye balances de empresas que solo cotizan en ByMA. A título informativo.
@@ -71,8 +75,12 @@
 <script src="nav.js"></script>
 <script>
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const now = new Date();
+let viewYear = now.getFullYear();
+let viewMonth = now.getMonth(); // 0-indexed
 let earningsByDate = {};
-let selectedDate = null;
+let openDate = null;
+const monthCache = new Map(); // 'YYYY-M' -> { date: rows }
 
 function setStatus(state, text) {
   const dot = document.getElementById('statusDot');
@@ -88,45 +96,69 @@ function fmtCap(n) {
   return 'US$' + (n / 1e6).toFixed(0) + 'M';
 }
 
-function buildCalendarGrid() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  document.getElementById('calMonthLabel').textContent = `Earnings — ${MESES[month]} ${year}`;
+function skeletonGrid() {
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDow = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
+  const leadingEmpty = firstDow <= 4 ? firstDow : 0;
+  let weekdayCount = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (((new Date(viewYear, viewMonth, d).getDay() + 6) % 7) <= 4) weekdayCount++;
+  }
+  const weeks = Math.ceil((leadingEmpty + weekdayCount) / 5);
+  document.getElementById('earnGrid').innerHTML =
+    Array.from({ length: weeks * 5 }, () => '<div class="earn-cell skeleton"></div>').join('');
+}
 
-  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // lunes=0
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = now.toISOString().slice(0, 10);
+function buildCalendarGrid() {
+  document.getElementById('calMonthLabel').textContent = `${MESES[viewMonth]} ${viewYear}`;
+
+  const firstDow = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // lunes=0
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const todayStr = now.toISOString().slice(0, 10);
 
   let cells = '';
-  for (let i = 0; i < firstDow; i++) cells += '<div class="earn-cell empty"></div>';
+  // Solo Lun-Vie: si el 1° cae sábado/domingo (firstDow 5/6) no hace falta
+  // relleno — la semana laboral arranca directo el lunes siguiente.
+  const leadingEmpty = firstDow <= 4 ? firstDow : 0;
+  for (let i = 0; i < leadingEmpty; i++) cells += '<div class="earn-cell empty"></div>';
+
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = new Date(year, month, d).toISOString().slice(0, 10);
+    const dateObj = new Date(viewYear, viewMonth, d);
+    const dow = (dateObj.getDay() + 6) % 7;
+    if (dow > 4) continue; // sin fin de semana
+    const dateStr = dateObj.toISOString().slice(0, 10);
     const rows = earningsByDate[dateStr] || [];
-    const isToday = dateStr === today;
-    const chips = rows.slice(0, 3).map(r => tvLink(r.symbol, 'global')).join('');
-    const more = rows.length > 3 ? `<span class="earn-more">+${rows.length - 3} más</span>` : '';
+    const isToday = dateStr === todayStr;
+    const chips = rows.slice(0, 2).map(r => tvLink(r.symbol, 'global')).join('');
+    const more = rows.length > 2 ? `<span class="earn-more">+${rows.length - 2}</span>` : '';
     cells += `
-      <div class="earn-cell${rows.length ? ' has-data' : ''}${isToday ? ' today' : ''}${selectedDate === dateStr ? ' selected' : ''}"
-           ${rows.length ? `onclick="selectDay('${dateStr}')"` : ''}>
+      <div class="earn-cell${rows.length ? ' has-data' : ''}${isToday ? ' today' : ''}${openDate === dateStr ? ' open' : ''}"
+           id="cell-${dateStr}" ${rows.length ? `onclick="toggleDay('${dateStr}', event)"` : ''}>
         <span class="earn-daynum">${d}</span>
         <div class="earn-chips">${chips}${more}</div>
       </div>`;
   }
   document.getElementById('earnGrid').innerHTML = cells;
-  if (selectedDate) initTVHover();
+  initTVHover();
 }
 
-function selectDay(dateStr) {
-  selectedDate = selectedDate === dateStr ? null : dateStr;
-  buildCalendarGrid();
-  const detail = document.getElementById('earnDayDetail');
-  if (!selectedDate) { detail.style.display = 'none'; return; }
-  const rows = earningsByDate[selectedDate] || [];
-  const label = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-  detail.style.display = 'block';
-  detail.innerHTML = `
-    <div class="earn-day-head">${label}</div>
+function toggleDay(dateStr, evt) {
+  const pop = document.getElementById('earnPopover');
+  if (openDate === dateStr) {
+    openDate = null;
+    pop.classList.remove('open');
+    document.getElementById(`cell-${dateStr}`)?.classList.remove('open');
+    return;
+  }
+  document.querySelectorAll('.earn-cell.open').forEach(c => c.classList.remove('open'));
+  openDate = dateStr;
+  const cell = evt.currentTarget;
+  cell.classList.add('open');
+
+  const rows = earningsByDate[dateStr] || [];
+  const label = new Date(dateStr + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  pop.innerHTML = `
+    <div class="earn-day-head">${label}<button class="earn-pop-close" onclick="toggleDay('${dateStr}')">✕</button></div>
     <div class="earn-day-list">
       ${rows.map(r => `
         <div class="earn-day-row">
@@ -136,18 +168,48 @@ function selectDay(dateStr) {
           <span class="earn-day-time">${r.time === 'time-pre-market' ? 'Antes de apertura' : r.time === 'time-after-hours' ? 'Después del cierre' : '—'}</span>
         </div>`).join('')}
     </div>`;
+
+  const rect = cell.getBoundingClientRect();
+  const popW = 340;
+  let left = rect.left;
+  if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12;
+  pop.style.left = Math.max(12, left) + 'px';
+  pop.style.top = (rect.bottom + 8) + 'px';
+  pop.classList.add('open');
   initTVHover();
 }
 
+document.addEventListener('click', e => {
+  if (e.target.closest('.earn-cell') || e.target.closest('.earn-popover')) return;
+  if (!openDate) return;
+  openDate = null;
+  document.querySelectorAll('.earn-cell.open').forEach(c => c.classList.remove('open'));
+  document.getElementById('earnPopover').classList.remove('open');
+});
+
 async function loadEarnings(manual) {
+  const key = `${viewYear}-${viewMonth}`;
+  openDate = null;
+  document.getElementById('earnPopover').classList.remove('open');
+
+  if (monthCache.has(key) && !manual) {
+    earningsByDate = monthCache.get(key);
+    buildCalendarGrid();
+    setStatus('live', 'En vivo');
+    return;
+  }
+
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
   btn.classList.add('spinning');
   setStatus('', manual ? 'Actualizando…' : 'Cargando…');
+  skeletonGrid();
+  document.getElementById('calMonthLabel').textContent = `${MESES[viewMonth]} ${viewYear}`;
   try {
-    const res = await fetch('/.netlify/functions/earnings-calendar', { cache: 'no-store' });
+    const res = await fetch(`/.netlify/functions/earnings-calendar?year=${viewYear}&month=${viewMonth + 1}`, { cache: 'no-store' });
     if (!res.ok) throw new Error('earnings failed: ' + res.status);
     earningsByDate = await res.json();
+    monthCache.set(key, earningsByDate);
     buildCalendarGrid();
     setStatus('live', 'En vivo');
   } catch (err) {
@@ -158,6 +220,13 @@ async function loadEarnings(manual) {
     btn.disabled = false;
     btn.classList.remove('spinning');
   }
+}
+
+function changeMonth(delta) {
+  viewMonth += delta;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  loadEarnings(false);
 }
 
 renderNavTabs('earnings');

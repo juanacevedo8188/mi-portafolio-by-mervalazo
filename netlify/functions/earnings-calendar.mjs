@@ -6,10 +6,7 @@
 // las que además tienen CEDEAR) — no hay calendario de balances gratuito
 // para empresas que solo cotizan en ByMA.
 
-function daysInCurrentMonth() {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
+function daysInMonth(year, month) {
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   const dates = [];
   for (let d = 1; d <= lastDay; d++) {
@@ -45,8 +42,13 @@ async function fetchDay(date) {
   }
 }
 
-export default async () => {
-  const dates = daysInCurrentMonth();
+export default async (req) => {
+  const url = new URL(req.url);
+  const now = new Date();
+  const year = parseInt(url.searchParams.get('year'), 10) || now.getUTCFullYear();
+  const month = url.searchParams.has('month') ? parseInt(url.searchParams.get('month'), 10) - 1 : now.getUTCMonth();
+
+  const dates = daysInMonth(year, month);
   const results = await Promise.all(dates.map(fetchDay));
   const byDate = {};
   results.forEach(([date, rows]) => { if (rows.length) byDate[date] = rows; });
