@@ -517,6 +517,12 @@ input[type=number]{-moz-appearance:textfield;}
   .comm-period,.comm-spark{display:none;}
 }
 
+.opt-form{padding:16px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;border-bottom:1px solid var(--divider);}
+.opt-form label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+@media (max-width:640px){
+  .opt-form{grid-template-columns:1fr 1fr;}
+}
+
 .infl-form{padding:20px 20px 4px;display:flex;flex-direction:column;gap:14px;}
 .infl-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:14px;color:var(--text-dim);}
 .infl-row .cs-wrap{width:auto;}

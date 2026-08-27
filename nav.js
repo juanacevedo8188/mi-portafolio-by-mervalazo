@@ -16,7 +16,8 @@ const NAV_GROUPS = [
     label: 'Herramientas',
     items: [
       { key: 'macro', label: 'Macroeconomía', href: 'macroeconomia.html' },
-      { key: 'inflacion', label: 'Calculadora de Inflación', href: 'inflacion.html' }
+      { key: 'inflacion', label: 'Calculadora de Inflación', href: 'inflacion.html' },
+      { key: 'opciones', label: 'Calculadora de Opciones', href: 'opciones.html' }
     ]
   },
   { key: 'portafolio', label: 'Mi Portafolio', href: 'mi-portafolio.html' },
