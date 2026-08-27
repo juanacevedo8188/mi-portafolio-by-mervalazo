@@ -648,6 +648,19 @@ function heatColor(pct, scale) {
   return clamped >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(244,81,95,${alpha})`;
 }
 
+function renderTiles(items, offsetY, colorScale) {
+  return items.map(it => {
+    const tvTipo = it.tipo || 'accion';
+    const showText = it.w > 40 && it.h > 26;
+    return `
+      <a class="hm-tile tk-link" data-ticker="${it.symbol}" data-tipo="${tvTipo}"
+         href="${tvUrl(it.symbol, tvTipo)}" target="_blank" rel="noopener"
+         style="left:${it.x}px;top:${it.y + offsetY}px;width:${it.w}px;height:${it.h}px;background:${heatColor(it.pct_change, colorScale)};">
+        ${showText ? `<span class="hm-tk">${it.symbol}</span><span class="hm-pct">${fmtPct(it.pct_change)}</span>` : ''}
+      </a>`;
+  }).join('');
+}
+
 function buildTreemapHTML(sectorGroups, width, height, colorScale) {
   const HEADER_H = 24;
   const sectorNodes = sectorGroups.map(g => ({
@@ -659,22 +672,19 @@ function buildTreemapHTML(sectorGroups, width, height, colorScale) {
     const innerH = Math.max(0, sector.h - HEADER_H);
     const items = sector.items.map(i => ({ ...i, value: i.marketCap }));
     squarify(items, 0, 0, sector.w, innerH);
-    const tiles = items.map(it => {
-      const tvTipo = it.tipo || 'accion';
-      const showText = it.w > 40 && it.h > 26;
-      return `
-        <a class="hm-tile tk-link" data-ticker="${it.symbol}" data-tipo="${tvTipo}"
-           href="${tvUrl(it.symbol, tvTipo)}" target="_blank" rel="noopener"
-           style="left:${it.x}px;top:${it.y + HEADER_H}px;width:${it.w}px;height:${it.h}px;background:${heatColor(it.pct_change, colorScale)};">
-          ${showText ? `<span class="hm-tk">${it.symbol}</span><span class="hm-pct">${fmtPct(it.pct_change)}</span>` : ''}
-        </a>`;
-    }).join('');
     return `
       <div class="hm-sector" style="left:${sector.x}px;top:${sector.y}px;width:${sector.w}px;height:${sector.h}px;">
         <div class="hm-sector-head" style="width:${sector.w}px;">${sector.label}</div>
-        ${tiles}
+        ${renderTiles(items, HEADER_H, colorScale)}
       </div>`;
   }).join('');
+}
+
+// Sin agrupar por categoria/sector: todos los items en un unico treemap.
+function buildFlatTreemapHTML(items, width, height, colorScale) {
+  const nodes = items.map(i => ({ ...i, value: i.marketCap }));
+  squarify(nodes, 0, 0, width, height);
+  return renderTiles(nodes, 0, colorScale);
 }
 
 function renderHistory(chartId, rangeId, points) {

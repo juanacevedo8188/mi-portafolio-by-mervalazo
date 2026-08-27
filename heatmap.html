@@ -106,7 +106,10 @@ function paint() {
   const width = canvas.clientWidth || 900;
   const height = UNIVERSE_HEIGHT[currentUniverse];
   canvas.style.height = height + 'px';
-  canvas.innerHTML = buildTreemapHTML(groupForTreemap(rows), width, height, UNIVERSE_SCALE[currentUniverse]);
+  const scale = UNIVERSE_SCALE[currentUniverse];
+  canvas.innerHTML = currentUniverse === 'crypto'
+    ? buildFlatTreemapHTML(rows, width, height, scale)
+    : buildTreemapHTML(groupForTreemap(rows), width, height, scale);
 }
 
 async function loadHeatmap(manual) {
