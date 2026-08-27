@@ -4,9 +4,15 @@ const NAV_GROUPS = [
     label: 'Mercado',
     items: [
       { key: 'dashboard', label: 'Dashboard', href: 'index.html' },
-      { key: 'cartera', label: 'Cartera Mervalazo', href: 'cartera.html' },
       { key: 'rentafija', label: 'Renta Fija', href: 'renta-fija.html' },
-      { key: 'commodities', label: 'Commodities', href: 'commodities.html' },
+      { key: 'commodities', label: 'Commodities', href: 'commodities.html' }
+    ]
+  },
+  { key: 'cartera', label: 'Cartera Mervalazo', href: 'cartera.html' },
+  {
+    key: 'herramientas',
+    label: 'Herramientas',
+    items: [
       { key: 'macro', label: 'Macroeconomía', href: 'macroeconomia.html' },
       { key: 'inflacion', label: 'Calculadora de Inflación', href: 'inflacion.html' }
     ]
