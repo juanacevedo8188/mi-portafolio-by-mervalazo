@@ -550,6 +550,7 @@ input[type=number]{-moz-appearance:textfield;}
 .opt-add-leg-btn:hover{border-color:var(--accent-dim);}
 .opt-clear-legs-btn{background:none;border:none;color:var(--text-faint);font-family:inherit;font-size:12.5px;cursor:pointer;padding:9px 6px;}
 .opt-clear-legs-btn:hover{color:var(--down);}
+.opt-draft-badge{margin:0 20px 10px;padding:8px 12px;background:var(--bg-alt);border:1px dashed var(--accent-dim);border-radius:8px;font-size:11.5px;color:var(--text-faint);}
 .opt-legs-list:not(:empty){border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);margin-bottom:4px;}
 .opt-leg-row{cursor:default;}
 .opt-leg-row:hover{background:none;}
