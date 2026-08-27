@@ -291,6 +291,47 @@ function renderDonut(containerId, sectors, totalValue, activeSector, onSectorCli
   }
 }
 
+// Gauge de "humor del mercado": semicírculo de 5 zonas + aguja, en base al
+// % de acciones/CEDEARs que suben hoy.
+const MOOD_ZONES = [
+  { label: 'Pánico', from: 0, to: 20, color: '#c94a41' },
+  { label: 'Bajista', from: 20, to: 40, color: '#e0655a' },
+  { label: 'Neutral', from: 40, to: 60, color: '#6b7280' },
+  { label: 'Alcista', from: 60, to: 80, color: '#4fbf9a' },
+  { label: 'Eufórico', from: 80, to: 100, color: '#22c55e' }
+];
+
+function moodPoint(cx, cy, r, pct) {
+  const angleDeg = 180 - (pct / 100) * 180;
+  const rad = angleDeg * Math.PI / 180;
+  return [cx + r * Math.cos(rad), cy - r * Math.sin(rad)];
+}
+
+function moodLabel(pct) {
+  const zone = MOOD_ZONES.find(z => pct >= z.from && pct <= z.to);
+  return (zone || MOOD_ZONES[MOOD_ZONES.length - 1]).label;
+}
+
+function buildMoodGaugeSVG(pctUp, width, height) {
+  width = width || 220;
+  height = height || 128;
+  const cx = width / 2, cy = height - 16;
+  const r = Math.min(width / 2 - 16, cy - 14);
+  const bandW = 15;
+  const arcs = MOOD_ZONES.map(z => {
+    const [x1, y1] = moodPoint(cx, cy, r, z.from);
+    const [x2, y2] = moodPoint(cx, cy, r, z.to);
+    return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${z.color}" stroke-width="${bandW}" opacity="0.85"/>`;
+  }).join('');
+  const needleLen = r - bandW / 2 - 6;
+  const [nx, ny] = moodPoint(cx, cy, needleLen, pctUp);
+  return `<svg viewBox="0 0 ${width} ${height}">
+    ${arcs}
+    <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="5" fill="var(--text)"/>
+  </svg>`;
+}
+
 const CHART_PAD = 10;
 
 function chartCoords(points, width, height) {

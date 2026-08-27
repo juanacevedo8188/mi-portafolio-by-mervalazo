@@ -282,7 +282,13 @@ function renderMarketBreadth() {
   const pct = n => (n / rows.length) * 100;
   const best = rows.reduce((a, b) => (b.pct_change > a.pct_change ? b : a));
   const worst = rows.reduce((a, b) => (b.pct_change < a.pct_change ? b : a));
+  const pctUp = pct(up);
   el.innerHTML = `
+    <div class="mood-gauge-wrap">
+      <div class="mood-gauge">${buildMoodGaugeSVG(pctUp, 220, 128)}</div>
+      <div class="mood-label">${moodLabel(pctUp)}</div>
+      <div class="mood-sub">${fmtNum(pctUp)}% de las acciones + CEDEARs suben hoy</div>
+    </div>
     <div class="breadth-bar">
       <span class="breadth-seg up" style="width:${pct(up)}%"></span>
       <span class="breadth-seg flat" style="width:${pct(flat)}%"></span>
@@ -296,15 +302,15 @@ function renderMarketBreadth() {
     <div class="quick-metrics breadth-stats">
       <div class="quick-stat">
         <div class="label">% que sube</div>
-        <div class="val">${fmtNum(pct(up))}%</div>
+        <div class="val">${fmtNum(pctUp)}%</div>
       </div>
       <div class="quick-stat">
         <div class="label">Mejor del día</div>
-        <div class="val chg up">${best.symbol} · ${fmtPct(best.pct_change)}</div>
+        <div class="val chg up">${tvLink(best.symbol, best.tipo)} · ${fmtPct(best.pct_change)}</div>
       </div>
       <div class="quick-stat">
         <div class="label">Peor del día</div>
-        <div class="val chg down">${worst.symbol} · ${fmtPct(worst.pct_change)}</div>
+        <div class="val chg down">${tvLink(worst.symbol, worst.tipo)} · ${fmtPct(worst.pct_change)}</div>
       </div>
     </div>
   `;
