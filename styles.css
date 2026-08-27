@@ -227,8 +227,6 @@ footer a{color:var(--text-dim);}
 .earn-cell.today .earn-daynum{color:var(--accent);font-weight:800;}
 .earn-daynum{font-size:12px;color:var(--text-faint);font-variant-numeric:tabular-nums;}
 .earn-chips{display:flex;flex-direction:column;gap:4px;overflow:hidden;}
-.earn-chips .tk-link{font-size:11px;border-bottom:none;}
-.earn-chips .tk-logo{width:14px;height:14px;}
 .earn-more{font-size:10.5px;color:var(--text-faint);font-weight:600;}
 .earn-cell.skeleton{position:relative;overflow:hidden;background:var(--bg-alt);}
 .earn-cell.skeleton::after{
@@ -240,8 +238,8 @@ footer a{color:var(--text-dim);}
 @media (max-width:760px){
   .earn-cell{min-height:64px;padding:6px;}
   .earn-daynum{font-size:10px;}
-  .earn-chips .tk-link{font-size:0;}
-  .earn-chips .tk-logo{width:16px;height:16px;}
+  .earn-chip{font-size:0;}
+  .earn-chip .tk-logo{width:16px;height:16px;}
 }
 
 .earn-popover{
@@ -265,6 +263,22 @@ footer a{color:var(--text-dim);}
 .earn-day-name{grid-area:name;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .earn-day-cap{grid-area:cap;color:var(--text);font-weight:600;text-align:right;}
 .earn-day-time{grid-area:time;font-size:10.5px;color:var(--text-faint);text-align:right;white-space:nowrap;}
+
+.earn-chip{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);}
+.earn-chip .tk-logo{width:14px;height:14px;}
+
+.earn-agenda-day{grid-column:1/-1;padding:14px 0;border-bottom:1px solid var(--divider);}
+.earn-agenda-day:last-child{border-bottom:none;}
+.earn-agenda-day.today .earn-agenda-date{color:var(--accent);}
+.earn-agenda-date{font-size:12px;font-weight:700;color:var(--text-dim);text-transform:capitalize;padding-bottom:8px;}
+.earn-agenda-day .earn-day-row{grid-template-columns:64px 1fr;grid-template-areas:"tk name" "cap time";}
+.earn-agenda-day .earn-day-cap,.earn-agenda-day .earn-day-time{text-align:left;}
+.earn-agenda-day.skeleton{height:64px;position:relative;overflow:hidden;background:var(--bg-alt);border-radius:8px;}
+.earn-agenda-day.skeleton::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.04),transparent);
+  animation:earn-shimmer 1.3s infinite;
+}
 
 .quick-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:18px 20px;}
 .quick-stat{background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:14px;}
