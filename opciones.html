@@ -87,6 +87,12 @@
       </div>
     </div>
 
+    <div class="opt-legs-actions">
+      <button class="opt-add-leg-btn" onclick="addLeg()">+ Agregar esta pata a la estrategia</button>
+      <button class="opt-clear-legs-btn" id="clearLegsBtn" onclick="clearLegs()" style="display:none;">Limpiar estrategia</button>
+    </div>
+    <div id="legsList" class="opt-legs-list"></div>
+
     <div class="quick-metrics" id="optStats"></div>
   </section>
 
@@ -216,7 +222,7 @@ function splitAreaBySign(coords, zeroY) {
   });
 }
 
-function buildPayoffChartSVG(points, width, height, breakeven, spot, subyacente) {
+function buildPayoffChartSVG(points, width, height, breakevens, spot, subyacente) {
   const compact = width < 420;
   const padL = compact ? 46 : 58, padR = 14, padT = 22, padB = compact ? 34 : 40;
   const fsAxis = compact ? 10 : 11.5;
@@ -240,12 +246,11 @@ function buildPayoffChartSVG(points, width, height, breakeven, spot, subyacente)
 
   const zeroLine = `<line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${width - padR}" y2="${zeroY.toFixed(1)}" stroke="var(--text-faint)" stroke-width="1.5"/>`;
 
-  let breakevenMark = '';
-  if (breakeven >= minP && breakeven <= maxP) {
-    const bx = x(breakeven).toFixed(1);
-    breakevenMark = `<line x1="${bx}" y1="${padT}" x2="${bx}" y2="${height - padB}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
-      <text x="${bx}" y="${padT - 8}" text-anchor="middle" font-size="${fsLabel}" font-weight="700" fill="var(--accent)">B/E ${fmtAxisNum(breakeven)}</text>`;
-  }
+  let breakevenMark = (breakevens || []).filter(be => be >= minP && be <= maxP).map(be => {
+    const bx = x(be).toFixed(1);
+    return `<line x1="${bx}" y1="${padT}" x2="${bx}" y2="${height - padB}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="${bx}" y="${padT - 8}" text-anchor="middle" font-size="${fsLabel}" font-weight="700" fill="var(--accent)">B/E ${fmtAxisNum(be)}</text>`;
+  }).join('');
   let spotMark = '';
   if (spot >= minP && spot <= maxP) {
     const sx = x(spot).toFixed(1);
@@ -344,36 +349,119 @@ function attachPayoffHover(points) {
   svg.addEventListener('touchend', () => setTimeout(hide, 1500));
 }
 
-function calcular() {
-  const tipo = document.getElementById('oTipo').value;
-  const posicion = document.getElementById('oPosicion').value;
+// Una "pata" (leg) = una opcion individual dentro de la estrategia que se
+// esta armando: {tipo, posicion, strike, prima, lotes}.
+let currentLegs = [];
+
+function currentFormLeg() {
   const strike = parseFloat(document.getElementById('oStrike').value);
   const prima = parseFloat(document.getElementById('oPrima').value);
   const lotes = parseFloat(document.getElementById('oCantidad').value) || 1;
-  const cantidad = lotes * 100; // 1 lote = 100 opciones
+  if (!(strike > 0) || !(prima >= 0)) return null;
+  return {
+    tipo: document.getElementById('oTipo').value,
+    posicion: document.getElementById('oPosicion').value,
+    strike, prima, lotes
+  };
+}
+
+// Si no se agrego ninguna pata explicita, el formulario actual ES la
+// unica pata (asi la calculadora sigue funcionando igual que antes para
+// una sola operación, sin obligar a nadie a usar "Agregar pata").
+function activeLegs() {
+  if (currentLegs.length) return currentLegs;
+  const leg = currentFormLeg();
+  return leg ? [leg] : [];
+}
+
+function legPnl(leg, S) {
+  const sign = leg.posicion === 'long' ? 1 : -1;
+  return payoffLong(leg.tipo, leg.strike, leg.prima, S) * sign * leg.lotes * 100;
+}
+
+function addLeg() {
+  const leg = currentFormLeg();
+  if (!leg) return;
+  currentLegs.push(leg);
+  document.getElementById('oStrike').value = '';
+  document.getElementById('oPrima').value = '';
+  renderLegsList();
+  calcular();
+}
+
+function removeLeg(idx) {
+  currentLegs.splice(idx, 1);
+  renderLegsList();
+  calcular();
+}
+
+function clearLegs() {
+  currentLegs = [];
+  renderLegsList();
+  calcular();
+}
+
+function renderLegsList() {
+  const el = document.getElementById('legsList');
+  document.getElementById('clearLegsBtn').style.display = currentLegs.length ? 'inline-block' : 'none';
+  el.innerHTML = currentLegs.map((leg, i) => `
+    <div class="opt-trade-row opt-leg-row">
+      <span class="tag ${leg.tipo === 'call' ? 'accion' : 'cripto'}">${leg.tipo === 'call' ? 'CALL' : 'PUT'}</span>
+      <span class="opt-trade-main">${leg.posicion === 'long' ? 'Titular' : 'Lanzador'} · strike ${fmtARS(leg.strike)} · prima ${fmtARS(leg.prima)}</span>
+      <span class="opt-trade-sub mono">${fmtNum(leg.lotes)} lote${leg.lotes === 1 ? '' : 's'}</span>
+      <button class="opt-trade-del" onclick="removeLeg(${i})" title="Quitar pata">✕</button>
+    </div>
+  `).join('');
+}
+
+function calcular() {
+  const legs = activeLegs();
   const statsEl = document.getElementById('optStats');
   const chartEl = document.getElementById('payoffChart');
   const rangeEl = document.getElementById('optRange');
+  const subyacente = document.getElementById('oSubyacente').value;
 
-  if (!(strike > 0) || !(prima >= 0)) {
+  if (!legs.length) {
     statsEl.innerHTML = '';
-    chartEl.innerHTML = '<div class="empty-note">Completá strike y prima para ver el resultado.</div>';
+    chartEl.innerHTML = '<div class="empty-note">Completá strike y prima, o agregá al menos una pata a la estrategia.</div>';
     rangeEl.textContent = '';
     return;
   }
 
-  const sign = posicion === 'long' ? 1 : -1;
-  const breakeven = tipo === 'call' ? strike + prima : strike - prima;
+  const strikes = legs.map(l => l.strike);
+  const minStrike = Math.min(...strikes), maxStrike = Math.max(...strikes);
+  const center = spotPrice || (minStrike + maxStrike) / 2;
+  const range = Math.max(maxStrike, center) * 0.4;
+  const minS = Math.max(0, Math.min(minStrike, center) - range);
+  const maxS = Math.max(maxStrike, center) + range;
+  const steps = 80;
+  const points = [];
+  for (let i = 0; i <= steps; i++) {
+    const S = minS + (maxS - minS) * (i / steps);
+    points.push({ price: S, pnl: legs.reduce((sum, leg) => sum + legPnl(leg, S), 0) });
+  }
 
-  if (spotPrice) {
-    const intrinsico = tipo === 'call' ? Math.max(spotPrice - strike, 0) : Math.max(strike - spotPrice, 0);
-    const extrinsico = Math.max(prima - intrinsico, 0);
+  // Puntos de equilibrio: cruces por cero interpolados entre muestras
+  // consecutivas — una combinacion de patas puede tener 0, 1 o varios.
+  const breakevens = [];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    if ((a.pnl < 0 && b.pnl >= 0) || (a.pnl >= 0 && b.pnl < 0)) {
+      const t = (0 - a.pnl) / (b.pnl - a.pnl);
+      breakevens.push(a.price + t * (b.price - a.price));
+    }
+  }
+
+  if (legs.length === 1 && !currentLegs.length && spotPrice) {
+    const leg = legs[0];
+    const intrinsico = leg.tipo === 'call' ? Math.max(spotPrice - leg.strike, 0) : Math.max(leg.strike - spotPrice, 0);
+    const extrinsico = Math.max(leg.prima - intrinsico, 0);
     const estado = intrinsico > 0
       ? 'ITM · dentro del dinero'
-      : Math.abs(spotPrice - strike) / strike < 0.01
+      : Math.abs(spotPrice - leg.strike) / leg.strike < 0.01
         ? 'ATM · en el dinero'
         : 'OTM · fuera del dinero';
-    const movNecesario = ((breakeven - spotPrice) / spotPrice) * 100;
+    const movNecesario = breakevens.length ? ((breakevens[0] - spotPrice) / spotPrice) * 100 : null;
 
     statsEl.innerHTML = `
       <div class="quick-stat">
@@ -390,36 +478,42 @@ function calcular() {
       </div>
       <div class="quick-stat">
         <div class="label">Punto de equilibrio</div>
-        <div class="val mono">${fmtARS(breakeven)}</div>
-        <div class="note">${fmtPct(movNecesario)} desde el spot actual</div>
+        <div class="val mono">${breakevens.length ? fmtARS(breakevens[0]) : '—'}</div>
+        ${movNecesario != null ? `<div class="note">${fmtPct(movNecesario)} desde el spot actual</div>` : ''}
       </div>
     `;
   } else {
+    const netoCost = legs.reduce((s, l) => s + (l.posicion === 'long' ? 1 : -1) * l.prima * l.lotes * 100, 0);
+    const pnls = points.map(p => p.pnl);
+    const maxProfit = Math.max(...pnls);
+    const maxLoss = Math.min(...pnls);
     statsEl.innerHTML = `
       <div class="quick-stat">
-        <div class="label">Punto de equilibrio</div>
-        <div class="val mono">${fmtARS(breakeven)}</div>
+        <div class="label">${netoCost >= 0 ? 'Costo neto (débito)' : 'Crédito neto recibido'}</div>
+        <div class="val mono">${fmtARS(Math.abs(netoCost))}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Ganancia máx. (rango mostrado)</div>
+        <div class="val mono chg up">${fmtARS(maxProfit)}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Pérdida máx. (rango mostrado)</div>
+        <div class="val mono chg down">${fmtARS(maxLoss)}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Punto${breakevens.length === 1 ? '' : 's'} de equilibrio</div>
+        <div class="val mono">${breakevens.length ? breakevens.map(b => fmtARS(b)).join(' / ') : '—'}</div>
       </div>
     `;
-  }
-
-  const center = spotPrice || strike;
-  const range = Math.max(strike, center) * 0.4;
-  const minS = Math.max(0, Math.min(strike, center) - range);
-  const maxS = Math.max(strike, center) + range;
-  const steps = 60;
-  const points = [];
-  for (let i = 0; i <= steps; i++) {
-    const S = minS + (maxS - minS) * (i / steps);
-    points.push({ price: S, pnl: payoffLong(tipo, strike, prima, S) * sign * cantidad });
   }
 
   const width = chartEl.clientWidth || 600;
   const height = Math.round(Math.min(280, Math.max(220, width * 0.38)));
-  const subyacente = document.getElementById('oSubyacente').value;
-  chartEl.innerHTML = buildPayoffChartSVG(points, width, height, breakeven, center, subyacente);
+  chartEl.innerHTML = buildPayoffChartSVG(points, width, height, breakevens, center, subyacente);
   attachPayoffHover(points);
-  rangeEl.textContent = `Resultado total (${fmtNum(lotes)} lote${lotes === 1 ? '' : 's'} · ${fmtNum(cantidad)} opciones) según el precio de ${document.getElementById('oSubyacente').value} al vencimiento`;
+  rangeEl.textContent = legs.length > 1
+    ? `Resultado combinado de ${legs.length} patas según el precio de ${subyacente} al vencimiento`
+    : `Resultado total (${fmtNum(legs[0].lotes)} lote${legs[0].lotes === 1 ? '' : 's'} · ${fmtNum(legs[0].lotes * 100)} opciones) según el precio de ${subyacente} al vencimiento`;
 }
 
 let optResizeTimer = null;
@@ -442,7 +536,7 @@ function tradeRowHtml(t) {
   const fecha = new Date(t.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
   return `<div class="opt-trade-row" onclick="loadTrade('${t.id}')">
     <span class="tag ${t.tipo === 'call' ? 'accion' : 'cripto'}">${t.tipo === 'call' ? 'CALL' : 'PUT'}</span>
-    <span class="opt-trade-main">${t.subyacente} · ${t.posicion === 'long' ? 'Titular' : 'Lanzador'} · strike ${fmtARS(t.strike)}${t.opex ? ' · ' + t.opex : ''}</span>
+    <span class="opt-trade-main">${t.subyacente} · ${t.posicion === 'long' ? 'Titular' : 'Lanzador'} · strike ${fmtARS(t.strike)}${!t.grupo_id && t.opex ? ' · ' + t.opex : ''}</span>
     <span class="opt-trade-sub mono">${fmtNum(t.cantidad)} lote${t.cantidad == 1 ? '' : 's'} × ${fmtARS(t.prima)} · ${fecha}</span>
     <button class="opt-trade-del" onclick="event.stopPropagation(); deleteTrade('${t.id}')" title="Borrar">✕</button>
   </div>`;
@@ -454,32 +548,56 @@ async function loadSavedTrades() {
   savedTrades = data;
   const el = document.getElementById('savedList');
   document.getElementById('savedCount').textContent = savedTrades.length ? savedTrades.length + ' operaciones' : '';
-  el.innerHTML = savedTrades.length
-    ? savedTrades.map(tradeRowHtml).join('')
-    : '<div class="empty-note">Todavía no guardaste ninguna operación.</div>';
+  if (!savedTrades.length) {
+    el.innerHTML = '<div class="empty-note">Todavía no guardaste ninguna operación.</div>';
+    return;
+  }
+  // Agrupa las patas que se guardaron juntas (grupo_id) para mostrarlas
+  // como una sola estrategia, en vez de filas sueltas sin relación visible.
+  const seen = new Set();
+  const groups = [];
+  savedTrades.forEach(t => {
+    if (t.grupo_id) {
+      if (seen.has(t.grupo_id)) return;
+      seen.add(t.grupo_id);
+      groups.push({ grupo_id: t.grupo_id, items: savedTrades.filter(x => x.grupo_id === t.grupo_id) });
+    } else {
+      groups.push({ grupo_id: null, items: [t] });
+    }
+  });
+  el.innerHTML = groups.map(g => g.items.length > 1
+    ? `<div class="opt-trade-group">
+        <div class="opt-trade-group-head">
+          <span>Estrategia (${g.items.length} patas) · ${g.items[0].subyacente}${g.items[0].opex ? ' · ' + g.items[0].opex : ''}</span>
+          <button class="opt-trade-del" onclick="event.stopPropagation(); deleteGroup('${g.grupo_id}')" title="Borrar toda la estrategia">✕</button>
+        </div>
+        ${g.items.map(tradeRowHtml).join('')}
+      </div>`
+    : tradeRowHtml(g.items[0])
+  ).join('');
 }
 
 async function saveTrade() {
   if (!currentSession) return;
-  const strike = parseFloat(document.getElementById('oStrike').value);
-  const prima = parseFloat(document.getElementById('oPrima').value);
-  const cantidad = parseFloat(document.getElementById('oCantidad').value) || 1; // lotes (1 lote = 100 opciones)
+  const legsToSave = currentLegs.length ? currentLegs : (currentFormLeg() ? [currentFormLeg()] : []);
   const msg = document.getElementById('saveMsg');
   msg.style.display = 'none';
-  if (!(strike > 0) || !(prima >= 0)) {
-    msg.textContent = 'Completá strike y prima antes de guardar.';
+  if (!legsToSave.length) {
+    msg.textContent = 'Completá strike y prima, o agregá al menos una pata, antes de guardar.';
     msg.style.display = 'block';
     return;
   }
   const btn = document.getElementById('saveBtn');
   btn.disabled = true;
-  const { error } = await sb.from('option_trades').insert({
-    subyacente: document.getElementById('oSubyacente').value,
-    tipo: document.getElementById('oTipo').value,
-    posicion: document.getElementById('oPosicion').value,
-    strike, prima, cantidad,
-    opex: document.getElementById('oOpex').value.trim() || null
-  });
+  const subyacente = document.getElementById('oSubyacente').value;
+  const opex = document.getElementById('oOpex').value.trim() || null;
+  const grupoId = legsToSave.length > 1 ? (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)) : null;
+  const rows = legsToSave.map(leg => ({
+    subyacente, tipo: leg.tipo, posicion: leg.posicion,
+    strike: leg.strike, prima: leg.prima, cantidad: leg.lotes,
+    opex, grupo_id: grupoId
+  }));
+  const { error } = await sb.from('option_trades').insert(rows);
   btn.disabled = false;
   if (error) {
     msg.textContent = error.message;
@@ -487,6 +605,12 @@ async function saveTrade() {
     return;
   }
   document.getElementById('oOpex').value = '';
+  clearLegs();
+  loadSavedTrades();
+}
+
+async function deleteGroup(grupoId) {
+  await sb.from('option_trades').delete().eq('grupo_id', grupoId);
   loadSavedTrades();
 }
 
