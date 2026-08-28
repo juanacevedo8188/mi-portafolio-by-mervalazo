@@ -328,6 +328,117 @@ async function getBondQuotes(tickers) {
   return tickers.map(t => ({ ticker: t, q: map.get(t) || null }));
 }
 
+// --- Bonos CER (Boncer) ---
+//
+// A diferencia de los soberanos en USD, el capital de estos bonos se
+// ajusta por el indice CER (BCRA, variable 30 — coeficiente diario de
+// estabilizacion por referencia, base 2.2.02=1). El "coeficiente CER" de
+// cada bono es CER(hoy) / CER(base), donde la base es el valor de CER 10
+// dias habiles antes de la fecha de emision (Decreto 214/2002 art. 4,
+// citado en la Resolucion Conjunta 9/2022). Esos valores base son
+// historicos y no cambian, asi que se cargan una sola vez aca en vez de
+// pedirlos en cada carga de pagina.
+const CER_VARIABLE_ID = 30;
+
+async function getCerToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+  const res = await fetch(`https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/${CER_VARIABLE_ID}?desde=${from}&hasta=${today}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('CER failed: ' + res.status);
+  const data = await res.json();
+  const detalle = data.results[0].detalle; // mas reciente primero
+  return detalle[0].valor;
+}
+
+// Fechas alternando entre dos pares (mes, dia) — ej. 30-jun y 31-dic —
+// desde "from" (que debe caer en uno de los dos pares) hasta "to"
+// inclusive. A diferencia de sumar 6 meses a una fecha fija, esto soporta
+// pares con dias de mes distintos (30 y 31), como usan varios Boncer.
+function alternatingDates(from, to, pairA, pairB) {
+  let [y, m] = from.split('-').map(Number);
+  let useA = m === pairA[0];
+  const dates = [];
+  for (let guard = 0; guard < 200; guard++) {
+    const [mm, dd] = useA ? pairA : pairB;
+    const dateStr = `${y}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    dates.push(dateStr);
+    if (dateStr === to) break;
+    if (useA ? pairB[0] <= pairA[0] : pairA[0] <= pairB[0]) y++;
+    useA = !useA;
+  }
+  return dates;
+}
+// Primera fecha (mes,dia) de cualquiera de los dos pares que caiga en o
+// despues de "date" — se usa para arrancar el cronograma en la emision.
+function firstOnOrAfter(date, pairA, pairB) {
+  const [y] = date.split('-').map(Number);
+  for (let yy = y; yy <= y + 1; yy++) {
+    for (const [m, d] of [pairA, pairB].sort((a, b) => a[0] - b[0])) {
+      const cand = `${yy}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (cand >= date) return cand;
+    }
+  }
+}
+
+// Coeficiente CER base (valor de CER 10 dias habiles antes de la emision)
+// segun la fecha de emision — TX26/TX28/DICP/CUAP comparten la emision
+// del canje 2020, TX31 es de 2022.
+const CER_BASE_2020 = 22.54395108959; // CER al 21/8/2020
+const CER_BASE_2022 = 47.29372101748; // CER al 17/5/2022
+
+// Cronograma de pago Mayo9/Noviembre9 inferido a partir del dia/mes de
+// vencimiento (confirmado oficialmente) — no encontramos el prospecto con
+// las fechas de pago exactas de TX26/TX28, asi que esto es una inferencia
+// razonable (estandar de mercado: el cupon paga el mismo dia/mes que el
+// vencimiento) y no una cifra confirmada contra la fuente primaria.
+BOND_TERMS.TX26 = {
+  coupons: [{ from: '2020-09-04', rate: 2.00 }],
+  amortization: [{ date: '2026-11-09', pct: 100 }],
+  paymentDates: alternatingDates(firstOnOrAfter('2020-09-04', [5, 9], [11, 9]), '2026-11-09', [5, 9], [11, 9]).map(date => ({ date })),
+  cerBase: CER_BASE_2020
+};
+BOND_TERMS.TX28 = {
+  coupons: [{ from: '2020-09-04', rate: 2.25 }],
+  amortization: [{ date: '2028-11-09', pct: 100 }],
+  paymentDates: alternatingDates(firstOnOrAfter('2020-09-04', [5, 9], [11, 9]), '2028-11-09', [5, 9], [11, 9]).map(date => ({ date })),
+  cerBase: CER_BASE_2020
+};
+BOND_TERMS.TX31 = {
+  coupons: [{ from: '2022-05-31', rate: 2.50 }],
+  amortization: alternatingDates('2027-05-30', '2031-11-30', [5, 30], [11, 30]).map(date => ({ date, pct: 10 })),
+  paymentDates: alternatingDates(firstOnOrAfter('2022-05-31', [5, 30], [11, 30]), '2031-11-30', [5, 30], [11, 30]).map(date => ({ date })),
+  cerBase: CER_BASE_2022
+};
+BOND_TERMS.DICP = {
+  coupons: [{ from: '2003-12-31', rate: 5.83 }],
+  amortization: alternatingDates('2024-06-30', '2033-12-31', [6, 30], [12, 31]).map(date => ({ date, pct: 5 })),
+  paymentDates: alternatingDates(firstOnOrAfter('2003-12-31', [6, 30], [12, 31]), '2033-12-31', [6, 30], [12, 31]).map(date => ({ date })),
+  cerBase: CER_BASE_2020
+};
+BOND_TERMS.CUAP = {
+  coupons: [{ from: '2003-12-31', rate: 3.31 }],
+  amortization: alternatingDates('2036-06-30', '2045-12-31', [6, 30], [12, 31]).map(date => ({ date, pct: 5 })),
+  paymentDates: alternatingDates(firstOnOrAfter('2003-12-31', [6, 30], [12, 31]), '2045-12-31', [6, 30], [12, 31]).map(date => ({ date })),
+  cerBase: CER_BASE_2020
+};
+
+// TODO: el calculo de TIR/paridad real (CER_CALC_LIST mas abajo, hoy
+// vacia a proposito) esta pausado — probando con datos reales, el ratio
+// CER hoy/base calculado con "10 dias habiles antes de la fecha de
+// emision original" da una paridad absurda (DICP >1700%, TX26 sin
+// solucion), lo que sugiere que el mercado usa un CER base distinto al de
+// la emision original (probablemente por reaperturas/licitaciones
+// posteriores de la misma especie). Hasta confirmar la convencion
+// correcta contra una fuente en vivo, TODA la categoria CER se muestra
+// solo con precio — mejor incompleto que con un numero mal calculado.
+const CER_CALC_LIST = [];
+const CER_PRICE_ONLY_LIST = [
+  'TX26', 'TX28', 'TX31', 'DICP', 'CUAP',
+  'PARP', 'PAP0', 'PAY0', 'PAY0D', 'DIP0',
+  'TZXO6', 'TZXD6', 'TZXM7', 'TZX27', 'TZXO7', 'TZXD7', 'TZX28', 'TZXD8'
+];
+const CER_LIST = [...CER_CALC_LIST, ...CER_PRICE_ONLY_LIST];
+
 // Tasa de cupon vigente en una fecha dada, segun el cronograma escalonado.
 function couponRateAt(terms, dateStr) {
   let rate = terms.coupons[0].rate;
@@ -340,7 +451,16 @@ function couponRateAt(terms, dateStr) {
 // Arma el flujo de fondos completo (en puntos sobre VN 100 original) y
 // devuelve solo los pagos con fecha posterior a "asOf", junto con el valor
 // residual (VR) y el cupon corrido acumulados hasta "asOf".
-function buildBondCashflow(terms, asOf) {
+//
+// "cerRatio" (default 1, para bonos en USD) multiplica cada pago — en un
+// bono CER el capital se ajusta por inflacion, asi que un pago futuro de
+// "X puntos sobre VN original" vale hoy X*cerRatio en pesos corrientes.
+// Congelar el ratio de HOY para todos los pagos futuros (en vez de
+// proyectar CER futuro, que es desconocido) es la convencion estandar del
+// mercado — asi la TIR que sale de esta cuenta es una tasa REAL (por
+// encima de la inflacion), no nominal.
+function buildBondCashflow(terms, asOf, cerRatio) {
+  const mult = cerRatio || 1;
   let vr = 100;
   let lastCouponDate = terms.coupons[0].from;
   const future = [];
@@ -350,7 +470,7 @@ function buildBondCashflow(terms, asOf) {
     const coupon = (rate / 2 / 100) * vrBefore;
     const amort = terms.amortization.find(a => a.date === pay.date);
     const amortPct = amort ? amort.pct : 0;
-    const cf = coupon + amortPct;
+    const cf = (coupon + amortPct) * mult;
     if (pay.date > asOf) {
       future.push({ date: pay.date, cf, coupon, amort: amortPct, vrBefore });
     } else {
@@ -358,13 +478,13 @@ function buildBondCashflow(terms, asOf) {
     }
     vr -= amortPct;
   }
-  const vrToday = future.length ? future[0].vrBefore : vr;
+  const vrTodayPoints = future.length ? future[0].vrBefore : vr;
   const nextDate = future.length ? future[0].date : null;
   const rateNow = couponRateAt(terms, asOf);
   const daysSinceCoupon = nextDate ? (new Date(asOf) - new Date(lastCouponDate)) / 86400000 : 0;
   const daysInPeriod = nextDate ? (new Date(nextDate) - new Date(lastCouponDate)) / 86400000 : 1;
-  const accrued = (rateNow / 2 / 100) * vrToday * (daysSinceCoupon / (daysInPeriod || 1));
-  return { future, vrToday, accrued };
+  const accrued = (rateNow / 2 / 100) * vrTodayPoints * mult * (daysSinceCoupon / (daysInPeriod || 1));
+  return { future, vrToday: vrTodayPoints * mult, accrued };
 }
 
 // TIR anual efectiva que iguala el precio de mercado (en USD, por 100 VN
@@ -385,18 +505,19 @@ function solveBondTIR(future, asOf, price) {
   return (lo + hi) / 2;
 }
 
-// Paridad, TIR y duration (Macaulay + modificada) de un bono soberano a
-// partir de su precio de mercado en USD (variante "D", MEP). Devuelve null
-// si el ticker no tiene cronograma cargado en BOND_TERMS todavia.
-function computeBondMetrics(ticker, priceUsd, asOf) {
+// Paridad, TIR y duration (Macaulay + modificada) de un bono a partir de
+// su precio de mercado y (para bonos CER) el ratio CER hoy/base — ver
+// buildBondCashflow. Devuelve null si el ticker no tiene cronograma
+// cargado en BOND_TERMS todavia.
+function computeBondMetrics(ticker, price, asOf, cerRatio) {
   const terms = BOND_TERMS[ticker];
-  if (!terms || !priceUsd) return null;
-  const { future, vrToday, accrued } = buildBondCashflow(terms, asOf);
+  if (!terms || !price) return null;
+  const { future, vrToday, accrued } = buildBondCashflow(terms, asOf, cerRatio);
   if (!future.length) return null;
-  const tir = solveBondTIR(future, asOf, priceUsd);
+  const tir = solveBondTIR(future, asOf, price);
   if (tir == null) return null;
   const valorTecnico = vrToday + accrued;
-  const paridad = (priceUsd / valorTecnico) * 100;
+  const paridad = (price / valorTecnico) * 100;
   let pvSum = 0, tPvSum = 0;
   future.forEach(f => {
     const t = (new Date(f.date) - new Date(asOf)) / (365 * 86400000);

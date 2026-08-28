@@ -54,6 +54,7 @@
     <button class="bond-cat-tab" data-cat="bonares" onclick="selectCategory('bonares')">Bonares (Ley Arg.)</button>
     <button class="bond-cat-tab" data-cat="globales" onclick="selectCategory('globales')">Globales (Ley NY)</button>
     <button class="bond-cat-tab" data-cat="bopreal" onclick="selectCategory('bopreal')">BOPREAL</button>
+    <button class="bond-cat-tab" data-cat="cer" onclick="selectCategory('cer')">Ajustables por CER</button>
   </div>
 
   <div id="catLetras">
@@ -183,9 +184,38 @@
     </section>
   </div>
 
+  <div id="catCer" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Ajustables por CER (Boncer)</h2>
+        <span id="cerUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Precio (ARS)</th>
+              <th>Var. Diaria</th>
+            </tr>
+          </thead>
+          <tbody id="cerBody">
+            <tr><td colspan="3" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="info-toggle" onclick="toggleInfo('cerInfo')">
+        <span id="cerInfoChevron">▾</span> ¿Por qué no hay TIR/Paridad todavía?
+      </button>
+      <div id="cerInfo" class="curve-info" style="display:none;">
+        <p>El capital de estos bonos se ajusta todos los días por el índice CER (que sigue la inflación) — para calcular su Paridad y TIR real hace falta saber, para cada bono, el valor de CER en su fecha base de emisión. Al probarlo con datos reales, el número que sale con la fecha de emisión original no cierra contra el precio de mercado, probablemente porque estas especies tuvieron reaperturas/licitaciones posteriores que corren la base efectiva. Preferimos mostrar solo precio en vivo hasta confirmar la convención correcta antes de publicar un cálculo que podría estar mal.</p>
+      </div>
+    </section>
+  </div>
+
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y fechas/valor final de letras por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
-    Paridad, TIR y duration de Bonares/Globales se calculan con el cronograma de pagos oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a>, descontando flujos con convención Actual/365; pueden diferir levemente de otras calculadoras por convención de día de liquidación.
+    Paridad, TIR y duration de Bonares/Globales se calculan con el cronograma de pagos oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a>, descontando flujos con convención Actual/365; pueden diferir levemente de otras calculadoras por convención de día de liquidación. El índice CER usado para los bonos ajustables es la variable 30 del <a href="https://www.bcra.gob.ar/" target="_blank" rel="noopener">BCRA</a>.
   </footer>
 </main>
 
@@ -219,7 +249,7 @@ function toggleInfo(bodyId) {
   if (chevron) chevron.textContent = open ? '▾' : '▴';
 }
 
-const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal' };
+const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer' };
 let activeCat = 'letras';
 
 function selectCategory(cat) {
@@ -237,6 +267,31 @@ function loadCategory(cat) {
   if (cat === 'bonares') return loadSovereignBonds(BONARES_LIST, 'bonaresBody', 'bonaresUpdated');
   if (cat === 'globales') return loadSovereignBonds(GLOBALES_LIST, 'globalesBody', 'globalesUpdated');
   if (cat === 'bopreal') return loadBopreal();
+  if (cat === 'cer') return loadCerBonds();
+}
+
+// Bonos CER: por ahora solo precio en vivo — ver CER_CALC_LIST en
+// market.js para el motivo (el calculo de Paridad/TIR real esta pausado
+// hasta confirmar la convencion correcta de base CER contra el mercado).
+async function loadCerBonds() {
+  const body = document.getElementById('cerBody');
+  try {
+    const quotes = await getBondQuotes(CER_LIST);
+    body.innerHTML = quotes.map(({ ticker, q }) => {
+      if (!q || !q.c) {
+        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="2" class="empty-note">Sin cotización</td></tr>`;
+      }
+      return `<tr>
+        <td><span class="tk">${ticker}</span></td>
+        <td class="mono row-value">${fmtNum(q.c)}</td>
+        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('cerUpdated').textContent = CER_LIST.length + ' especies';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="3" class="empty-note">No se pudo cargar la información.</td></tr>';
+  }
 }
 
 // Bonares/Globales: se usa la variante "D" (USD, dólar MEP) del ticker
