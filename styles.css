@@ -15,7 +15,11 @@
   --divider:#16302c;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-html{overflow-x:hidden;}
+html{overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--card-border) transparent;}
+*::-webkit-scrollbar{width:8px;height:8px;}
+*::-webkit-scrollbar-track{background:transparent;}
+*::-webkit-scrollbar-thumb{background:var(--card-border);border-radius:8px;}
+*::-webkit-scrollbar-thumb:hover{background:var(--accent-dim);}
 body{
   background:radial-gradient(circle at 15% 0%, #2d697155 0%, transparent 45%), var(--bg);
   color:var(--text);
