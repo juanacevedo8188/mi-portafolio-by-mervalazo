@@ -485,6 +485,16 @@ input[type=number]{-moz-appearance:textfield;}
   font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;
 }
 .ct-btn.active{background:var(--accent);color:#12302c;}
+
+.bond-cat-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.bond-cat-tab{
+  background:var(--card);border:1px solid var(--card-border);color:var(--text-dim);
+  padding:8px 14px;border-radius:20px;font-size:12.5px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:background .15s,color .15s,border-color .15s;
+}
+.bond-cat-tab:hover{color:var(--text);}
+.bond-cat-tab.active{background:rgba(241,168,135,0.14);color:var(--accent);border-color:var(--accent-dim);}
+
 @media (max-width:600px){
   .currency-toggle-row{justify-content:space-between;}
   .rate-note{margin-right:0;order:2;width:100%;}

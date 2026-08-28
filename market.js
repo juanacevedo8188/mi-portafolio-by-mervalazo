@@ -189,6 +189,226 @@ async function getLetraPriceMap() {
   return map;
 }
 
+// Bonos soberanos en dolares (Bonares Ley Argentina / Globales Ley Nueva
+// York) de la reestructuracion de 2020 — a diferencia de las LECAP (que
+// son a descuento, sin cupon), estos pagan renta + amortizacion semestral
+// con una tasa de cupon escalonada ("step-up"), asi que su rendimiento no
+// sale de una cuenta simple sino de armar el flujo de fondos completo y
+// resolver la TIR que lo iguala al precio de mercado.
+//
+// "from"/"date" son el inicio de cada tramo de tasa y cada fecha de pago,
+// en formato 'YYYY-MM-DD'. Todo se expresa en puntos sobre VN 100
+// originales (no sobre el residual) — asi el CF de cada pago es
+// cupon = tasa_vigente/2/100 * VR_antes_del_pago, y VR baja con cada
+// amortizacion, tal como cotiza el mercado.
+// Fechas semestrales 9-ene/9-jul consecutivas entre "from" y "to"
+// (inclusive de ambas puntas) — asi no hay que tipear a mano las 10 a 44
+// fechas de pago de cada bono.
+function semiannualDates(from, to) {
+  let [y, m] = from.split('-').map(Number);
+  const dates = [];
+  for (let guard = 0; guard < 200; guard++) {
+    const d = `${y}-${String(m).padStart(2, '0')}-09`;
+    dates.push(d);
+    if (d === to) break;
+    if (m === 7) { m = 1; y++; } else { m = 7; }
+  }
+  return dates;
+}
+// La mayoria de los bonos amortiza en cuotas iguales desde una fecha de
+// inicio hasta el vencimiento (100% dividido entre la cantidad de pagos) —
+// la excepcion es AL30/GD30, que tiene una primera cuota distinta (4%) y
+// se carga a mano mas abajo.
+function equalAmortization(from, to) {
+  const dates = semiannualDates(from, to);
+  const pct = 100 / dates.length;
+  return dates.map(date => ({ date, pct }));
+}
+
+const PAY_START = '2021-07-09'; // primer pago de renta de los 10 bonos, todos con la misma fecha
+
+// Terminos oficiales de los "Titulos Nuevos" de la reestructuracion de
+// deuda de 2020 (Decreto 676/2020, Anexos II a IV — Bonares Ley Argentina
+// y Globales Ley Nueva York). Ambas leyes tienen exactamente el mismo
+// cupon escalonado y cronograma de amortizacion para el mismo año de
+// vencimiento (solo cambia la ley aplicable) — por eso AL29/GD29 comparten
+// la misma entrada, y asi con el resto.
+const BOND_TERMS = {};
+
+BOND_TERMS.AL29 = BOND_TERMS.GD29 = {
+  coupons: [{ from: '2020-09-04', rate: 1.00 }],
+  amortization: equalAmortization('2025-01-09', '2029-07-09'),
+  paymentDates: semiannualDates(PAY_START, '2029-07-09').map(date => ({ date }))
+};
+
+BOND_TERMS.AL30 = BOND_TERMS.GD30 = {
+  coupons: [
+    { from: '2020-09-04', rate: 0.125 },
+    { from: '2021-07-09', rate: 0.50 },
+    { from: '2023-07-09', rate: 0.75 },
+    { from: '2027-07-09', rate: 1.75 }
+  ],
+  amortization: [
+    { date: '2024-07-09', pct: 4 },
+    ...semiannualDates('2025-01-09', '2030-07-09').map(date => ({ date, pct: 8 }))
+  ],
+  paymentDates: semiannualDates(PAY_START, '2030-07-09').map(date => ({ date }))
+};
+
+BOND_TERMS.AL35 = BOND_TERMS.GD35 = {
+  coupons: [
+    { from: '2020-09-04', rate: 0.125 },
+    { from: '2021-07-09', rate: 1.125 },
+    { from: '2022-07-09', rate: 1.50 },
+    { from: '2023-07-09', rate: 3.625 },
+    { from: '2024-07-09', rate: 4.125 },
+    { from: '2027-07-09', rate: 4.75 },
+    { from: '2028-07-09', rate: 5.00 }
+  ],
+  amortization: equalAmortization('2031-01-09', '2035-07-09'),
+  paymentDates: semiannualDates(PAY_START, '2035-07-09').map(date => ({ date }))
+};
+
+BOND_TERMS.AL41 = BOND_TERMS.GD41 = {
+  coupons: [
+    { from: '2020-09-04', rate: 0.125 },
+    { from: '2021-07-09', rate: 2.50 },
+    { from: '2022-07-09', rate: 3.50 },
+    { from: '2029-07-09', rate: 4.875 }
+  ],
+  amortization: equalAmortization('2028-01-09', '2041-07-09'),
+  paymentDates: semiannualDates(PAY_START, '2041-07-09').map(date => ({ date }))
+};
+
+BOND_TERMS.GD38 = {
+  coupons: [
+    { from: '2020-09-04', rate: 0.125 },
+    { from: '2021-07-09', rate: 2.00 },
+    { from: '2022-07-09', rate: 3.875 },
+    { from: '2023-07-09', rate: 4.25 },
+    { from: '2024-07-09', rate: 5.00 }
+  ],
+  amortization: equalAmortization('2027-07-09', '2038-01-09'),
+  paymentDates: semiannualDates(PAY_START, '2038-01-09').map(date => ({ date }))
+};
+
+BOND_TERMS.GD46 = {
+  coupons: [
+    { from: '2020-09-04', rate: 0.125 },
+    { from: '2021-07-09', rate: 1.125 },
+    { from: '2022-07-09', rate: 1.50 },
+    { from: '2023-07-09', rate: 3.625 },
+    { from: '2024-07-09', rate: 4.125 },
+    { from: '2027-07-09', rate: 4.375 },
+    { from: '2028-07-09', rate: 5.00 }
+  ],
+  amortization: equalAmortization('2025-01-09', '2046-07-09'),
+  paymentDates: semiannualDates(PAY_START, '2046-07-09').map(date => ({ date }))
+};
+
+const BONARES_LIST = ['AL29', 'AL30', 'AL35', 'AL41'];
+const GLOBALES_LIST = ['GD29', 'GD30', 'GD35', 'GD38', 'GD41', 'GD46'];
+
+// BOPREAL (BCRA, series 1/2/3 con tramos A-D) — se identifican sin
+// ambiguedad por el prefijo "BP", pero no tenemos cronograma de pagos
+// cargado todavia, asi que por ahora solo se listan con precio en vivo
+// (sin TIR/paridad/duration).
+const BOPREAL_LIST = [
+  'BPA7C', 'BPA7D', 'BPA8C', 'BPA8D', 'BPB7C', 'BPB7D', 'BPB8C', 'BPB8D',
+  'BPC7C', 'BPC7D', 'BPD7C', 'BPD7D', 'BPOA7', 'BPOA8', 'BPOB7', 'BPOB8',
+  'BPOC7', 'BPOD7'
+];
+
+// Devuelve, para un conjunto de tickers, su fila cruda del feed de bonos
+// de data912 (precio, var. diaria, volumen) — se usa tal cual para las
+// categorias que todavia no tienen calculo financiero propio (BOPREAL).
+async function getBondQuotes(tickers) {
+  const bonds = await fetchFeed('arg_bonds');
+  const map = new Map(bonds.map(b => [b.symbol, b]));
+  return tickers.map(t => ({ ticker: t, q: map.get(t) || null }));
+}
+
+// Tasa de cupon vigente en una fecha dada, segun el cronograma escalonado.
+function couponRateAt(terms, dateStr) {
+  let rate = terms.coupons[0].rate;
+  for (const step of terms.coupons) {
+    if (dateStr >= step.from) rate = step.rate; else break;
+  }
+  return rate;
+}
+
+// Arma el flujo de fondos completo (en puntos sobre VN 100 original) y
+// devuelve solo los pagos con fecha posterior a "asOf", junto con el valor
+// residual (VR) y el cupon corrido acumulados hasta "asOf".
+function buildBondCashflow(terms, asOf) {
+  let vr = 100;
+  let lastCouponDate = terms.coupons[0].from;
+  const future = [];
+  for (const pay of terms.paymentDates) {
+    const vrBefore = vr;
+    const rate = couponRateAt(terms, pay.date);
+    const coupon = (rate / 2 / 100) * vrBefore;
+    const amort = terms.amortization.find(a => a.date === pay.date);
+    const amortPct = amort ? amort.pct : 0;
+    const cf = coupon + amortPct;
+    if (pay.date > asOf) {
+      future.push({ date: pay.date, cf, coupon, amort: amortPct, vrBefore });
+    } else {
+      lastCouponDate = pay.date;
+    }
+    vr -= amortPct;
+  }
+  const vrToday = future.length ? future[0].vrBefore : vr;
+  const nextDate = future.length ? future[0].date : null;
+  const rateNow = couponRateAt(terms, asOf);
+  const daysSinceCoupon = nextDate ? (new Date(asOf) - new Date(lastCouponDate)) / 86400000 : 0;
+  const daysInPeriod = nextDate ? (new Date(nextDate) - new Date(lastCouponDate)) / 86400000 : 1;
+  const accrued = (rateNow / 2 / 100) * vrToday * (daysSinceCoupon / (daysInPeriod || 1));
+  return { future, vrToday, accrued };
+}
+
+// TIR anual efectiva que iguala el precio de mercado (en USD, por 100 VN
+// original) al valor presente del flujo de fondos futuro — se resuelve por
+// biseccion (robusto, no necesita derivada) en vez de Newton-Raphson.
+function solveBondTIR(future, asOf, price) {
+  const npv = r => future.reduce((sum, f) => {
+    const t = (new Date(f.date) - new Date(asOf)) / (365 * 86400000);
+    return sum + f.cf / Math.pow(1 + r, t);
+  }, 0) - price;
+
+  let lo = -0.5, hi = 3;
+  if (npv(lo) * npv(hi) > 0) return null; // no hay raiz en el rango razonable
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (npv(lo) * npv(mid) <= 0) hi = mid; else lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// Paridad, TIR y duration (Macaulay + modificada) de un bono soberano a
+// partir de su precio de mercado en USD (variante "D", MEP). Devuelve null
+// si el ticker no tiene cronograma cargado en BOND_TERMS todavia.
+function computeBondMetrics(ticker, priceUsd, asOf) {
+  const terms = BOND_TERMS[ticker];
+  if (!terms || !priceUsd) return null;
+  const { future, vrToday, accrued } = buildBondCashflow(terms, asOf);
+  if (!future.length) return null;
+  const tir = solveBondTIR(future, asOf, priceUsd);
+  if (tir == null) return null;
+  const valorTecnico = vrToday + accrued;
+  const paridad = (priceUsd / valorTecnico) * 100;
+  let pvSum = 0, tPvSum = 0;
+  future.forEach(f => {
+    const t = (new Date(f.date) - new Date(asOf)) / (365 * 86400000);
+    const pv = f.cf / Math.pow(1 + tir, t);
+    pvSum += pv;
+    tPvSum += t * pv;
+  });
+  const duration = tPvSum / pvSum;
+  const modDuration = duration / (1 + tir);
+  return { vrToday, valorTecnico, paridad, tir: tir * 100, duration, modDuration };
+}
+
 async function getPriceMap(includeCrypto, includeLetras) {
   const [stocks, cedears] = await Promise.all([
     fetchFeed('arg_stocks'),

@@ -49,49 +49,143 @@
 </header>
 
 <main>
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Curva de Tasas</h2>
-      <span id="curveUpdated">—</span>
-    </div>
-    <div class="curve-wrap" id="curveChart"><div class="empty-note">Cargando…</div></div>
-    <button class="info-toggle" onclick="toggleCurveInfo()">
-      <span id="infoChevron">▾</span> ¿Qué es esta curva?
-    </button>
-    <div id="curveInfo" class="curve-info" style="display:none;">
-      <p>Cada punto es una LECAP o BONCAP vigente. En el eje horizontal, cuántos días faltan para que venza (DTM); en el vertical, la <b>Tasa Efectiva Anual (TEA)</b> que rinde si la comprás hoy al precio de mercado y la mantenés hasta el vencimiento.</p>
-      <p>Tocá o pasá el mouse por un punto para ver el detalle de esa letra. Una curva que sube hacia la derecha significa que el mercado pide más tasa por prestarle al Tesoro a plazos más largos — lo contrario (curva invertida) suele leerse como expectativa de baja de tasas futura.</p>
-    </div>
-  </section>
+  <div class="bond-cat-tabs" id="bondCatTabs">
+    <button class="bond-cat-tab active" data-cat="letras" onclick="selectCategory('letras')">Letras (LECAP/BONCAP)</button>
+    <button class="bond-cat-tab" data-cat="bonares" onclick="selectCategory('bonares')">Bonares (Ley Arg.)</button>
+    <button class="bond-cat-tab" data-cat="globales" onclick="selectCategory('globales')">Globales (Ley NY)</button>
+    <button class="bond-cat-tab" data-cat="bopreal" onclick="selectCategory('bopreal')">BOPREAL</button>
+  </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Letras vigentes</h2>
-      <span id="lecapUpdated">—</span>
-    </div>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Vencimiento</th>
-            <th>DTM</th>
-            <th>TEM</th>
-            <th>TNA</th>
-            <th>TEA</th>
-            <th>Precio</th>
-            <th>Var. Diaria</th>
-          </tr>
-        </thead>
-        <tbody id="lecapBody">
-          <tr><td colspan="8" class="empty-note">Cargando…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <div id="catLetras">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Curva de Tasas</h2>
+        <span id="curveUpdated">—</span>
+      </div>
+      <div class="curve-wrap" id="curveChart"><div class="empty-note">Cargando…</div></div>
+      <button class="info-toggle" onclick="toggleCurveInfo()">
+        <span id="infoChevron">▾</span> ¿Qué es esta curva?
+      </button>
+      <div id="curveInfo" class="curve-info" style="display:none;">
+        <p>Cada punto es una LECAP o BONCAP vigente. En el eje horizontal, cuántos días faltan para que venza (DTM); en el vertical, la <b>Tasa Efectiva Anual (TEA)</b> que rinde si la comprás hoy al precio de mercado y la mantenés hasta el vencimiento.</p>
+        <p>Tocá o pasá el mouse por un punto para ver el detalle de esa letra. Una curva que sube hacia la derecha significa que el mercado pide más tasa por prestarle al Tesoro a plazos más largos — lo contrario (curva invertida) suele leerse como expectativa de baja de tasas futura.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Letras vigentes</h2>
+        <span id="lecapUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Vencimiento</th>
+              <th>DTM</th>
+              <th>TEM</th>
+              <th>TNA</th>
+              <th>TEA</th>
+              <th>Precio</th>
+              <th>Var. Diaria</th>
+            </tr>
+          </thead>
+          <tbody id="lecapBody">
+            <tr><td colspan="8" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="catBonares" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Bonares — Ley Argentina</h2>
+        <span id="bonaresUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Precio (USD MEP)</th>
+              <th>Var. Diaria</th>
+              <th>Paridad</th>
+              <th>TIR</th>
+              <th>Duration Mod.</th>
+            </tr>
+          </thead>
+          <tbody id="bonaresBody">
+            <tr><td colspan="6" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="info-toggle" onclick="toggleInfo('bondInfo')">
+        <span id="bondInfoChevron">▾</span> ¿Qué significan Paridad, TIR y Duration?
+      </button>
+      <div id="bondInfo" class="curve-info" style="display:none;">
+        <p><b>Paridad:</b> precio de mercado sobre valor técnico (capital residual + interés corrido). Por debajo de 100% el bono cotiza con descuento respecto de lo que "debería" valer contablemente.</p>
+        <p><b>TIR:</b> tasa interna de retorno anual — el rendimiento que obtenés si comprás hoy al precio de mercado y cobrás todos los pagos de renta y amortización futuros hasta el vencimiento.</p>
+        <p><b>Duration modificada:</b> sensibilidad del precio a cambios en la tasa, en años — a mayor duration, más se mueve el precio ante un cambio de TIR.</p>
+      </div>
+    </section>
+  </div>
+
+  <div id="catGlobales" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Globales — Ley Nueva York</h2>
+        <span id="globalesUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Precio (USD MEP)</th>
+              <th>Var. Diaria</th>
+              <th>Paridad</th>
+              <th>TIR</th>
+              <th>Duration Mod.</th>
+            </tr>
+          </thead>
+          <tbody id="globalesBody">
+            <tr><td colspan="6" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="catBopreal" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>BOPREAL</h2>
+        <span id="bopealUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Precio</th>
+              <th>Var. Diaria</th>
+              <th>Volumen</th>
+            </tr>
+          </thead>
+          <tbody id="bopealBody">
+            <tr><td colspan="4" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
 
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y fechas/valor final de letras por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
+    Paridad, TIR y duration de Bonares/Globales se calculan con el cronograma de pagos oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a>, descontando flujos con convención Actual/365; pueden diferir levemente de otras calculadoras por convención de día de liquidación.
   </footer>
 </main>
 
@@ -115,6 +209,93 @@ function toggleCurveInfo() {
   const open = el.style.display !== 'none';
   el.style.display = open ? 'none' : 'block';
   chevron.textContent = open ? '▾' : '▴';
+}
+
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal' };
+let activeCat = 'letras';
+
+function selectCategory(cat) {
+  activeCat = cat;
+  document.querySelectorAll('.bond-cat-tab').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  Object.entries(CAT_DIVS).forEach(([key, id]) => {
+    document.getElementById(id).style.display = key === cat ? '' : 'none';
+  });
+  loadCategory(cat);
+  if (cat === 'letras') paintCurve(); // el SVG usa clientWidth, que es 0 mientras el panel estaba display:none
+}
+
+function loadCategory(cat) {
+  if (cat === 'letras') return loadLecaps();
+  if (cat === 'bonares') return loadSovereignBonds(BONARES_LIST, 'bonaresBody', 'bonaresUpdated');
+  if (cat === 'globales') return loadSovereignBonds(GLOBALES_LIST, 'globalesBody', 'globalesUpdated');
+  if (cat === 'bopreal') return loadBopreal();
+}
+
+// Bonares/Globales: se usa la variante "D" (USD, dólar MEP) del ticker
+// porque el flujo de fondos de estos bonos esta en dolares — la version
+// sin sufijo cotiza en pesos y mezclaria monedas en la cuenta de TIR.
+async function loadSovereignBonds(tickers, bodyId, updatedId) {
+  const body = document.getElementById(bodyId);
+  try {
+    const quotes = await getBondQuotes(tickers.map(t => t + 'D'));
+    const today = new Date().toISOString().slice(0, 10);
+    body.innerHTML = quotes.map(({ ticker, q }) => {
+      const base = ticker.slice(0, -1);
+      if (!q || !q.c) {
+        return `<tr><td><span class="tk">${base}</span></td><td colspan="5" class="empty-note">Sin cotización</td></tr>`;
+      }
+      const m = computeBondMetrics(base, q.c, today);
+      const priceCells = `
+        <td class="mono row-value">US$ ${fmtNum(q.c)}</td>
+        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>`;
+      if (!m) {
+        return `<tr><td><span class="tk">${base}</span></td>${priceCells}<td colspan="3" class="empty-note">Cálculo no disponible</td></tr>`;
+      }
+      return `<tr>
+        <td><span class="tk">${base}</span></td>
+        ${priceCells}
+        <td class="mono">${fmtNum(m.paridad)}%</td>
+        <td class="mono">${fmtNum(m.tir)}%</td>
+        <td class="mono">${fmtNum(m.modDuration)} años</td>
+      </tr>`;
+    }).join('');
+    document.getElementById(updatedId).textContent = tickers.length + ' especies';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="6" class="empty-note">No se pudo cargar la información.</td></tr>';
+  }
+}
+
+// El feed no distingue moneda para los tickers de BOPREAL sin cronograma
+// cargado, asi que se muestra el precio "tal cual" sin asumir $ ni US$.
+async function loadBopreal() {
+  const body = document.getElementById('bopealBody');
+  try {
+    const quotes = await getBondQuotes(BOPREAL_LIST);
+    body.innerHTML = quotes.map(({ ticker, q }) => {
+      if (!q || !q.c) {
+        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="3" class="empty-note">Sin cotización</td></tr>`;
+      }
+      return `<tr>
+        <td><span class="tk">${ticker}</span></td>
+        <td class="mono row-value">${fmtNum(q.c)}</td>
+        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>
+        <td class="mono">${fmtNum(q.v || 0)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('bopealUpdated').textContent = BOPREAL_LIST.length + ' especies';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información.</td></tr>';
+  }
 }
 
 function buildCurveSVG(points, width, height) {
@@ -248,7 +429,7 @@ async function loadAll(manual) {
   btn.classList.add('spinning');
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
-    await loadLecaps();
+    await loadCategory(activeCat);
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
