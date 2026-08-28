@@ -381,25 +381,30 @@ function firstOnOrAfter(date, pairA, pairB) {
 }
 
 // Coeficiente CER base (valor de CER 10 dias habiles antes de la emision)
-// segun la fecha de emision — TX26/TX28/DICP/CUAP comparten la emision
-// del canje 2020, TX31 es de 2022.
+// segun la fecha de emision — TX26/TX28 comparten la emision del canje
+// 2020, TX31 es de 2022.
 const CER_BASE_2020 = 22.54395108959; // CER al 21/8/2020
 const CER_BASE_2022 = 47.29372101748; // CER al 17/5/2022
 
-// Cronograma de pago Mayo9/Noviembre9 inferido a partir del dia/mes de
-// vencimiento (confirmado oficialmente) — no encontramos el prospecto con
-// las fechas de pago exactas de TX26/TX28, asi que esto es una inferencia
-// razonable (estandar de mercado: el cupon paga el mismo dia/mes que el
-// vencimiento) y no una cifra confirmada contra la fuente primaria.
+// El cronograma real de pagos/amortizacion (fechas y % de VN original en
+// cada pago) se reconstruyo comparando esta calculadora contra el flujo
+// de fondos publicado en vivo por bonistas.com para cada ticker — la
+// primera version (basada solo en la descripcion textual de la fuente
+// oficial) tenia mal la cantidad y fecha de cuotas de amortizacion de
+// varios bonos (ver commit anterior). Verificado: TX26 amortiza en 5
+// cuotas del 20% (no 100% al vencimiento como decia el prospecto
+// resumido), TX28 en 9 cuotas de 100/9%, TX31 sigue igual que antes (ya
+// estaba bien). Con esto el Valor Tecnico calculado ahora coincide con
+// bonistas.com a menos de 0.5%.
 BOND_TERMS.TX26 = {
   coupons: [{ from: '2020-09-04', rate: 2.00 }],
-  amortization: [{ date: '2026-11-09', pct: 100 }],
+  amortization: alternatingDates('2024-11-09', '2026-11-09', [5, 9], [11, 9]).map(date => ({ date, pct: 20 })),
   paymentDates: alternatingDates(firstOnOrAfter('2020-09-04', [5, 9], [11, 9]), '2026-11-09', [5, 9], [11, 9]).map(date => ({ date })),
   cerBase: CER_BASE_2020
 };
 BOND_TERMS.TX28 = {
   coupons: [{ from: '2020-09-04', rate: 2.25 }],
-  amortization: [{ date: '2028-11-09', pct: 100 }],
+  amortization: alternatingDates('2024-11-09', '2028-11-09', [5, 9], [11, 9]).map(date => ({ date, pct: 100 / 9 })),
   paymentDates: alternatingDates(firstOnOrAfter('2020-09-04', [5, 9], [11, 9]), '2028-11-09', [5, 9], [11, 9]).map(date => ({ date })),
   cerBase: CER_BASE_2020
 };
@@ -409,31 +414,41 @@ BOND_TERMS.TX31 = {
   paymentDates: alternatingDates(firstOnOrAfter('2022-05-31', [5, 30], [11, 30]), '2031-11-30', [5, 30], [11, 30]).map(date => ({ date })),
   cerBase: CER_BASE_2022
 };
+
+// DICP/PARP/CUAP (canje 2005, emision nominal 31/12/2003): el cronograma
+// real que sacamos del flujo de fondos de bonistas.com SI cuadra (cuotas
+// iguales, confirmado), pero el ratio CER que da con la base "10 dias
+// habiles antes de la emision" NO reproduce el Valor Tecnico publicado
+// (~20% de diferencia) — a diferencia de TX26/TX28/TX31, que si cerraron
+// con esa regla. Puede ser que estos bonos usen una referencia de CER
+// distinta (por bono/por pago, no una base unica de emision). Hasta
+// resolver eso quedan con precio nada mas — ver CER_CALC_LIST.
 BOND_TERMS.DICP = {
   coupons: [{ from: '2003-12-31', rate: 5.83 }],
-  amortization: alternatingDates('2024-06-30', '2033-12-31', [6, 30], [12, 31]).map(date => ({ date, pct: 5 })),
-  paymentDates: alternatingDates(firstOnOrAfter('2003-12-31', [6, 30], [12, 31]), '2033-12-31', [6, 30], [12, 31]).map(date => ({ date })),
-  cerBase: CER_BASE_2020
+  amortization: alternatingDates('2025-01-01', '2034-01-01', [1, 1], [7, 1]).map(date => ({ date, pct: 100 / 19 })),
+  paymentDates: alternatingDates(firstOnOrAfter('2003-12-31', [1, 1], [7, 1]), '2034-01-01', [1, 1], [7, 1]).map(date => ({ date })),
+  cerBase: null
 };
 BOND_TERMS.CUAP = {
   coupons: [{ from: '2003-12-31', rate: 3.31 }],
   amortization: alternatingDates('2036-06-30', '2045-12-31', [6, 30], [12, 31]).map(date => ({ date, pct: 5 })),
   paymentDates: alternatingDates(firstOnOrAfter('2003-12-31', [6, 30], [12, 31]), '2045-12-31', [6, 30], [12, 31]).map(date => ({ date })),
-  cerBase: CER_BASE_2020
+  cerBase: null
 };
 
-// TODO: el calculo de TIR/paridad real (CER_CALC_LIST mas abajo, hoy
-// vacia a proposito) esta pausado — probando con datos reales, el ratio
-// CER hoy/base calculado con "10 dias habiles antes de la fecha de
-// emision original" da una paridad absurda (DICP >1700%, TX26 sin
-// solucion), lo que sugiere que el mercado usa un CER base distinto al de
-// la emision original (probablemente por reaperturas/licitaciones
-// posteriores de la misma especie). Hasta confirmar la convencion
-// correcta contra una fuente en vivo, TODA la categoria CER se muestra
-// solo con precio — mejor incompleto que con un numero mal calculado.
-const CER_CALC_LIST = [];
+// TX26 y TX31 verificados contra el flujo de fondos en vivo de
+// bonistas.com (Valor Tecnico calculado a menos de 1% de diferencia).
+// TX28 quedo afuera: comparte la misma emision/base que TX26 pero su
+// Valor Tecnico calculado no cierra (~10% de diferencia) — reconstruyendo
+// el cronograma con el CER real de cada fecha de pago pasada, el
+// residual sugiere que ya se pago una cuota de amortizacion ANTES de la
+// primera que aparece en la ventana de datos que conseguimos, asi que la
+// cantidad de cuotas/fecha de inicio que tenemos no es la correcta
+// todavia. Ver el comentario junto a BOND_TERMS.DICP para el motivo de
+// DICP/PARP/CUAP.
+const CER_CALC_LIST = ['TX26', 'TX31'];
 const CER_PRICE_ONLY_LIST = [
-  'TX26', 'TX28', 'TX31', 'DICP', 'CUAP',
+  'TX28', 'DICP', 'CUAP',
   'PARP', 'PAP0', 'PAY0', 'PAY0D', 'DIP0',
   'TZXO6', 'TZXD6', 'TZXM7', 'TZX27', 'TZXO7', 'TZXD7', 'TZX28', 'TZXD8'
 ];

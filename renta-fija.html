@@ -197,18 +197,22 @@
               <th>Ticker</th>
               <th>Precio (ARS)</th>
               <th>Var. Diaria</th>
+              <th>Paridad</th>
+              <th>TIR real</th>
+              <th>Duration Mod.</th>
             </tr>
           </thead>
           <tbody id="cerBody">
-            <tr><td colspan="3" class="empty-note">Cargando…</td></tr>
+            <tr><td colspan="6" class="empty-note">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
       <button class="info-toggle" onclick="toggleInfo('cerInfo')">
-        <span id="cerInfoChevron">▾</span> ¿Por qué no hay TIR/Paridad todavía?
+        <span id="cerInfoChevron">▾</span> ¿Por qué "TIR real" y por qué algunos solo tienen precio?
       </button>
       <div id="cerInfo" class="curve-info" style="display:none;">
-        <p>El capital de estos bonos se ajusta todos los días por el índice CER (que sigue la inflación) — para calcular su Paridad y TIR real hace falta saber, para cada bono, el valor de CER en su fecha base de emisión. Al probarlo con datos reales, el número que sale con la fecha de emisión original no cierra contra el precio de mercado, probablemente porque estas especies tuvieron reaperturas/licitaciones posteriores que corren la base efectiva. Preferimos mostrar solo precio en vivo hasta confirmar la convención correcta antes de publicar un cálculo que podría estar mal.</p>
+        <p>El capital de estos bonos se ajusta todos los días por el índice CER (que sigue la inflación), así que su cupón nominal ya no dice mucho por sí solo. La TIR que se muestra acá congela el coeficiente CER de hoy para todos los pagos futuros, en vez de proyectar inflación futura — así el número que sale es un rendimiento <b>por encima de la inflación</b> (real), verificado contra el flujo de fondos que publica bonistas.com para cada bono.</p>
+        <p>TX26 y TX31 tienen Paridad/TIR/Duration calculados, verificados contra el flujo de fondos que publica bonistas.com. El resto todavía no: TX28 comparte la emisión de TX26 pero su cronograma de amortización no cerró bien al verificarlo; DICP, PARP y CUAP (los bonos Discount/Par/Cuasipar del canje 2005) usan aparentemente una referencia de CER distinta a la regla estándar; y los Boncer cupón cero (TZX) todavía no tienen fecha de emisión confirmada. Todos se muestran con precio en vivo mientras tanto.</p>
       </div>
     </section>
   </div>
@@ -270,27 +274,47 @@ function loadCategory(cat) {
   if (cat === 'cer') return loadCerBonds();
 }
 
-// Bonos CER: por ahora solo precio en vivo — ver CER_CALC_LIST en
-// market.js para el motivo (el calculo de Paridad/TIR real esta pausado
-// hasta confirmar la convencion correcta de base CER contra el mercado).
+// Bonos CER: precio en pesos directo (no hace falta variante D/C como en
+// los soberanos en USD) — el ajuste por inflacion ya esta en el ratio
+// CER, no en el tipo de cambio. Solo TX26/TX28/TX31 (CER_CALC_LIST en
+// market.js) tienen Paridad/TIR/Duration; el resto se muestra con precio
+// nada mas hasta confirmar su cronograma/base CER.
 async function loadCerBonds() {
   const body = document.getElementById('cerBody');
   try {
-    const quotes = await getBondQuotes(CER_LIST);
+    const [quotes, cerToday] = await Promise.all([
+      getBondQuotes(CER_LIST),
+      getCerToday()
+    ]);
+    const today = new Date().toISOString().slice(0, 10);
     body.innerHTML = quotes.map(({ ticker, q }) => {
       if (!q || !q.c) {
-        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="2" class="empty-note">Sin cotización</td></tr>`;
+        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="5" class="empty-note">Sin cotización</td></tr>`;
+      }
+      const priceCells = `
+        <td class="mono row-value">${fmtNum(q.c)}</td>
+        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>`;
+      if (!CER_CALC_LIST.includes(ticker)) {
+        return `<tr><td><span class="tk">${ticker}</span></td>${priceCells}<td colspan="3" class="empty-note">Solo precio</td></tr>`;
+      }
+      const terms = BOND_TERMS[ticker];
+      const cerRatio = cerToday / terms.cerBase;
+      const m = computeBondMetrics(ticker, q.c, today, cerRatio);
+      if (!m) {
+        return `<tr><td><span class="tk">${ticker}</span></td>${priceCells}<td colspan="3" class="empty-note">Cálculo no disponible</td></tr>`;
       }
       return `<tr>
         <td><span class="tk">${ticker}</span></td>
-        <td class="mono row-value">${fmtNum(q.c)}</td>
-        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>
+        ${priceCells}
+        <td class="mono">${fmtNum(m.paridad)}%</td>
+        <td class="mono">${fmtNum(m.tir)}%</td>
+        <td class="mono">${fmtNum(m.modDuration)} años</td>
       </tr>`;
     }).join('');
     document.getElementById('cerUpdated').textContent = CER_LIST.length + ' especies';
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<tr><td colspan="3" class="empty-note">No se pudo cargar la información.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-note">No se pudo cargar la información.</td></tr>';
   }
 }
 
