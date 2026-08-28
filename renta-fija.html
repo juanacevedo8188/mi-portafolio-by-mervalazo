@@ -55,6 +55,7 @@
     <button class="bond-cat-tab" data-cat="globales" onclick="selectCategory('globales')">Globales (Ley NY)</button>
     <button class="bond-cat-tab" data-cat="bopreal" onclick="selectCategory('bopreal')">BOPREAL</button>
     <button class="bond-cat-tab" data-cat="cer" onclick="selectCategory('cer')">Ajustables por CER</button>
+    <button class="bond-cat-tab" data-cat="tamar" onclick="selectCategory('tamar')">Tasa TAMAR</button>
   </div>
 
   <div id="catLetras">
@@ -217,6 +218,36 @@
     </section>
   </div>
 
+  <div id="catTamar" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Tasa TAMAR</h2>
+        <span id="tamarUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Precio</th>
+              <th>Var. Diaria</th>
+              <th>Volumen</th>
+            </tr>
+          </thead>
+          <tbody id="tamarBody">
+            <tr><td colspan="4" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="info-toggle" onclick="toggleInfo('tamarInfo')">
+        <span id="tamarInfoChevron">▾</span> ¿Por qué no hay TIR acá?
+      </button>
+      <div id="tamarInfo" class="curve-info" style="display:none;">
+        <p>Son bonos de tasa <b>variable</b>: el cupón se resetea según la tasa TAMAR (tasa mayorista de referencia del BCRA) más un spread fijado en cada licitación. Calcular una TIR necesita ese spread exacto, y las fuentes públicas que encontramos dan cifras distintas entre sí según la reapertura de cada especie — publicar un número con un spread adivinado sería peor que no publicarlo. Incluye flotantes puros (TMF/TMG/TML), "bonos duales" que pagan lo mayor entre tasa fija y TAMAR (TTD26, TTS26), y duales TAMAR/CER o TAMAR/dólar (TXMD8, TXMD9, TXMJ9, TXMJ0, TMVE8).</p>
+      </div>
+    </section>
+  </div>
+
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y fechas/valor final de letras por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
     Paridad, TIR y duration de Bonares/Globales se calculan con el cronograma de pagos oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a>, descontando flujos con convención Actual/365; pueden diferir levemente de otras calculadoras por convención de día de liquidación. El índice CER usado para los bonos ajustables es la variable 30 del <a href="https://www.bcra.gob.ar/" target="_blank" rel="noopener">BCRA</a>.
@@ -253,7 +284,7 @@ function toggleInfo(bodyId) {
   if (chevron) chevron.textContent = open ? '▾' : '▴';
 }
 
-const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer' };
+const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar' };
 let activeCat = 'letras';
 
 function selectCategory(cat) {
@@ -272,6 +303,29 @@ function loadCategory(cat) {
   if (cat === 'globales') return loadSovereignBonds(GLOBALES_LIST, 'globalesBody', 'globalesUpdated');
   if (cat === 'bopreal') return loadBopreal();
   if (cat === 'cer') return loadCerBonds();
+  if (cat === 'tamar') return loadTamarBonds();
+}
+
+async function loadTamarBonds() {
+  const body = document.getElementById('tamarBody');
+  try {
+    const quotes = await getBondQuotes(TAMAR_LIST);
+    body.innerHTML = quotes.map(({ ticker, q }) => {
+      if (!q || !q.c) {
+        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="3" class="empty-note">Sin cotización</td></tr>`;
+      }
+      return `<tr>
+        <td><span class="tk">${ticker}</span></td>
+        <td class="mono row-value">${fmtNum(q.c)}</td>
+        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>
+        <td class="mono">${fmtNum(q.v || 0)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('tamarUpdated').textContent = TAMAR_LIST.length + ' especies';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información.</td></tr>';
+  }
 }
 
 // Bonos CER: precio en pesos directo (no hace falta variante D/C como en

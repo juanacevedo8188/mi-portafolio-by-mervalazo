@@ -319,6 +319,20 @@ const BOPREAL_LIST = [
   'BPOC7', 'BPOD7'
 ];
 
+// Tasa TAMAR (BCRA, tasa mayorista de referencia) — a diferencia de los
+// bonos anteriores, estos son de tasa VARIABLE (el cupon se resetea segun
+// TAMAR), asi que no alcanza con un cronograma de pagos fijo: haria falta
+// ademas el spread contractual exacto sobre TAMAR de cada licitacion, que
+// investigamos y encontramos con cifras inconsistentes entre fuentes
+// segun la reapertura — publicar una TIR con un spread adivinado seria
+// peor que no publicarla. Por eso, solo precio en vivo por ahora.
+const TAMAR_LIST = [
+  'TMF27', 'TMG27', 'TMF28', 'TMG28', 'TML27', // flotantes puros TAMAR
+  'TTD26', 'TTD6D', 'TTS26', // "bono dual": paga lo mayor entre tasa fija y TAMAR
+  'TMVE8', // dual TAMAR / dolar linked (A3500)
+  'TXMD8', 'TXMD9', 'TXMJ9', 'TXMJ0' // dual CER / TAMAR
+];
+
 // Devuelve, para un conjunto de tickers, su fila cruda del feed de bonos
 // de data912 (precio, var. diaria, volumen) — se usa tal cual para las
 // categorias que todavia no tienen calculo financiero propio (BOPREAL).
