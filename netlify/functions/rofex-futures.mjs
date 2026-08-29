@@ -81,9 +81,11 @@ export default async (req) => {
     const token = await getToken();
 
     if (debugTrades) {
+      const days = Math.min(parseInt(url.searchParams.get('days'), 10) || 1, 30);
       const today = new Date().toISOString().slice(0, 10);
-      const trades = await getTradeHistory(token, debugTrades, today, today);
-      return new Response(JSON.stringify({ symbol: debugTrades, date: today, trades }), {
+      const from = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const trades = await getTradeHistory(token, debugTrades, from, today);
+      return new Response(JSON.stringify({ symbol: debugTrades, from, to: today, count: trades ? trades.length : null, trades }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
