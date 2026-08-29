@@ -65,6 +65,8 @@
     <div class="curve-wrap" id="mkwChart"></div>
     <div class="mkw-legend">
       <span><i class="mkw-dot" style="background:var(--card-border);"></i> Carteras simuladas</span>
+      <span><i class="mkw-line" style="background:var(--up);"></i> Frontera eficiente</span>
+      <span><i class="mkw-line mkw-line-dashed" style="background:var(--down);"></i> Tramo dominado</span>
       <span><i class="mkw-dot" style="background:var(--accent);"></i> Activos individuales</span>
       <span><i class="mkw-dot" style="background:var(--up);"></i> Mínima varianza</span>
       <span><i class="mkw-dot" style="background:#f4c542;"></i> Máximo Sharpe</span>
@@ -168,7 +170,7 @@ async function loadCurrentHoldings() {
   }
 }
 
-function buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, width, height) {
+function buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, frontier, width, height) {
   const padL = 50, pr = 16, padT = 16, padB = 34;
   const allX = sims.map(p => p.vol).concat(assets.map(p => p.vol), [minVar.vol, maxSharpe.vol]);
   const allY = sims.map(p => p.ret).concat(assets.map(p => p.ret), [minVar.ret, maxSharpe.ret]);
@@ -192,7 +194,14 @@ function buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, width, h
     xTicks.push(`<text x="${x(v).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${v.toFixed(0)}%</text>`);
   }
 
-  const simDots = sims.map(p => `<circle cx="${x(p.vol).toFixed(1)}" cy="${y(p.ret).toFixed(1)}" r="2" fill="var(--card-border)" opacity="0.7"/>`).join('');
+  const simDots = sims.map(p => `<circle cx="${x(p.vol).toFixed(1)}" cy="${y(p.ret).toFixed(1)}" r="2" fill="var(--card-border)" opacity="0.55"/>`).join('');
+  const linePath = pts => pts.map((p, i) => (i === 0 ? 'M' : 'L') + x(p.vol).toFixed(1) + ' ' + y(p.ret).toFixed(1)).join(' ');
+  const efficientLine = frontier.efficient.length > 1
+    ? `<path d="${linePath(frontier.efficient)}" fill="none" stroke="var(--up)" stroke-width="2.5"/>`
+    : '';
+  const dominatedLine = frontier.dominated.length > 1
+    ? `<path d="${linePath(frontier.dominated)}" fill="none" stroke="var(--down)" stroke-width="2.5" stroke-dasharray="5 4"/>`
+    : '';
   const assetDots = assets.map(p => `
     <circle cx="${x(p.vol).toFixed(1)}" cy="${y(p.ret).toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--card)" stroke-width="1.5"/>
     <text x="${x(p.vol).toFixed(1)}" y="${(y(p.ret) - 9).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-dim)">${p.ticker}</text>
@@ -206,11 +215,46 @@ function buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, width, h
     ${xTicks.join('')}
     <text x="${(width / 2).toFixed(1)}" y="${height - 4}" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--text-faint)">Riesgo (volatilidad anualizada)</text>
     ${simDots}
+    ${dominatedLine}
+    ${efficientLine}
     ${assetDots}
     ${currentDot}
     <circle cx="${x(minVar.vol).toFixed(1)}" cy="${y(minVar.ret).toFixed(1)}" r="7" fill="var(--up)" stroke="var(--card)" stroke-width="2"/>
     <circle cx="${x(maxSharpe.vol).toFixed(1)}" cy="${y(maxSharpe.ret).toFixed(1)}" r="7" fill="#f4c542" stroke="var(--card)" stroke-width="2"/>
   </svg>`;
+}
+
+// De la nube simulada se saca, por franjas de riesgo, el punto de mayor
+// retorno (envolvente superior) y el de menor retorno (envolvente
+// inferior). La superior, forzada a ser creciente (running max) desde el
+// minimo riesgo, ES la frontera eficiente: para cada riesgo, lo mejor que
+// se pudo lograr.
+//
+// La inferior es la parte "dominada": a IGUAL riesgo que un punto de la
+// envolvente superior, da menos retorno. No hay que filtrarla por riesgo
+// — con pocos activos el riesgo minimo global YA es el vertice de la
+// curva (no existe nada mas a la izquierda), asi que ambas ramas
+// (la que viene "desde abajo" y la que va "hacia arriba") conviven en el
+// MISMO rango de riesgo, no en rangos separados.
+function computeFrontierLines(sims, bins) {
+  const vols = sims.map(p => p.vol);
+  const minVol = Math.min(...vols), maxVol = Math.max(...vols);
+  const step = (maxVol - minVol) / bins || 1;
+  const upper = [], lower = [];
+  for (let i = 0; i <= bins; i++) {
+    const lo = minVol + step * i, hi = lo + step;
+    const inBucket = sims.filter(p => p.vol >= lo && p.vol < hi);
+    if (!inBucket.length) continue;
+    const mid = (lo + hi) / 2;
+    upper.push({ vol: mid, ret: inBucket.reduce((b, p) => (p.ret > b.ret ? p : b)).ret });
+    lower.push({ vol: mid, ret: inBucket.reduce((b, p) => (p.ret < b.ret ? p : b)).ret });
+  }
+  let runningMax = -Infinity;
+  const efficient = upper.filter(p => {
+    if (p.ret > runningMax) { runningMax = p.ret; return true; }
+    return false;
+  });
+  return { efficient, dominated: lower };
 }
 
 function weightsCard(title, color, portfolio, tickers) {
@@ -255,6 +299,7 @@ async function runMarkowitz() {
     const sims = simulatePortfolios(meanAnnual, covAnnual, 1500);
     const minVar = minVariancePortfolio(sims);
     const maxSharpe = maxSharpePortfolio(sims, rf);
+    const frontier = computeFrontierLines(sims, 40);
 
     let currentPoint = null;
     if (currentWeights && tickers.every(t => currentWeights.has(t)) && tickers.length === currentWeights.size) {
@@ -268,7 +313,7 @@ async function runMarkowitz() {
     const chartEl = document.getElementById('mkwChart');
     const width = chartEl.clientWidth || 700;
     const height = Math.round(Math.min(340, Math.max(260, width * 0.5)));
-    chartEl.innerHTML = buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, width, height);
+    chartEl.innerHTML = buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, frontier, width, height);
 
     document.getElementById('mkwSummary').innerHTML = `
       <div class="quick-stat">
