@@ -5,6 +5,9 @@
 // (ROFEX_USER / ROFEX_PASSWORD) — nunca hardcodeadas ni en el repo.
 //
 // Referencia: https://apihub.primary.com.ar/assets/docs/Primary-API.pdf
+//
+// (redeploy trigger: variables de entorno ROFEX_USER/ROFEX_PASSWORD ya
+// cargadas en Netlify)
 
 const BASE_URL = 'https://api.remarkets.primary.com.ar/';
 const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
