@@ -209,11 +209,11 @@
         </table>
       </div>
       <button class="info-toggle" onclick="toggleInfo('cerInfo')">
-        <span id="cerInfoChevron">▾</span> ¿Por qué "TIR real" y por qué algunos solo tienen precio?
+        <span id="cerInfoChevron">▾</span> ¿Por qué "TIR real" y qué significa el *?
       </button>
       <div id="cerInfo" class="curve-info" style="display:none;">
-        <p>El capital de estos bonos se ajusta todos los días por el índice CER (que sigue la inflación), así que su cupón nominal ya no dice mucho por sí solo. La TIR que se muestra acá congela el coeficiente CER de hoy para todos los pagos futuros, en vez de proyectar inflación futura — así el número que sale es un rendimiento <b>por encima de la inflación</b> (real), verificado contra el flujo de fondos que publica bonistas.com para cada bono.</p>
-        <p>TX26 y TX31 tienen Paridad/TIR/Duration calculados, verificados contra el flujo de fondos que publica bonistas.com. El resto todavía no: TX28 comparte la emisión de TX26 pero su cronograma de amortización no cerró bien al verificarlo; DICP, PARP y CUAP (los bonos Discount/Par/Cuasipar del canje 2005) usan aparentemente una referencia de CER distinta a la regla estándar; y los Boncer cupón cero (TZX) todavía no tienen fecha de emisión confirmada. Todos se muestran con precio en vivo mientras tanto.</p>
+        <p>El capital de estos bonos se ajusta todos los días por el índice CER (que sigue la inflación), así que su cupón nominal ya no dice mucho por sí solo. La TIR real es el rendimiento <b>por encima de la inflación</b>.</p>
+        <p><b>TX26 y TX31</b> tienen Paridad/TIR/Duration calculados acá mismo, con el cronograma de pagos oficial, verificados contra el flujo de fondos que publica bonistas.com. Para el resto (TX28, DICP/PARP/CUAP, y los Boncer cupón cero TZX) todavía no confirmamos su cronograma exacto — esas filas muestran el mismo dato pero publicado por <a href="https://bonistas.com" target="_blank" rel="noopener">bonistas.com</a>, marcado con <b>*</b>, no un cálculo nuestro.</p>
       </div>
     </section>
   </div>
@@ -231,19 +231,21 @@
               <th>Ticker</th>
               <th>Precio</th>
               <th>Var. Diaria</th>
-              <th>Volumen</th>
+              <th>Paridad</th>
+              <th>TIR</th>
+              <th>Duration Mod.</th>
             </tr>
           </thead>
           <tbody id="tamarBody">
-            <tr><td colspan="4" class="empty-note">Cargando…</td></tr>
+            <tr><td colspan="6" class="empty-note">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
       <button class="info-toggle" onclick="toggleInfo('tamarInfo')">
-        <span id="tamarInfoChevron">▾</span> ¿Por qué no hay TIR acá?
+        <span id="tamarInfoChevron">▾</span> ¿De dónde sale la TIR acá?
       </button>
       <div id="tamarInfo" class="curve-info" style="display:none;">
-        <p>Son bonos de tasa <b>variable</b>: el cupón se resetea según la tasa TAMAR (tasa mayorista de referencia del BCRA) más un spread fijado en cada licitación. Calcular una TIR necesita ese spread exacto, y las fuentes públicas que encontramos dan cifras distintas entre sí según la reapertura de cada especie — publicar un número con un spread adivinado sería peor que no publicarlo. Incluye flotantes puros (TMF/TMG/TML), "bonos duales" que pagan lo mayor entre tasa fija y TAMAR (TTD26, TTS26), y duales TAMAR/CER o TAMAR/dólar (TXMD8, TXMD9, TXMJ9, TXMJ0, TMVE8).</p>
+        <p>Son bonos de tasa <b>variable</b>: el cupón se resetea según la tasa TAMAR (tasa mayorista de referencia del BCRA) más un spread fijado en cada licitación. Ese spread exacto lo investigamos y las fuentes públicas daban cifras distintas entre sí según la reapertura de cada especie, así que no lo calculamos nosotros — la Paridad/TIR/Duration marcadas con <b>*</b> son las que publica <a href="https://bonistas.com" target="_blank" rel="noopener">bonistas.com</a>, no un cálculo propio. Incluye flotantes puros (TMF/TMG/TML), "bonos duales" que pagan lo mayor entre tasa fija y TAMAR (TTD26, TTS26), y duales TAMAR/CER o TAMAR/dólar (TXMD8, TXMD9, TXMJ9, TXMJ0, TMVE8).</p>
       </div>
     </section>
   </div>
@@ -306,39 +308,62 @@ function loadCategory(cat) {
   if (cat === 'tamar') return loadTamarBonds();
 }
 
+// Fila con Paridad/TIR/Duration — "calc" son las metricas propias (o
+// null), "biz" el fallback de bonistas.com via el proxy de Netlify. Si
+// viene de bonistas se marca con "*" (ver nota al pie de la tabla) porque
+// no es un calculo propio, es el numero que publica un tercero.
+function bondMetricRowCells(calc, biz) {
+  if (calc) {
+    return `
+      <td class="mono">${fmtNum(calc.paridad)}%</td>
+      <td class="mono">${fmtNum(calc.tir)}%</td>
+      <td class="mono">${fmtNum(calc.modDuration)} años</td>`;
+  }
+  if (biz) {
+    return `
+      <td class="mono">${fmtNum(biz.parity)}%*</td>
+      <td class="mono">${fmtNum(biz.tir)}%*</td>
+      <td class="mono">${fmtNum(biz.modifiedDuration)} años*</td>`;
+  }
+  return '<td colspan="3" class="empty-note">Cálculo no disponible</td>';
+}
+
 async function loadTamarBonds() {
   const body = document.getElementById('tamarBody');
   try {
-    const quotes = await getBondQuotes(TAMAR_LIST);
+    const [quotes, biz] = await Promise.all([
+      getBondQuotes(TAMAR_LIST),
+      getBonistasMetrics(TAMAR_LIST).catch(() => ({}))
+    ]);
     body.innerHTML = quotes.map(({ ticker, q }) => {
       if (!q || !q.c) {
-        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="3" class="empty-note">Sin cotización</td></tr>`;
+        return `<tr><td><span class="tk">${ticker}</span></td><td colspan="5" class="empty-note">Sin cotización</td></tr>`;
       }
-      return `<tr>
-        <td><span class="tk">${ticker}</span></td>
+      const priceCells = `
         <td class="mono row-value">${fmtNum(q.c)}</td>
-        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>
-        <td class="mono">${fmtNum(q.v || 0)}</td>
-      </tr>`;
+        <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>`;
+      return `<tr><td><span class="tk">${ticker}</span></td>${priceCells}${bondMetricRowCells(null, biz[ticker])}</tr>`;
     }).join('');
     document.getElementById('tamarUpdated').textContent = TAMAR_LIST.length + ' especies';
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-note">No se pudo cargar la información.</td></tr>';
   }
 }
 
 // Bonos CER: precio en pesos directo (no hace falta variante D/C como en
 // los soberanos en USD) — el ajuste por inflacion ya esta en el ratio
-// CER, no en el tipo de cambio. Solo TX26/TX28/TX31 (CER_CALC_LIST en
-// market.js) tienen Paridad/TIR/Duration; el resto se muestra con precio
-// nada mas hasta confirmar su cronograma/base CER.
+// CER, no en el tipo de cambio. TX26/TX31 (CER_CALC_LIST en market.js)
+// tienen Paridad/TIR/Duration propios; el resto usa el mismo dato pero
+// via bonistas.com (marcado con *) hasta que confirmemos su cronograma.
 async function loadCerBonds() {
   const body = document.getElementById('cerBody');
   try {
-    const [quotes, cerToday] = await Promise.all([
+    const bizTickers = CER_LIST.filter(t => !CER_CALC_LIST.includes(t));
+    const [quotes, cerToday, biz] = await Promise.all([
       getBondQuotes(CER_LIST),
-      getCerToday()
+      getCerToday(),
+      getBonistasMetrics(bizTickers).catch(() => ({}))
     ]);
     const today = new Date().toISOString().slice(0, 10);
     body.innerHTML = quotes.map(({ ticker, q }) => {
@@ -348,22 +373,13 @@ async function loadCerBonds() {
       const priceCells = `
         <td class="mono row-value">${fmtNum(q.c)}</td>
         <td class="mono chg ${pctClass(q.pct_change)}">${fmtPct(q.pct_change)}</td>`;
-      if (!CER_CALC_LIST.includes(ticker)) {
-        return `<tr><td><span class="tk">${ticker}</span></td>${priceCells}<td colspan="3" class="empty-note">Solo precio</td></tr>`;
+      let calc = null;
+      if (CER_CALC_LIST.includes(ticker)) {
+        const terms = BOND_TERMS[ticker];
+        const cerRatio = cerToday / terms.cerBase;
+        calc = computeBondMetrics(ticker, q.c, today, cerRatio);
       }
-      const terms = BOND_TERMS[ticker];
-      const cerRatio = cerToday / terms.cerBase;
-      const m = computeBondMetrics(ticker, q.c, today, cerRatio);
-      if (!m) {
-        return `<tr><td><span class="tk">${ticker}</span></td>${priceCells}<td colspan="3" class="empty-note">Cálculo no disponible</td></tr>`;
-      }
-      return `<tr>
-        <td><span class="tk">${ticker}</span></td>
-        ${priceCells}
-        <td class="mono">${fmtNum(m.paridad)}%</td>
-        <td class="mono">${fmtNum(m.tir)}%</td>
-        <td class="mono">${fmtNum(m.modDuration)} años</td>
-      </tr>`;
+      return `<tr><td><span class="tk">${ticker}</span></td>${priceCells}${bondMetricRowCells(calc, biz[ticker])}</tr>`;
     }).join('');
     document.getElementById('cerUpdated').textContent = CER_LIST.length + ' especies';
   } catch (err) {

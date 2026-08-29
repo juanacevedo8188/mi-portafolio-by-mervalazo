@@ -324,14 +324,27 @@ const BOPREAL_LIST = [
 // TAMAR), asi que no alcanza con un cronograma de pagos fijo: haria falta
 // ademas el spread contractual exacto sobre TAMAR de cada licitacion, que
 // investigamos y encontramos con cifras inconsistentes entre fuentes
-// segun la reapertura — publicar una TIR con un spread adivinado seria
-// peor que no publicarla. Por eso, solo precio en vivo por ahora.
+// segun la reapertura — no confiable para calcularlo nosotros mismos (ver
+// getBonistasMetrics para Paridad/TIR via un tercero).
 const TAMAR_LIST = [
   'TMF27', 'TMG27', 'TMF28', 'TMG28', 'TML27', // flotantes puros TAMAR
   'TTD26', 'TTD6D', 'TTS26', // "bono dual": paga lo mayor entre tasa fija y TAMAR
   'TMVE8', // dual TAMAR / dolar linked (A3500)
   'TXMD8', 'TXMD9', 'TXMJ9', 'TXMJ0' // dual CER / TAMAR
 ];
+
+// Paridad/TIR/Duration para los bonos que todavia no tenemos calculados
+// con cronograma propio (TX28, DICP/PARP/CUAP, Boncer cupon cero, TAMAR)
+// — via una funcion de Netlify que consulta del lado del servidor la API
+// interna de bonistas.com (no manda CORS, asi que no se puede pedir
+// directo desde el navegador). Es un tercero no documentado, asi que
+// cualquier ticker que falle simplemente no trae datos (fila con precio
+// nomas), no rompe el resto de la tabla.
+async function getBonistasMetrics(tickers) {
+  const res = await fetch('/.netlify/functions/bonistas-bond?tickers=' + tickers.join(','), { cache: 'no-store' });
+  if (!res.ok) throw new Error('bonistas-bond failed: ' + res.status);
+  return res.json();
+}
 
 // Devuelve, para un conjunto de tickers, su fila cruda del feed de bonos
 // de data912 (precio, var. diaria, volumen) — se usa tal cual para las
