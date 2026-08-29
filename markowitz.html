@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Frontera Eficiente</title>
+<meta name="description" content="Frontera eficiente de Markowitz con acciones argentinas: riesgo, retorno esperado y la cartera óptima según tus tenencias reales.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Frontera Eficiente">
+<meta property="og:description" content="Frontera eficiente de Markowitz con acciones argentinas: riesgo, retorno esperado y la cartera óptima según tus tenencias reales.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/markowitz.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Frontera Eficiente">
+<meta name="twitter:description" content="Frontera eficiente de Markowitz con acciones argentinas: riesgo, retorno esperado y la cartera óptima según tus tenencias reales.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Frontera Eficiente</h1>
+        <p>Teoría de Portafolio (Markowitz)</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">—</span></span>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Elegí las acciones a analizar</h2>
+      <span id="pickerNote"></span>
+    </div>
+    <div class="mkw-picker" id="mkwPicker"></div>
+    <div style="padding:0 20px 18px;">
+      <button class="btn-primary" style="margin-top:0;" onclick="runMarkowitz()" id="calcBtn">Calcular frontera eficiente</button>
+    </div>
+    <div class="form-err" id="mkwErr" style="padding:0 20px 16px;"></div>
+  </section>
+
+  <section class="panel" id="resultsPanel" style="display:none;">
+    <div class="panel-head">
+      <h2>Riesgo vs. Retorno</h2>
+      <span id="simUpdated">—</span>
+    </div>
+    <div class="curve-wrap" id="mkwChart"></div>
+    <div class="mkw-legend">
+      <span><i class="mkw-dot" style="background:var(--card-border);"></i> Carteras simuladas</span>
+      <span><i class="mkw-dot" style="background:var(--accent);"></i> Activos individuales</span>
+      <span><i class="mkw-dot" style="background:var(--up);"></i> Mínima varianza</span>
+      <span><i class="mkw-dot" style="background:#f4c542;"></i> Máximo Sharpe</span>
+      <span id="currentPortfolioLegend" style="display:none;"><i class="mkw-dot" style="background:#7ec8ff;"></i> Tu cartera actual</span>
+    </div>
+
+    <div class="quick-metrics" id="mkwSummary" style="grid-template-columns:repeat(2,1fr);"></div>
+
+    <div class="mkw-weights" id="mkwWeights"></div>
+
+    <button class="info-toggle" onclick="toggleInfo('mkwInfo')">
+      <span id="mkwInfoChevron">▾</span> ¿Cómo se calcula esto?
+    </button>
+    <div id="mkwInfo" class="curve-info" style="display:none;">
+      <p>Con los retornos diarios históricos de cada acción elegida (último año hábil) se calcula el retorno esperado y la volatilidad de cada una, y la matriz de covarianza entre todas. Después se simulan miles de carteras al azar (distintas combinaciones de peso entre los activos, sin ventas en corto) y se grafica cada una según su riesgo (volatilidad anualizada) y retorno esperado (anualizado). El borde superior izquierdo de esa nube es, en la práctica, una buena aproximación visual de la <b>frontera eficiente</b>: para cada nivel de riesgo, la mejor combinación posible.</p>
+      <p><b>Mínima varianza</b> es la cartera simulada con menos riesgo de todas; <b>máximo Sharpe</b> es la que mejor retorno da por unidad de riesgo, usando la LECAP más corta como tasa libre de riesgo.</p>
+      <p>Todo el análisis usa solo acciones argentinas (mismo mercado, misma moneda) — mezclar CEDEARs sin convertir por tipo de cambio distorsionaría la covarianza. Y como toda esta cuenta se basa en el <b>comportamiento pasado</b> de los precios, no garantiza nada sobre el futuro — es una foto de cómo se movieron estos activos entre sí el último año, no una predicción.</p>
+    </div>
+  </section>
+
+  <footer>
+    Precios históricos vía <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>. Simulación educativa a partir de datos pasados — no constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+let currentSession = null;
+let currentWeights = null; // Map ticker -> peso real, si hay tenencias
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+function renderPicker(preselected) {
+  const bySector = new Map();
+  ARG_HEATMAP_LIST.forEach(([ticker, sector]) => {
+    if (!bySector.has(sector)) bySector.set(sector, []);
+    bySector.get(sector).push(ticker);
+  });
+  const pre = preselected || new Set(['GGAL', 'PAMP', 'YPFD', 'ALUA']);
+  document.getElementById('mkwPicker').innerHTML = [...bySector.entries()].map(([sector, tickers]) => `
+    <div class="mkw-sector">
+      <div class="mkw-sector-label">${sector}</div>
+      <div class="mkw-checks">
+        ${tickers.map(t => `
+          <label class="mkw-check">
+            <input type="checkbox" value="${t}" ${pre.has(t) ? 'checked' : ''}>
+            ${t}
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectedTickers() {
+  return [...document.querySelectorAll('#mkwPicker input:checked')].map(i => i.value);
+}
+
+async function loadCurrentHoldings() {
+  if (!currentSession) return;
+  const { data, error } = await sb.from('holdings').select('*').eq('tipo', 'accion');
+  if (error || !data || !data.length) return;
+  const known = new Set(ARG_HEATMAP_LIST.map(([t]) => t));
+  const holdings = data.filter(h => known.has(h.ticker));
+  if (!holdings.length) return;
+
+  document.getElementById('pickerNote').textContent = 'Partiendo de tus tenencias reales en Mi Portafolio';
+  renderPicker(new Set(holdings.map(h => h.ticker)));
+
+  // Peso real = valor de mercado actual de cada tenencia / valor total
+  // (solo entre las acciones — mismo universo que usa el analisis).
+  try {
+    const priceMap = await getPriceMap(false, false);
+    const values = holdings.map(h => {
+      const q = priceMap.get(h.ticker);
+      return { ticker: h.ticker, value: q ? q.c * h.cantidad : 0 };
+    }).filter(v => v.value > 0);
+    const total = values.reduce((s, v) => s + v.value, 0);
+    if (total > 0) {
+      currentWeights = new Map(values.map(v => [v.ticker, v.value / total]));
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, width, height) {
+  const padL = 50, pr = 16, padT = 16, padB = 34;
+  const allX = sims.map(p => p.vol).concat(assets.map(p => p.vol), [minVar.vol, maxSharpe.vol]);
+  const allY = sims.map(p => p.ret).concat(assets.map(p => p.ret), [minVar.ret, maxSharpe.ret]);
+  if (currentPoint) { allX.push(currentPoint.vol); allY.push(currentPoint.ret); }
+  const maxX = Math.max(...allX) * 1.08;
+  const minX = 0;
+  const minY = Math.min(...allY, 0) - 2;
+  const maxY = Math.max(...allY) + 2;
+  const x = v => padL + ((v - minX) / (maxX - minX || 1)) * (width - padL - pr);
+  const y = v => height - padB - ((v - minY) / (maxY - minY || 1)) * (height - padT - padB);
+
+  const yTicks = [];
+  for (let i = 0; i <= 4; i++) {
+    const v = minY + (maxY - minY) * (i / 4);
+    yTicks.push(`<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${width - pr}" y2="${y(v).toFixed(1)}" stroke="var(--divider)" stroke-width="1"/>
+      <text x="${padL - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-faint)">${v.toFixed(0)}%</text>`);
+  }
+  const xTicks = [];
+  for (let i = 0; i <= 4; i++) {
+    const v = minX + (maxX - minX) * (i / 4);
+    xTicks.push(`<text x="${x(v).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${v.toFixed(0)}%</text>`);
+  }
+
+  const simDots = sims.map(p => `<circle cx="${x(p.vol).toFixed(1)}" cy="${y(p.ret).toFixed(1)}" r="2" fill="var(--card-border)" opacity="0.7"/>`).join('');
+  const assetDots = assets.map(p => `
+    <circle cx="${x(p.vol).toFixed(1)}" cy="${y(p.ret).toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--card)" stroke-width="1.5"/>
+    <text x="${x(p.vol).toFixed(1)}" y="${(y(p.ret) - 9).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-dim)">${p.ticker}</text>
+  `).join('');
+  const currentDot = currentPoint ? `
+    <circle cx="${x(currentPoint.vol).toFixed(1)}" cy="${y(currentPoint.ret).toFixed(1)}" r="7" fill="#7ec8ff" stroke="var(--card)" stroke-width="2"/>
+  ` : '';
+
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
+    ${yTicks.join('')}
+    ${xTicks.join('')}
+    <text x="${(width / 2).toFixed(1)}" y="${height - 4}" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--text-faint)">Riesgo (volatilidad anualizada)</text>
+    ${simDots}
+    ${assetDots}
+    ${currentDot}
+    <circle cx="${x(minVar.vol).toFixed(1)}" cy="${y(minVar.ret).toFixed(1)}" r="7" fill="var(--up)" stroke="var(--card)" stroke-width="2"/>
+    <circle cx="${x(maxSharpe.vol).toFixed(1)}" cy="${y(maxSharpe.ret).toFixed(1)}" r="7" fill="#f4c542" stroke="var(--card)" stroke-width="2"/>
+  </svg>`;
+}
+
+function weightsCard(title, color, portfolio, tickers) {
+  const rows = tickers.map((t, i) => ({ t, w: portfolio.w[i] }))
+    .filter(r => r.w > 0.01)
+    .sort((a, b) => b.w - a.w)
+    .map(r => `<div class="mkw-weight-row"><span>${r.t}</span><span class="mono">${(r.w * 100).toFixed(1)}%</span></div>`)
+    .join('');
+  return `
+    <div class="mkw-weight-card">
+      <div class="mkw-weight-head" style="color:${color};">${title}</div>
+      <div class="mkw-weight-stats">Retorno esp. ${fmtNum(portfolio.ret)}% · Riesgo ${fmtNum(portfolio.vol)}%</div>
+      ${rows}
+    </div>`;
+}
+
+async function runMarkowitz() {
+  const tickers = selectedTickers();
+  const errEl = document.getElementById('mkwErr');
+  const btn = document.getElementById('calcBtn');
+  errEl.textContent = '';
+  if (tickers.length < 2) {
+    errEl.textContent = 'Elegí al menos 2 acciones para poder calcular una cartera.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Calculando…';
+  setStatus('', 'Trayendo históricos…');
+  try {
+    const [{ matrix }, letras] = await Promise.all([
+      getAlignedReturns(tickers, TRADING_DAYS),
+      getLecapData()
+    ]);
+    const rf = letras.length ? letras[0].tna : 0;
+
+    const meansDaily = meanVector(matrix);
+    const covDaily = covMatrix(matrix, meansDaily);
+    const meanAnnual = meansDaily.map(m => m * TRADING_DAYS * 100);
+    const covAnnual = covDaily.map(row => row.map(c => c * TRADING_DAYS * 100 * 100));
+
+    const assets = tickers.map((t, i) => ({ ticker: t, ret: meanAnnual[i], vol: Math.sqrt(covAnnual[i][i]) }));
+    const sims = simulatePortfolios(meanAnnual, covAnnual, 1500);
+    const minVar = minVariancePortfolio(sims);
+    const maxSharpe = maxSharpePortfolio(sims, rf);
+
+    let currentPoint = null;
+    if (currentWeights && tickers.every(t => currentWeights.has(t)) && tickers.length === currentWeights.size) {
+      const w = tickers.map(t => currentWeights.get(t));
+      currentPoint = { w, ret: portfolioReturn(w, meanAnnual), vol: portfolioVol(w, covAnnual) };
+      document.getElementById('currentPortfolioLegend').style.display = '';
+    } else {
+      document.getElementById('currentPortfolioLegend').style.display = 'none';
+    }
+
+    const chartEl = document.getElementById('mkwChart');
+    const width = chartEl.clientWidth || 700;
+    const height = Math.round(Math.min(340, Math.max(260, width * 0.5)));
+    chartEl.innerHTML = buildScatterSVG(sims, assets, minVar, maxSharpe, currentPoint, width, height);
+
+    document.getElementById('mkwSummary').innerHTML = `
+      <div class="quick-stat">
+        <div class="label">Mínima Varianza</div>
+        <div class="val">${fmtNum(minVar.ret)}% ret · ${fmtNum(minVar.vol)}% riesgo</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Máximo Sharpe</div>
+        <div class="val">${fmtNum(maxSharpe.ret)}% ret · ${fmtNum(maxSharpe.vol)}% riesgo</div>
+      </div>
+    `;
+
+    let weightsHTML = weightsCard('Mínima Varianza', 'var(--up)', minVar, tickers) + weightsCard('Máximo Sharpe', '#f4c542', maxSharpe, tickers);
+    if (currentPoint) {
+      weightsHTML += weightsCard('Tu cartera actual', '#7ec8ff', currentPoint, tickers);
+    }
+    document.getElementById('mkwWeights').innerHTML = weightsHTML;
+
+    document.getElementById('resultsPanel').style.display = '';
+    document.getElementById('simUpdated').textContent = tickers.length + ' activos · ' + matrix[0].length + ' días de historia';
+    setStatus('live', 'Calculado con datos históricos');
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = 'No se pudo calcular: ' + err.message;
+    setStatus('err', 'Error al calcular');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Calcular frontera eficiente';
+  }
+}
+
+let mkwResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(mkwResizeTimer);
+  mkwResizeTimer = setTimeout(() => {
+    if (document.getElementById('resultsPanel').style.display !== 'none') runMarkowitz();
+  }, 300);
+});
+
+renderNavTabs('markowitz');
+renderPicker();
+
+sb.auth.onAuthStateChange(async (_event, session) => {
+  currentSession = session;
+  await loadCurrentHoldings();
+});
+</script>
+
+</body>
+</html>

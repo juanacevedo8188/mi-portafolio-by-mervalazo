@@ -1255,3 +1255,98 @@ function closeModal() {
   if (backdrop) backdrop.classList.remove('open');
   if (box) box.classList.remove('open');
 }
+
+// --- Teoria de Portafolio (Markowitz) ---
+//
+// Todo el analisis se limita a acciones argentinas (mismo mercado, misma
+// moneda: ARS) — mezclar CEDEARs (retorno en USD del subyacente) con
+// acciones locales sin convertir por el tipo de cambio distorsionaria la
+// matriz de covarianza, asi que se deja afuera de este calculo.
+
+const TRADING_DAYS = 252; // dias habiles por año, para anualizar
+
+async function getStockHistory(ticker) {
+  const res = await fetch(`https://data912.com/historical/stocks/${ticker}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('historico de ' + ticker + ' fallo: ' + res.status);
+  return res.json(); // [{date, o, h, l, c, v, dr, sa}, ...] ordenado por fecha ascendente
+}
+
+// Trae el historico de cada ticker y alinea los retornos diarios (campo
+// "dr" que ya viene calculado por el feed) por fecha COMUN a todos —
+// distintos activos pueden tener feriados/suspensiones distintas, y una
+// matriz de covarianza necesita las mismas fechas en cada fila.
+async function getAlignedReturns(tickers, days) {
+  const histories = await Promise.all(tickers.map(t => getStockHistory(t)));
+  const maps = histories.map(h => new Map(h.slice(-days * 2).map(d => [d.date, d.dr])));
+  let commonDates = [...maps[0].keys()];
+  for (let i = 1; i < maps.length; i++) {
+    commonDates = commonDates.filter(d => maps[i].has(d));
+  }
+  commonDates = commonDates.slice(-days);
+  if (commonDates.length < 30) throw new Error('muy pocas fechas en comun entre los activos elegidos');
+  const matrix = maps.map(m => commonDates.map(d => m.get(d)));
+  return { dates: commonDates, matrix }; // matrix[i][t] = retorno diario del activo i en la fecha t
+}
+
+function meanVector(matrix) {
+  return matrix.map(row => row.reduce((s, v) => s + v, 0) / row.length);
+}
+
+// Matriz de covarianza (diaria) de los retornos — simetrica, se calcula
+// solo la mitad superior.
+function covMatrix(matrix, means) {
+  const n = matrix.length, T = matrix[0].length;
+  const cov = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = i; j < n; j++) {
+      let s = 0;
+      for (let t = 0; t < T; t++) s += (matrix[i][t] - means[i]) * (matrix[j][t] - means[j]);
+      const c = s / (T - 1);
+      cov[i][j] = c; cov[j][i] = c;
+    }
+  }
+  return cov;
+}
+
+function portfolioReturn(w, meanAnnual) {
+  return w.reduce((s, wi, i) => s + wi * meanAnnual[i], 0);
+}
+function portfolioVol(w, covAnnual) {
+  let v = 0;
+  for (let i = 0; i < w.length; i++) {
+    for (let j = 0; j < w.length; j++) v += w[i] * w[j] * covAnnual[i][j];
+  }
+  return Math.sqrt(Math.max(v, 0));
+}
+
+// Pesos aleatorios que suman 1, todos positivos (sin ventas en corto —
+// simplificacion razonable para una cartera de acciones minorista).
+function randomWeights(n) {
+  const r = Array.from({ length: n }, () => Math.random());
+  const s = r.reduce((a, b) => a + b, 0);
+  return r.map(v => v / s);
+}
+
+// Simulacion de Monte Carlo: en vez de resolver la optimizacion cuadratica
+// exacta de la frontera eficiente, se generan miles de carteras al azar y
+// se grafica la nube resultante — es el enfoque estandar para introducir
+// el concepto sin depender de una libreria de algebra lineal, y el borde
+// superior de la nube ES, en la practica, una buena aproximacion visual
+// de la frontera eficiente.
+function simulatePortfolios(meanAnnual, covAnnual, count) {
+  const n = meanAnnual.length;
+  const out = [];
+  for (let k = 0; k < count; k++) {
+    const w = randomWeights(n);
+    out.push({ w, ret: portfolioReturn(w, meanAnnual), vol: portfolioVol(w, covAnnual) });
+  }
+  return out;
+}
+
+function minVariancePortfolio(sims) {
+  return sims.reduce((best, p) => (p.vol < best.vol ? p : best));
+}
+function maxSharpePortfolio(sims, rf) {
+  const sharpe = p => (p.ret - rf) / (p.vol || 1e-9);
+  return sims.reduce((best, p) => (sharpe(p) > sharpe(best) ? p : best));
+}

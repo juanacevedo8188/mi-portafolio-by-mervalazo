@@ -19,7 +19,8 @@ const NAV_GROUPS = [
       { key: 'macro', label: 'Macroeconomía', href: 'macroeconomia.html' },
       { key: 'inflacion', label: 'Calculadora de Inflación', href: 'inflacion.html' },
       { key: 'opciones', label: 'Calculadora de Opciones', href: 'opciones.html' },
-      { key: 'capm', label: 'Calculadora CAPM', href: 'capm.html' }
+      { key: 'capm', label: 'Calculadora CAPM', href: 'capm.html' },
+      { key: 'markowitz', label: 'Frontera Eficiente', href: 'markowitz.html' }
     ]
   },
   { key: 'portafolio', label: 'Mi Portafolio', href: 'mi-portafolio.html' },
