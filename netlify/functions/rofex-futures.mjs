@@ -61,35 +61,20 @@ async function getMarketData(token, symbol) {
   };
 }
 
-async function getTradeHistory(token, symbol, dateFrom, dateTo) {
-  const url = BASE_URL + `rest/data/getTrades?marketId=ROFX&symbol=${encodeURIComponent(symbol)}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
-  const res = await fetch(url, { headers: { 'X-Auth-Token': token } });
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (data.status !== 'OK') return null;
-  return data.trades || [];
-}
+// Nota: la cuenta gratuita de Remarket (entorno de testing) no tiene
+// operaciones registradas — se confirmo con rest/data/getTrades (0
+// resultados en 30 dias, tanto para DLR como para CAUC), asi que un
+// grafico intradiario/por hora no es viable con esta cuenta. Por eso solo
+// se expone el precio/tasa de referencia en vivo, no historial de trades.
 
 export default async (req) => {
   try {
     const url = new URL(req.url);
     const prefix = url.searchParams.get('prefix') === 'CAUC' ? 'CAUC' : 'DLR';
     const months = Math.min(parseInt(url.searchParams.get('months'), 10) || 12, 18);
-    const debugTrades = url.searchParams.get('debugTrades');
     const tickers = nextMonthlyTickers(prefix, months);
 
     const token = await getToken();
-
-    if (debugTrades) {
-      const days = Math.min(parseInt(url.searchParams.get('days'), 10) || 1, 30);
-      const today = new Date().toISOString().slice(0, 10);
-      const from = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-      const trades = await getTradeHistory(token, debugTrades, from, today);
-      return new Response(JSON.stringify({ symbol: debugTrades, from, to: today, count: trades ? trades.length : null, trades }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
     const results = await Promise.all(tickers.map(async t => [t, await getMarketData(token, t)]));
     const byTicker = {};
     results.forEach(([t, d]) => { if (d) byTicker[t] = d; });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mervalazo — Futuros de Dólar</title>
+<title>Mervalazo — Futuros ROFEX</title>
 <meta name="description" content="Curva de futuros de dólar de MATBA ROFEX en vivo, con la tasa implícita de cada contrato.">
 
 <meta property="og:type" content="website">
@@ -33,7 +33,7 @@
     <div class="brand">
       <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
       <div class="brand-text">
-        <h1>Futuros de Dólar</h1>
+        <h1>Futuros ROFEX</h1>
         <p>MATBA ROFEX en vivo</p>
       </div>
     </div>
@@ -49,49 +49,95 @@
 </header>
 
 <main>
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Curva de Tasa Implícita</h2>
-      <span id="curveUpdated">—</span>
-    </div>
-    <div class="curve-wrap" id="curveChart"><div class="empty-note">Cargando…</div></div>
-    <button class="info-toggle" onclick="toggleInfo('curveInfo')">
-      <span id="curveInfoChevron">▾</span> ¿Qué es la tasa implícita?
-    </button>
-    <div id="curveInfo" class="curve-info" style="display:none;">
-      <p>Cada contrato de futuro de dólar fija hoy el precio al que se va a comprar/vender USD en su fecha de vencimiento. La <b>tasa implícita (TNA)</b> es la tasa de interés en pesos que ese precio deja "implícita": <b>(Futuro / Dólar MEP − 1) × (365 / días al vencimiento)</b>.</p>
-      <p>Es la tasa a la que el mercado te permite cubrirte del tipo de cambio — y por no-arbitraje, debería moverse parecido a las tasas de la curva de LECAP. Comparar esta curva contra la <a href="renta-fija.html">tasa forward implícita de Renta Fija</a> es un buen chequeo de consistencia entre mercados.</p>
-      <p>El contrato más próximo a vencer puede dar una tasa implícita rarísima (muy positiva o muy negativa): con pocos días de por medio, cualquier diferencia mínima contra el spot se anualiza y se dispara. No es un error — es que anualizar deja de tener sentido cuando casi no queda tiempo. Por eso esos contratos quedan afuera del gráfico (se guían mejor mirando el precio directo en la tabla).</p>
-    </div>
-  </section>
+  <div class="bond-cat-tabs" id="fxCatTabs">
+    <button class="bond-cat-tab active" data-cat="dolar" onclick="selectCategory('dolar')">Dólar</button>
+    <button class="bond-cat-tab" data-cat="caucion" onclick="selectCategory('caucion')">Caución</button>
+  </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Contratos vigentes</h2>
-      <span id="fxUpdated">—</span>
-    </div>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Contrato</th>
-            <th>Vencimiento</th>
-            <th>DTV</th>
-            <th>Bid</th>
-            <th>Ask</th>
-            <th>Último / Ajuste</th>
-            <th>Tasa Implícita (TNA)</th>
-          </tr>
-        </thead>
-        <tbody id="fxBody">
-          <tr><td colspan="7" class="empty-note">Cargando…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <div id="catDolar">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Curva de Tasa Implícita</h2>
+        <span id="curveUpdated">—</span>
+      </div>
+      <div class="curve-wrap" id="curveChart"><div class="empty-note">Cargando…</div></div>
+      <button class="info-toggle" onclick="toggleInfo('curveInfo')">
+        <span id="curveInfoChevron">▾</span> ¿Qué es la tasa implícita?
+      </button>
+      <div id="curveInfo" class="curve-info" style="display:none;">
+        <p>Cada contrato de futuro de dólar fija hoy el precio al que se va a comprar/vender USD en su fecha de vencimiento. La <b>tasa implícita (TNA)</b> es la tasa de interés en pesos que ese precio deja "implícita": <b>(Futuro / Dólar MEP − 1) × (365 / días al vencimiento)</b>.</p>
+        <p>Es la tasa a la que el mercado te permite cubrirte del tipo de cambio — y por no-arbitraje, debería moverse parecido a las tasas de la curva de LECAP. Comparar esta curva contra la <a href="renta-fija.html">tasa forward implícita de Renta Fija</a> es un buen chequeo de consistencia entre mercados.</p>
+        <p>El contrato más próximo a vencer puede dar una tasa implícita rarísima (muy positiva o muy negativa): con pocos días de por medio, cualquier diferencia mínima contra el spot se anualiza y se dispara. No es un error — es que anualizar deja de tener sentido cuando casi no queda tiempo. Por eso esos contratos quedan afuera del gráfico (se guían mejor mirando el precio directo en la tabla).</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Contratos vigentes</h2>
+        <span id="fxUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Contrato</th>
+              <th>Vencimiento</th>
+              <th>DTV</th>
+              <th>Bid</th>
+              <th>Ask</th>
+              <th>Último / Ajuste</th>
+              <th>Tasa Implícita (TNA)</th>
+            </tr>
+          </thead>
+          <tbody id="fxBody">
+            <tr><td colspan="7" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="catCaucion" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Curva de Tasa de Caución</h2>
+        <span id="caucionCurveUpdated">—</span>
+      </div>
+      <div class="curve-wrap" id="caucionChart"><div class="empty-note">Cargando…</div></div>
+      <button class="info-toggle" onclick="toggleInfo('caucionInfo')">
+        <span id="caucionInfoChevron">▾</span> ¿Qué es la caución?
+      </button>
+      <div id="caucionInfo" class="curve-info" style="display:none;">
+        <p>Es un préstamo a corto plazo garantizado con títulos: alguien pone acciones o bonos como garantía y toma pesos prestados hasta una fecha; otro pone los pesos y se los queda de garantía la comisión bursátil hasta el vencimiento. La <b>tasa (TNA)</b> es directamente lo que rinde ese préstamo — a diferencia del dólar futuro, acá no hace falta derivarla de un precio.</p>
+        <p>Es una de las referencias más usadas del costo del dinero a muy corto plazo en pesos, junto con la LECAP más corta — vale la pena compararlas.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Plazos vigentes</h2>
+        <span id="caucionUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Contrato</th>
+              <th>Vencimiento</th>
+              <th>DTV</th>
+              <th>Tasa (TNA)</th>
+            </tr>
+          </thead>
+          <tbody id="caucionBody">
+            <tr><td colspan="4" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
 
   <footer>
-    Precios de <a href="https://remarkets.primary.ventures" target="_blank" rel="noopener">MATBA ROFEX (Remarket)</a>, con posible demora respecto del mercado en vivo. Dólar spot (MEP) vía <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>. A título informativo — no constituye recomendación de inversión.
+    Precios de <a href="https://remarkets.primary.ventures" target="_blank" rel="noopener">MATBA ROFEX (Remarket)</a>, con posible demora respecto del mercado en vivo — la cuenta gratuita de Remarket es un entorno de testing sin volumen operado, así que no hay historial intradiario para graficar, solo el precio/tasa de referencia del momento. Dólar spot (MEP) vía <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>. A título informativo — no constituye recomendación de inversión.
   </footer>
 </main>
 
@@ -102,6 +148,16 @@
 const REFRESH_MS = 60000;
 const MESES_IDX = { ENE: 0, FEB: 1, MAR: 2, ABR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11 };
 let fxCache = [];
+let caucionCache = [];
+let activeCat = 'dolar';
+
+function selectCategory(cat) {
+  activeCat = cat;
+  document.querySelectorAll('.bond-cat-tab').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  document.getElementById('catDolar').style.display = cat === 'dolar' ? '' : 'none';
+  document.getElementById('catCaucion').style.display = cat === 'caucion' ? '' : 'none';
+  loadAll(false);
+}
 
 function setStatus(state, text) {
   const dot = document.getElementById('statusDot');
@@ -178,9 +234,10 @@ function attachCurveInteraction(points) {
   }
   const showTooltip = (idx, clientX, clientY) => {
     const p = points[idx];
+    const priceLine = p.price != null ? `${fmtARS(p.price)} · ${p.dtv}d` : `${p.dtv}d al vencimiento`;
     tooltip.innerHTML = `<div class="ct-date">${p.ticker} · vto ${p.expiry.toLocaleDateString('es-AR')}</div>
       <div class="ct-value mono">TNA ${fmtNum(p.tna)}%</div>
-      <div class="ct-change flat">${fmtARS(p.price)} · ${p.dtv}d</div>`;
+      <div class="ct-change flat">${priceLine}</div>`;
     tooltip.style.left = Math.min(clientX + 14, window.innerWidth - 200) + 'px';
     tooltip.style.top = Math.max(8, clientY - 60) + 'px';
     tooltip.style.display = 'block';
@@ -281,13 +338,67 @@ async function loadFutures() {
   }
 }
 
+// La caucion ya viene expresada como tasa (TNA) directa en el precio de
+// ajuste — a diferencia del dolar, no hace falta derivarla contra un
+// spot, asi que la curva y la tabla son mas simples.
+async function loadCaucion() {
+  const body = document.getElementById('caucionBody');
+  const curveEl = document.getElementById('caucionChart');
+  try {
+    const res = await fetch('/.netlify/functions/rofex-futures?prefix=CAUC', { cache: 'no-store' });
+    if (!res.ok) throw new Error('rofex-futures (CAUC) failed: ' + res.status);
+    const quotes = await res.json();
+    if (quotes.error) throw new Error(quotes.error);
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    caucionCache = Object.entries(quotes).map(([ticker, q]) => {
+      const tna = q.last ?? q.close ?? q.settlement ?? null;
+      if (tna == null) return null;
+      const expiry = contractExpiry(ticker);
+      const dtv = Math.round((expiry - today) / 86400000);
+      if (dtv < 1) return null;
+      return { ticker, tna, expiry, dtv };
+    }).filter(Boolean).sort((a, b) => a.dtv - b.dtv);
+
+    if (!caucionCache.length) {
+      body.innerHTML = '<tr><td colspan="4" class="empty-note">No hay plazos vigentes con cotización.</td></tr>';
+      curveEl.innerHTML = '<div class="empty-note">No hay datos para graficar.</div>';
+      document.getElementById('caucionUpdated').textContent = '';
+      document.getElementById('caucionCurveUpdated').textContent = '';
+      return;
+    }
+
+    body.innerHTML = caucionCache.map(f => `
+      <tr>
+        <td><span class="tk">${f.ticker.replace('CAUC/', '')}</span></td>
+        <td class="mono">${f.expiry.toLocaleDateString('es-AR')}</td>
+        <td class="mono">${f.dtv}</td>
+        <td class="mono row-value">${fmtNum(f.tna)}%</td>
+      </tr>
+    `).join('');
+    document.getElementById('caucionUpdated').textContent = caucionCache.length + ' plazos';
+
+    const width = curveEl.clientWidth || 700;
+    const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
+    curveEl.innerHTML = buildCurveSVG(caucionCache, width, height);
+    attachCurveInteraction(caucionCache);
+    document.getElementById('caucionCurveUpdated').textContent = caucionCache.length + ' puntos';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información de caución.</td></tr>';
+    curveEl.innerHTML = '<div class="empty-note">No se pudo cargar la curva.</div>';
+  }
+}
+
 async function loadAll(manual) {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
   btn.classList.add('spinning');
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
-    await loadFutures();
+    if (activeCat === 'dolar') await loadFutures(); else await loadCaucion();
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
