@@ -631,6 +631,13 @@ input[type=number]{-moz-appearance:textfield;}
 @media (max-width:400px){
   .infl-form{grid-template-columns:1fr;}
 }
+#capmForm{grid-template-columns:repeat(4,1fr);}
+@media (max-width:760px){
+  #capmForm{grid-template-columns:1fr 1fr;}
+}
+@media (max-width:400px){
+  #capmForm{grid-template-columns:1fr;}
+}
 .infl-result{
   text-align:center;font-size:clamp(26px,6vw,38px);font-weight:800;padding:22px 20px;
   font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--accent);

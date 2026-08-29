@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Calculadora CAPM</title>
+<meta name="description" content="Calculá el retorno esperado de una acción con el modelo CAPM, con la tasa libre de riesgo actualizada en vivo.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Calculadora CAPM">
+<meta property="og:description" content="Calculá el retorno esperado de una acción con el modelo CAPM, con la tasa libre de riesgo actualizada en vivo.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/capm.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Calculadora CAPM">
+<meta name="twitter:description" content="Calculá el retorno esperado de una acción con el modelo CAPM, con la tasa libre de riesgo actualizada en vivo.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Calculadora CAPM</h1>
+        <p>Modelo de Valuación de Activos de Capital</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Cargando…</span></span>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Retorno esperado — CAPM</h2>
+      <span id="calcStatus"></span>
+    </div>
+
+    <div class="infl-form" id="capmForm">
+      <div class="infl-field">
+        <label>Ticker (opcional)</label>
+        <input type="text" id="capmTicker" placeholder="GGAL" style="text-transform:uppercase;" oninput="calcular()">
+      </div>
+      <div class="infl-field">
+        <label>Beta (β)</label>
+        <input type="number" id="capmBeta" value="1" step="0.01" min="-5" max="5" oninput="calcular()">
+      </div>
+      <div class="infl-field">
+        <label>Tasa libre de riesgo (Rf)</label>
+        <span class="infl-amount"><input type="number" id="capmRf" step="0.01" oninput="calcular()">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Retorno esperado de mercado (Rm)</label>
+        <span class="infl-amount"><input type="number" id="capmRm" value="10" step="0.01" oninput="calcular()">%</span>
+      </div>
+    </div>
+
+    <div class="infl-result" id="capmResult">—</div>
+
+    <div class="quick-metrics" id="capmStats"></div>
+
+    <button class="info-toggle" onclick="toggleInfo('capmInfo')">
+      <span id="capmInfoChevron">▾</span> ¿Qué es el CAPM?
+    </button>
+    <div id="capmInfo" class="curve-info" style="display:none;">
+      <p>El CAPM estima el retorno que un inversor debería exigirle a un activo según su riesgo: <b>E(R) = Rf + β × (Rm − Rf)</b>. Rf es lo que rinde un activo "sin riesgo" (acá usamos la LECAP más corta de la curva, en vivo); Rm es el retorno esperado del mercado en su conjunto; y β mide cuánto se mueve el activo en relación al mercado — β mayor a 1 significa que amplifica los movimientos del mercado, menor a 1 que los amortigua.</p>
+      <p>La beta no la calculamos automáticamente todavía (haría falta una serie histórica de precios para estimarla por regresión) — se carga a mano. La podés buscar en Yahoo Finance, Investing.com o el research de tu broker; para acciones argentinas sin cobertura suele valer la beta del CEDEAR/ADR equivalente si cotiza en EEUU.</p>
+      <p><b>Ojo con mezclar monedas:</b> el Rf se precarga con la LECAP más corta (tasa nominal en pesos), y el Rm por default es 10% (un promedio histórico típico del S&amp;P 500, en dólares). Están en bases distintas — usalos juntos solo si estás evaluando un activo dolarizado (CEDEAR, ADR, bono en USD) con un Rf en dólares, o cambiá ambos a pesos si es una acción local. Mezclados sin ajustar, la prima de mercado puede salir negativa sin que signifique nada.</p>
+    </div>
+  </section>
+
+  <footer>
+    Tasa libre de riesgo tomada de la LECAP de menor plazo vigente, vía <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>. Beta y retorno de mercado son estimaciones que cargás vos — a título educativo, no constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+function calcular() {
+  const ticker = document.getElementById('capmTicker').value.trim().toUpperCase();
+  const beta = parseFloat(document.getElementById('capmBeta').value);
+  const rf = parseFloat(document.getElementById('capmRf').value);
+  const rm = parseFloat(document.getElementById('capmRm').value);
+  const resultEl = document.getElementById('capmResult');
+  const statsEl = document.getElementById('capmStats');
+
+  if (isNaN(beta) || isNaN(rf) || isNaN(rm)) {
+    resultEl.textContent = '—';
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  const premium = rm - rf;
+  const betaPremium = beta * premium;
+  const expectedReturn = rf + betaPremium;
+
+  resultEl.textContent = fmtPct(expectedReturn) + (ticker ? ' · ' + ticker : '');
+  statsEl.innerHTML = `
+    <div class="quick-stat">
+      <div class="label">Prima de Riesgo de Mercado</div>
+      <div class="val">${fmtPct(premium)}</div>
+      <div class="note">Rm − Rf</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Prima por Beta</div>
+      <div class="val">${fmtPct(betaPremium)}</div>
+      <div class="note">β × (Rm − Rf)</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Interpretación</div>
+      <div class="val">${beta > 1 ? 'Más volátil que el mercado' : beta < 1 ? 'Menos volátil que el mercado' : 'Se mueve como el mercado'}</div>
+    </div>
+  `;
+}
+
+async function init() {
+  setStatus('', 'Cargando tasa libre de riesgo…');
+  try {
+    const letras = await getLecapData();
+    if (letras.length) {
+      document.getElementById('capmRf').value = letras[0].tna.toFixed(2);
+    }
+    setStatus('live', 'Rf en vivo · LECAP más corta');
+  } catch (err) {
+    console.error(err);
+    setStatus('err', 'No se pudo cargar la tasa libre de riesgo — ingresala a mano');
+  }
+  calcular();
+}
+
+renderNavTabs('capm');
+init();
+</script>
+
+</body>
+</html>
