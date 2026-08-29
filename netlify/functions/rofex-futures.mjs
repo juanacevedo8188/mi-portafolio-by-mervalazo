@@ -61,13 +61,33 @@ async function getMarketData(token, symbol) {
   };
 }
 
+async function getTradeHistory(token, symbol, dateFrom, dateTo) {
+  const url = BASE_URL + `rest/data/getTrades?marketId=ROFX&symbol=${encodeURIComponent(symbol)}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
+  const res = await fetch(url, { headers: { 'X-Auth-Token': token } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.status !== 'OK') return null;
+  return data.trades || [];
+}
+
 export default async (req) => {
   try {
     const url = new URL(req.url);
+    const prefix = url.searchParams.get('prefix') === 'CAUC' ? 'CAUC' : 'DLR';
     const months = Math.min(parseInt(url.searchParams.get('months'), 10) || 12, 18);
-    const tickers = nextMonthlyTickers('DLR', months);
+    const debugTrades = url.searchParams.get('debugTrades');
+    const tickers = nextMonthlyTickers(prefix, months);
 
     const token = await getToken();
+
+    if (debugTrades) {
+      const today = new Date().toISOString().slice(0, 10);
+      const trades = await getTradeHistory(token, debugTrades, today, today);
+      return new Response(JSON.stringify({ symbol: debugTrades, date: today, trades }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const results = await Promise.all(tickers.map(async t => [t, await getMarketData(token, t)]));
     const byTicker = {};
     results.forEach(([t, d]) => { if (d) byTicker[t] = d; });
