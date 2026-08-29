@@ -61,6 +61,7 @@
     <div id="curveInfo" class="curve-info" style="display:none;">
       <p>Cada contrato de futuro de dólar fija hoy el precio al que se va a comprar/vender USD en su fecha de vencimiento. La <b>tasa implícita (TNA)</b> es la tasa de interés en pesos que ese precio deja "implícita": <b>(Futuro / Dólar MEP − 1) × (365 / días al vencimiento)</b>.</p>
       <p>Es la tasa a la que el mercado te permite cubrirte del tipo de cambio — y por no-arbitraje, debería moverse parecido a las tasas de la curva de LECAP. Comparar esta curva contra la <a href="renta-fija.html">tasa forward implícita de Renta Fija</a> es un buen chequeo de consistencia entre mercados.</p>
+      <p>El contrato más próximo a vencer puede dar una tasa implícita rarísima (muy positiva o muy negativa): con pocos días de por medio, cualquier diferencia mínima contra el spot se anualiza y se dispara. No es un error — es que anualizar deja de tener sentido cuando casi no queda tiempo. Por eso esos contratos quedan afuera del gráfico (se guían mejor mirando el precio directo en la tabla).</p>
     </div>
   </section>
 
@@ -196,13 +197,27 @@ function attachCurveInteraction(points) {
   });
 }
 
+// Con muy pocos dias al vencimiento, anualizar una diferencia minima
+// contra el spot da una tasa que explota (positiva o negativa) sin decir
+// nada real — un contrato a 2 dias con precio casi igual al spot no
+// "rinde -280%", simplemente ya casi no tiene tiempo para que la
+// diferencia se anualice de forma estable. Se filtran de la curva (que
+// sí necesita un eje legible) pero se dejan en la tabla con el precio
+// crudo, que sigue siendo información válida.
+const MIN_DTV_FOR_CURVE = 5;
+
 function paintCurve() {
   if (!fxCache.length) return;
   const curveEl = document.getElementById('curveChart');
+  const points = fxCache.filter(f => f.dtv >= MIN_DTV_FOR_CURVE);
+  if (!points.length) {
+    curveEl.innerHTML = '<div class="empty-note">No hay contratos con vencimiento suficiente para graficar.</div>';
+    return;
+  }
   const width = curveEl.clientWidth || 700;
   const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
-  curveEl.innerHTML = buildCurveSVG(fxCache, width, height);
-  attachCurveInteraction(fxCache);
+  curveEl.innerHTML = buildCurveSVG(points, width, height);
+  attachCurveInteraction(points);
 }
 
 let curveResizeTimer = null;
