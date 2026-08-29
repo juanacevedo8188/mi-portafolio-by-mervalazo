@@ -76,6 +76,30 @@
 
     <section class="panel">
       <div class="panel-head">
+        <h2>Tasa Forward Implícita</h2>
+      </div>
+      <div class="opt-form">
+        <div>
+          <label>Desde (letra corta)</label>
+          <select id="fwdFrom"></select>
+        </div>
+        <div>
+          <label>Hasta (letra larga)</label>
+          <select id="fwdTo"></select>
+        </div>
+      </div>
+      <div class="fwd-result" id="fwdResult"></div>
+      <button class="info-toggle" onclick="toggleInfo('fwdInfo')">
+        <span id="fwdInfoChevron">▾</span> ¿Qué es la tasa forward?
+      </button>
+      <div id="fwdInfo" class="curve-info" style="display:none;">
+        <p>Es la tasa que el mercado ya tiene "implícita" para el período entre dos vencimientos, aunque nadie la ofrezca como producto directo. Se despeja de la curva de tasas: comprando la letra más corta y reinvirtiendo al vencimiento en algo que rinda la tasa forward, tendrías que terminar con exactamente lo mismo que si hubieras comprado directamente la letra más larga — sin esa igualdad, habría arbitraje.</p>
+        <p>Si la forward es mayor a la tasa corta actual, el mercado espera que las tasas suban entre esos dos plazos (o pide más prima por el riesgo de ese tramo); si es menor, espera que bajen.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Letras vigentes</h2>
         <span id="lecapUpdated">—</span>
       </div>
@@ -565,11 +589,67 @@ async function loadLecaps() {
 
     paintCurve();
     document.getElementById('curveUpdated').textContent = data.length + ' puntos';
+    populateForwardSelects();
   } catch (err) {
     console.error(err);
     body.innerHTML = '<tr><td colspan="8" class="empty-note">No se pudo cargar la información de LECAPs.</td></tr>';
     curveEl.innerHTML = '<div class="empty-note">No se pudo cargar la curva.</div>';
   }
+}
+
+// Tasa forward implicita entre dos puntos de la curva: la tasa que
+// tendria que rendir el tramo "entre" ambos vencimientos para que dé lo
+// mismo comprar la letra larga directamente que comprar la corta y
+// reinvertir al vencimiento a esa tasa forward (sin arbitraje).
+let fwdListenersAttached = false;
+function populateForwardSelects() {
+  if (!lecapCache.length) return;
+  const fromSel = document.getElementById('fwdFrom');
+  const toSel = document.getElementById('fwdTo');
+  const prevFrom = fromSel.value, prevTo = toSel.value;
+  const opts = lecapCache.map(l =>
+    `<option value="${l.ticker}">${l.ticker} · ${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')} (${l.dtm}d)</option>`
+  ).join('');
+  fromSel.innerHTML = opts;
+  toSel.innerHTML = opts;
+  fromSel.value = lecapCache.some(l => l.ticker === prevFrom) ? prevFrom : lecapCache[0].ticker;
+  toSel.value = lecapCache.some(l => l.ticker === prevTo) ? prevTo : lecapCache[lecapCache.length - 1].ticker;
+
+  if (!fwdListenersAttached) {
+    fromSel.addEventListener('change', computeForward);
+    toSel.addEventListener('change', computeForward);
+    fwdListenersAttached = true;
+  }
+  enhanceAllSelects();
+  // enhanceAllSelects no vuelve a sincronizar un <select> ya mejorado (lo
+  // salta por su propio guard) — hace falta llamar _csSync a mano cuando
+  // se repueblan las opciones en un refresh de 60s posterior al primero.
+  if (fromSel._csSync) fromSel._csSync();
+  if (toSel._csSync) toSel._csSync();
+  computeForward();
+}
+
+function computeForward() {
+  const resultEl = document.getElementById('fwdResult');
+  const a = lecapCache.find(l => l.ticker === document.getElementById('fwdFrom').value);
+  const b = lecapCache.find(l => l.ticker === document.getElementById('fwdTo').value);
+  if (!a || !b) { resultEl.innerHTML = ''; return; }
+  if (b.dtm <= a.dtm) {
+    resultEl.innerHTML = `<span class="fwd-label">Tasa Forward</span>
+      <div style="font-size:14px;font-weight:500;color:var(--text-dim);font-family:'Inter',sans-serif;">Elegí una letra "Hasta" con vencimiento posterior a la "Desde".</div>`;
+    return;
+  }
+  const growthA = Math.pow(1 + a.tea / 100, a.dtm / 365);
+  const growthB = Math.pow(1 + b.tea / 100, b.dtm / 365);
+  const periodDays = b.dtm - a.dtm;
+  const growthFwd = growthB / growthA;
+  const fwdTEA = (Math.pow(growthFwd, 365 / periodDays) - 1) * 100;
+  const fwdTNA = (growthFwd - 1) * (365 / periodDays) * 100;
+  resultEl.innerHTML = `
+    <span class="fwd-label">TEA Forward · ${a.ticker} → ${b.ticker}</span>
+    ${fmtNum(fwdTEA)}%
+    <div class="fwd-note">TNA forward ${fmtNum(fwdTNA)}% · tramo de ${periodDays} días (día ${a.dtm} al ${b.dtm})</div>
+  `;
 }
 
 async function loadAll(manual) {

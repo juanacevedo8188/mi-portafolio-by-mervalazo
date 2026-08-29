@@ -642,6 +642,18 @@ input[type=number]{-moz-appearance:textfield;}
   #inflStats{grid-template-columns:1fr;}
 }
 
+.fwd-result{
+  text-align:center;font-size:clamp(24px,5.5vw,34px);font-weight:800;padding:18px 20px 6px;
+  font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--accent);
+}
+.fwd-result .fwd-label{
+  display:block;font-size:11px;font-weight:700;color:var(--text-faint);text-transform:uppercase;
+  letter-spacing:.4px;margin-bottom:6px;font-family:'Inter',sans-serif;
+}
+.fwd-result .fwd-note{
+  font-size:12px;font-weight:500;color:var(--text-dim);margin-top:8px;font-family:'Inter',sans-serif;
+}
+
 .macro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:14px 20px 18px;}
 .macro-tile{
   background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:13px 14px;cursor:pointer;
