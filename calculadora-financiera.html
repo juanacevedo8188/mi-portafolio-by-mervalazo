@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Calculadora Financiera</title>
+<meta name="description" content="Valor presente y futuro, conversión de tasas, perpetuidades y tablas de amortización (sistema francés y alemán).">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Calculadora Financiera">
+<meta property="og:description" content="Valor presente y futuro, conversión de tasas, perpetuidades y tablas de amortización (sistema francés y alemán).">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/calculadora-financiera.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Calculadora Financiera">
+<meta name="twitter:description" content="Valor presente y futuro, conversión de tasas, perpetuidades y tablas de amortización (sistema francés y alemán).">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Calculadora Financiera</h1>
+        <p>Valor tiempo del dinero</p>
+      </div>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Valor Presente / Futuro</h2>
+    </div>
+    <div class="infl-form" id="vpvfForm">
+      <div class="infl-field">
+        <label>Calcular</label>
+        <select id="vpvfMode" onchange="calcVpVf()">
+          <option value="vf">Valor Futuro (dado VP)</option>
+          <option value="vp">Valor Presente (dado VF)</option>
+        </select>
+      </div>
+      <div class="infl-field" id="vpvfCapitalField">
+        <label id="vpvfCapitalLabel">Capital (VP)</label>
+        <input type="number" id="vpvfCapital" value="100000" oninput="calcVpVf()">
+      </div>
+      <div class="infl-field">
+        <label>Tasa efectiva por período</label>
+        <span class="infl-amount"><input type="number" id="vpvfTasa" value="5" step="0.01" oninput="calcVpVf()">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Cantidad de períodos (n)</label>
+        <input type="number" id="vpvfN" value="12" min="1" step="1" oninput="calcVpVf()">
+      </div>
+    </div>
+    <div class="infl-result" id="vpvfResult">—</div>
+    <button class="info-toggle" onclick="toggleInfo('vpvfInfo')">
+      <span id="vpvfInfoChevron">▾</span> ¿Cómo se calcula?
+    </button>
+    <div id="vpvfInfo" class="curve-info" style="display:none;">
+      <p><b>VF = VP × (1+i)ⁿ</b> — cuánto vas a tener en el futuro si invertís un capital hoy a una tasa i durante n períodos, con capitalización compuesta.</p>
+      <p><b>VP = VF / (1+i)ⁿ</b> — cuánto necesitás hoy para llegar a un monto futuro dado, descontando a la misma tasa. La tasa "i" tiene que estar en la misma unidad de tiempo que "n" (si n son meses, i tiene que ser la tasa mensual).</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Conversión de Tasas</h2>
+    </div>
+    <div class="infl-form">
+      <div class="infl-field">
+        <label>Tasa Nominal Anual (TNA)</label>
+        <span class="infl-amount"><input type="number" id="tnaInput" value="40" step="0.01" oninput="calcTasas('tna')">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Capitalizaciones por año</label>
+        <input type="number" id="tasaCapPorAno" value="12" min="1" step="1" oninput="calcTasas('tna')">
+      </div>
+      <div class="infl-field">
+        <label>Tasa Efectiva Anual (TEA)</label>
+        <span class="infl-amount"><input type="number" id="teaInput" step="0.01" oninput="calcTasas('tea')">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Inflación anual esperada</label>
+        <span class="infl-amount"><input type="number" id="inflInput" value="0" step="0.01" oninput="calcTasas('tna')">%</span>
+      </div>
+    </div>
+    <div class="quick-metrics" id="tasasStats"></div>
+    <button class="info-toggle" onclick="toggleInfo('tasasInfo')">
+      <span id="tasasInfoChevron">▾</span> ¿Qué diferencia hay entre estas tasas?
+    </button>
+    <div id="tasasInfo" class="curve-info" style="display:none;">
+      <p><b>TNA → TEA:</b> TEA = (1 + TNA/m)^m − 1, donde m es la cantidad de capitalizaciones por año. La TNA es una tasa "de etiqueta" que no refleja el interés compuesto; la TEA sí.</p>
+      <p><b>Tasa real (Fisher):</b> (1 + i nominal) = (1 + i real) × (1 + inflación) → la tasa real es lo que te queda de rendimiento una vez descontada la pérdida de poder adquisitivo.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Perpetuidades</h2>
+    </div>
+    <div class="infl-form">
+      <div class="infl-field">
+        <label>Cuota / Renta periódica (C)</label>
+        <input type="number" id="perpC" value="10000" oninput="calcPerp()">
+      </div>
+      <div class="infl-field">
+        <label>Tasa de descuento (i)</label>
+        <span class="infl-amount"><input type="number" id="perpI" value="10" step="0.01" oninput="calcPerp()">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Crecimiento de la renta (g)</label>
+        <span class="infl-amount"><input type="number" id="perpG" value="0" step="0.01" oninput="calcPerp()">%</span>
+      </div>
+    </div>
+    <div class="infl-result" id="perpResult">—</div>
+    <button class="info-toggle" onclick="toggleInfo('perpInfo')">
+      <span id="perpInfoChevron">▾</span> ¿Qué es una perpetuidad?
+    </button>
+    <div id="perpInfo" class="curve-info" style="display:none;">
+      <p>Una renta que se paga para siempre. <b>VP = C / i</b> si la cuota es constante. Si crece a un ritmo g cada período (menor a i), <b>VP = C / (i − g)</b> — es el mismo modelo que se usa para valuar una acción por dividendos crecientes (Gordon).</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Tabla de Amortización</h2>
+    </div>
+    <div class="infl-form">
+      <div class="infl-field">
+        <label>Sistema</label>
+        <select id="amortSistema" onchange="calcAmort()">
+          <option value="frances">Francés (cuota constante)</option>
+          <option value="aleman">Alemán (amortización constante)</option>
+        </select>
+      </div>
+      <div class="infl-field">
+        <label>Capital (préstamo)</label>
+        <input type="number" id="amortCapital" value="1000000" oninput="calcAmort()">
+      </div>
+      <div class="infl-field">
+        <label>Tasa por período</label>
+        <span class="infl-amount"><input type="number" id="amortTasa" value="5" step="0.01" oninput="calcAmort()">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Cantidad de cuotas (n)</label>
+        <input type="number" id="amortN" value="12" min="1" step="1" oninput="calcAmort()">
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Período</th>
+            <th>Cuota</th>
+            <th>Interés</th>
+            <th>Amortización</th>
+            <th>Saldo</th>
+          </tr>
+        </thead>
+        <tbody id="amortBody"></tbody>
+      </table>
+    </div>
+    <button class="info-toggle" onclick="toggleInfo('amortInfo')">
+      <span id="amortInfoChevron">▾</span> ¿Francés o Alemán?
+    </button>
+    <div id="amortInfo" class="curve-info" style="display:none;">
+      <p><b>Sistema Francés:</b> la cuota es siempre la misma; al principio se paga sobre todo interés y poco capital, y esa proporción se va invirtiendo con el tiempo. Es el más común en préstamos personales e hipotecarios en Argentina.</p>
+      <p><b>Sistema Alemán:</b> el capital se amortiza en partes iguales todos los períodos, así que el interés (que se calcula sobre el saldo) va bajando — la cuota total empieza más alta y va disminuyendo.</p>
+    </div>
+  </section>
+
+  <footer>
+    Calculadora educativa — no constituye asesoramiento financiero.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+function calcVpVf() {
+  const mode = document.getElementById('vpvfMode').value;
+  document.getElementById('vpvfCapitalLabel').textContent = mode === 'vf' ? 'Capital (VP)' : 'Monto futuro (VF)';
+  const capital = parseFloat(document.getElementById('vpvfCapital').value);
+  const i = parseFloat(document.getElementById('vpvfTasa').value) / 100;
+  const n = parseFloat(document.getElementById('vpvfN').value);
+  const resultEl = document.getElementById('vpvfResult');
+  if (isNaN(capital) || isNaN(i) || isNaN(n)) { resultEl.textContent = '—'; return; }
+  const factor = Math.pow(1 + i, n);
+  if (mode === 'vf') {
+    resultEl.textContent = 'VF = ' + fmtARS(capital * factor);
+  } else {
+    resultEl.textContent = 'VP = ' + fmtARS(capital / factor);
+  }
+}
+
+function calcTasas(source) {
+  const m = parseFloat(document.getElementById('tasaCapPorAno').value) || 1;
+  const infl = parseFloat(document.getElementById('inflInput').value) / 100 || 0;
+  let tna, tea;
+  if (source === 'tea') {
+    tea = parseFloat(document.getElementById('teaInput').value) / 100;
+    if (isNaN(tea)) return;
+    tna = m * (Math.pow(1 + tea, 1 / m) - 1);
+    document.getElementById('tnaInput').value = (tna * 100).toFixed(2);
+  } else {
+    tna = parseFloat(document.getElementById('tnaInput').value) / 100;
+    if (isNaN(tna)) return;
+    tea = Math.pow(1 + tna / m, m) - 1;
+    document.getElementById('teaInput').value = (tea * 100).toFixed(2);
+  }
+  const tem = Math.pow(1 + tea, 1 / 12) - 1;
+  const tasaReal = (1 + tea) / (1 + infl) - 1;
+  document.getElementById('tasasStats').innerHTML = `
+    <div class="quick-stat"><div class="label">TEA</div><div class="val">${fmtPct(tea * 100)}</div></div>
+    <div class="quick-stat"><div class="label">TEM (equivalente mensual)</div><div class="val">${fmtPct(tem * 100)}</div></div>
+    <div class="quick-stat"><div class="label">Tasa Real (Fisher)</div><div class="val">${fmtPct(tasaReal * 100)}</div><div class="note">vs. inflación ingresada</div></div>
+  `;
+}
+
+function calcPerp() {
+  const c = parseFloat(document.getElementById('perpC').value);
+  const i = parseFloat(document.getElementById('perpI').value) / 100;
+  const g = parseFloat(document.getElementById('perpG').value) / 100;
+  const resultEl = document.getElementById('perpResult');
+  if (isNaN(c) || isNaN(i)) { resultEl.textContent = '—'; return; }
+  if (g >= i) {
+    resultEl.innerHTML = '<span style="font-size:16px;color:var(--down);">La tasa de crecimiento (g) tiene que ser menor a la tasa de descuento (i).</span>';
+    return;
+  }
+  const vp = c / (i - g);
+  resultEl.textContent = 'VP = ' + fmtARS(vp);
+}
+
+function calcAmort() {
+  const sistema = document.getElementById('amortSistema').value;
+  const capital = parseFloat(document.getElementById('amortCapital').value);
+  const i = parseFloat(document.getElementById('amortTasa').value) / 100;
+  const n = parseInt(document.getElementById('amortN').value, 10);
+  const body = document.getElementById('amortBody');
+  if (isNaN(capital) || isNaN(i) || !(n > 0)) { body.innerHTML = ''; return; }
+
+  let saldo = capital;
+  const rows = [];
+  if (sistema === 'frances') {
+    const cuota = i === 0 ? capital / n : capital * i / (1 - Math.pow(1 + i, -n));
+    for (let p = 1; p <= n; p++) {
+      const interes = saldo * i;
+      const amort = cuota - interes;
+      saldo -= amort;
+      rows.push({ p, cuota, interes, amort, saldo: Math.max(saldo, 0) });
+    }
+  } else {
+    const amortFija = capital / n;
+    for (let p = 1; p <= n; p++) {
+      const interes = saldo * i;
+      const cuota = amortFija + interes;
+      saldo -= amortFija;
+      rows.push({ p, cuota, interes, amort: amortFija, saldo: Math.max(saldo, 0) });
+    }
+  }
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td class="mono">${r.p}</td>
+      <td class="mono row-value">${fmtARS(r.cuota)}</td>
+      <td class="mono">${fmtARS(r.interes)}</td>
+      <td class="mono">${fmtARS(r.amort)}</td>
+      <td class="mono">${fmtARS(r.saldo)}</td>
+    </tr>
+  `).join('');
+}
+
+renderNavTabs('vtd');
+calcVpVf();
+calcTasas('tna');
+calcPerp();
+calcAmort();
+</script>
+
+</body>
+</html>

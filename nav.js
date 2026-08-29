@@ -20,7 +20,9 @@ const NAV_GROUPS = [
       { key: 'inflacion', label: 'Calculadora de Inflación', href: 'inflacion.html' },
       { key: 'opciones', label: 'Calculadora de Opciones', href: 'opciones.html' },
       { key: 'capm', label: 'Calculadora CAPM', href: 'capm.html' },
-      { key: 'markowitz', label: 'Frontera Eficiente', href: 'markowitz.html' }
+      { key: 'markowitz', label: 'Frontera Eficiente', href: 'markowitz.html' },
+      { key: 'vtd', label: 'Calculadora Financiera', href: 'calculadora-financiera.html' },
+      { key: 'vantir', label: 'VAN y TIR de Proyectos', href: 'van-tir.html' }
     ]
   },
   { key: 'portafolio', label: 'Mi Portafolio', href: 'mi-portafolio.html' },

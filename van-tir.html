@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — VAN y TIR de Proyectos</title>
+<meta name="description" content="Evaluá un proyecto de inversión: VAN, TIR, TIR modificada, payback e índice de rentabilidad a partir de su flujo de fondos.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — VAN y TIR de Proyectos">
+<meta property="og:description" content="Evaluá un proyecto de inversión: VAN, TIR, TIR modificada, payback e índice de rentabilidad a partir de su flujo de fondos.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/van-tir.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — VAN y TIR de Proyectos">
+<meta name="twitter:description" content="Evaluá un proyecto de inversión: VAN, TIR, TIR modificada, payback e índice de rentabilidad a partir de su flujo de fondos.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>VAN y TIR de Proyectos</h1>
+        <p>Evaluación de proyectos de inversión</p>
+      </div>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Flujo de fondos del proyecto</h2>
+    </div>
+    <div class="infl-form" style="grid-template-columns:1fr 1fr;">
+      <div class="infl-field">
+        <label>Inversión inicial (período 0)</label>
+        <input type="number" id="vtInversion" value="100000" oninput="calcularVanTir()">
+      </div>
+      <div class="infl-field">
+        <label>Tasa de descuento (costo de capital)</label>
+        <span class="infl-amount"><input type="number" id="vtTasa" value="15" step="0.01" oninput="calcularVanTir()">%</span>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Período</th>
+            <th>Flujo de fondos</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="vtFlowsBody"></tbody>
+      </table>
+    </div>
+    <div class="opt-save-row">
+      <button class="btn-secondary" onclick="addFlowRow()">+ Agregar período</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Resultado</h2>
+      <span id="vtVeredicto"></span>
+    </div>
+    <div class="quick-metrics" id="vtStats" style="grid-template-columns:repeat(2,1fr);"></div>
+    <button class="info-toggle" onclick="toggleInfo('vtInfo')">
+      <span id="vtInfoChevron">▾</span> ¿Qué significa cada indicador?
+    </button>
+    <div id="vtInfo" class="curve-info" style="display:none;">
+      <p><b>VAN (Valor Actual Neto):</b> la suma de todos los flujos futuros descontados a la tasa de costo de capital, menos la inversión inicial. Si es positivo, el proyecto genera más valor del que cuesta financiarlo — conviene. Si es negativo, no.</p>
+      <p><b>TIR (Tasa Interna de Retorno):</b> la tasa de descuento que hace que el VAN sea exactamente cero. Si la TIR es mayor a tu costo de capital, el proyecto conviene (es consistente con un VAN positivo a esa tasa).</p>
+      <p><b>TIR Modificada (MIRR):</b> corrige un supuesto poco realista de la TIR (que los flujos intermedios se reinvierten a la misma TIR) — asume que se reinvierten a la tasa de costo de capital ingresada arriba. Suele dar un número más conservador y más creíble que la TIR común.</p>
+      <p><b>Payback:</b> cuántos períodos tardás en recuperar la inversión inicial, sumando los flujos sin descontar (simple) o descontados a la tasa de costo de capital (descontado — más exigente, ya que descuenta el valor del dinero en el tiempo).</p>
+      <p><b>Índice de Rentabilidad (IR):</b> valor presente de los flujos futuros dividido la inversión inicial. Mayor a 1 equivale a VAN positivo — es útil para comparar proyectos de distinto tamaño.</p>
+    </div>
+  </section>
+
+  <footer>
+    Calculadora educativa — no constituye asesoramiento financiero ni de inversión.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+let flows = [30000, 30000, 30000, 30000, 30000];
+
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+function renderFlowRows() {
+  const body = document.getElementById('vtFlowsBody');
+  body.innerHTML = flows.map((f, i) => `
+    <tr>
+      <td class="mono">${i + 1}</td>
+      <td><input type="number" value="${f}" oninput="flows[${i}]=parseFloat(this.value)||0;calcularVanTir()" style="width:100%;"></td>
+      <td><button class="drawer-close" type="button" onclick="removeFlowRow(${i})" title="Quitar período" style="color:var(--down);">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function addFlowRow() {
+  flows.push(flows.length ? flows[flows.length - 1] : 0);
+  renderFlowRows();
+  calcularVanTir();
+}
+function removeFlowRow(i) {
+  if (flows.length <= 1) return;
+  flows.splice(i, 1);
+  renderFlowRows();
+  calcularVanTir();
+}
+
+// TIR: tasa que hace VAN=0 — biseccion sobre el flujo completo (periodo 0
+// incluido, con signo negativo por ser la inversion).
+function solveTIR(cashflows) {
+  const van = r => cashflows.reduce((s, cf, t) => s + cf / Math.pow(1 + r, t), 0);
+  let lo = -0.99, hi = 10;
+  if (van(lo) * van(hi) > 0) return null;
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    if (van(lo) * van(mid) <= 0) hi = mid; else lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// TIR Modificada: los flujos positivos se llevan a valor futuro (al final
+// del proyecto) reinvertidos a la tasa de costo de capital, los negativos
+// se traen a valor presente descontados a esa misma tasa, y se resuelve
+// la tasa que iguala la inversion presente con ese valor futuro.
+function solveMIRR(cashflows, rate) {
+  const n = cashflows.length - 1;
+  let pvNeg = 0, fvPos = 0;
+  cashflows.forEach((cf, t) => {
+    if (cf < 0) pvNeg += cf / Math.pow(1 + rate, t);
+    else fvPos += cf * Math.pow(1 + rate, n - t);
+  });
+  if (pvNeg === 0 || fvPos === 0) return null;
+  return Math.pow(fvPos / -pvNeg, 1 / n) - 1;
+}
+
+function calcularVanTir() {
+  const inversion = parseFloat(document.getElementById('vtInversion').value);
+  const rate = parseFloat(document.getElementById('vtTasa').value) / 100;
+  const statsEl = document.getElementById('vtStats');
+  const veredictoEl = document.getElementById('vtVeredicto');
+  if (isNaN(inversion) || isNaN(rate)) { statsEl.innerHTML = ''; return; }
+
+  const cashflows = [-Math.abs(inversion), ...flows];
+
+  const van = cashflows.reduce((s, cf, t) => s + cf / Math.pow(1 + rate, t), 0);
+  const tir = solveTIR(cashflows);
+  const mirr = solveMIRR(cashflows, rate);
+  const vpFuturos = van + Math.abs(inversion);
+  const ir = Math.abs(inversion) > 0 ? vpFuturos / Math.abs(inversion) : null;
+
+  // Payback simple y descontado: primer periodo donde el acumulado supera la inversion.
+  const payback = (discounted) => {
+    let acc = 0;
+    for (let t = 1; t < cashflows.length; t++) {
+      const cf = discounted ? cashflows[t] / Math.pow(1 + rate, t) : cashflows[t];
+      const prevAcc = acc;
+      acc += cf;
+      if (acc >= Math.abs(inversion)) {
+        const falta = Math.abs(inversion) - prevAcc;
+        return (t - 1) + (cf !== 0 ? falta / cf : 0);
+      }
+    }
+    return null;
+  };
+  const paybackSimple = payback(false);
+  const paybackDesc = payback(true);
+
+  veredictoEl.textContent = van > 0 ? 'VAN positivo — el proyecto conviene' : 'VAN negativo — el proyecto no conviene a esta tasa';
+  veredictoEl.className = van > 0 ? 'chg up' : 'chg down';
+
+  statsEl.innerHTML = `
+    <div class="quick-stat">
+      <div class="label">VAN</div>
+      <div class="val ${van > 0 ? 'up' : 'down'}" style="color:${van > 0 ? 'var(--up)' : 'var(--down)'};">${fmtARS(van)}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">TIR</div>
+      <div class="val">${tir != null ? fmtPct(tir * 100) : 'No converge'}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">TIR Modificada (MIRR)</div>
+      <div class="val">${mirr != null ? fmtPct(mirr * 100) : '—'}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Índice de Rentabilidad</div>
+      <div class="val">${ir != null ? fmtNum(ir) : '—'}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Payback simple</div>
+      <div class="val">${paybackSimple != null ? fmtNum(paybackSimple) + ' períodos' : 'No se recupera'}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Payback descontado</div>
+      <div class="val">${paybackDesc != null ? fmtNum(paybackDesc) + ' períodos' : 'No se recupera'}</div>
+    </div>
+  `;
+}
+
+renderNavTabs('vantir');
+renderFlowRows();
+calcularVanTir();
+</script>
+
+</body>
+</html>
