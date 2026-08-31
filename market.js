@@ -759,16 +759,28 @@ function buildMoodGaugeSVG(pctUp, width, height) {
   </svg>`;
 }
 
-const CHART_PAD = 10;
+// Padding asimetrico (en vez de CHART_PAD parejo de antes) para dejar
+// lugar a los numeros de los ejes — misma geometria en chartCoords,
+// buildLineChartSVG y attachChartHover, tiene que coincidir siempre entre
+// las tres para que el punto de hover caiga exactamente sobre la curva.
+const CHART_PAD_L = 46, CHART_PAD_R = 16, CHART_PAD_T = 16, CHART_PAD_B = 26;
 
-function chartCoords(points, width, height) {
+// Rango del eje Y con un 10% de margen arriba/abajo (nunca por debajo de
+// 0) — así la curva no queda pegada al borde superior/inferior del
+// gráfico, mismo criterio que buildCaucionHistSVG en renta-fija.html.
+function chartYRange(points) {
   const values = points.map(p => p.value);
   const min = Math.min(...values), max = Math.max(...values);
-  const range = (max - min) || 1;
-  const stepX = points.length > 1 ? (width - CHART_PAD * 2) / (points.length - 1) : 0;
+  const pad = (max - min) * 0.1 || Math.abs(max) * 0.1 || 1;
+  return [Math.max(0, min - pad), max + pad];
+}
+
+function chartCoords(points, width, height) {
+  const [lo, hi] = chartYRange(points);
+  const stepX = points.length > 1 ? (width - CHART_PAD_L - CHART_PAD_R) / (points.length - 1) : 0;
   return points.map((p, i) => [
-    CHART_PAD + i * stepX,
-    height - CHART_PAD - ((p.value - min) / range) * (height - CHART_PAD * 2)
+    CHART_PAD_L + i * stepX,
+    height - CHART_PAD_B - ((p.value - lo) / (hi - lo || 1)) * (height - CHART_PAD_T - CHART_PAD_B)
   ]);
 }
 
@@ -779,15 +791,39 @@ function buildLineChartSVG(points, width, height) {
   const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
   const up = points[points.length - 1].value >= points[0].value;
   const color = up ? 'var(--up)' : 'var(--down)';
-  const areaPath = `${path} L${coords[coords.length - 1][0].toFixed(1)} ${height - CHART_PAD} L${coords[0][0].toFixed(1)} ${height - CHART_PAD} Z`;
+  const areaPath = `${path} L${coords[coords.length - 1][0].toFixed(1)} ${height - CHART_PAD_B} L${coords[0][0].toFixed(1)} ${height - CHART_PAD_B} Z`;
+
+  const [lo, hi] = chartYRange(points);
+  const yAt = v => height - CHART_PAD_B - ((v - lo) / (hi - lo || 1)) * (height - CHART_PAD_T - CHART_PAD_B);
+  const yTicks = [];
+  for (let i = 0; i <= 3; i++) {
+    const v = lo + (hi - lo) * (i / 3);
+    const yy = yAt(v).toFixed(1);
+    yTicks.push(`<line x1="${CHART_PAD_L}" y1="${yy}" x2="${width - CHART_PAD_R}" y2="${yy}" stroke="var(--divider)" stroke-width="1"/>
+      <text x="${CHART_PAD_L - 8}" y="${(yAt(v) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-faint)">${fmtNum(v)}</text>`);
+  }
+  const xTickCount = Math.min(5, points.length - 1);
+  const xTicks = [];
+  for (let i = 0; i <= xTickCount; i++) {
+    const idx = Math.round((points.length - 1) * (i / (xTickCount || 1)));
+    const label = new Date(points[idx].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+    xTicks.push(`<text x="${coords[idx][0].toFixed(1)}" y="${height - CHART_PAD_B + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${label}</text>`);
+  }
+
   return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    ${yTicks.join('')}
     <path d="${areaPath}" fill="${color}" opacity="0.12" stroke="none"/>
     <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+    ${xTicks.join('')}
     <circle class="chart-hover-dot" r="4" fill="${color}" stroke="var(--card)" stroke-width="2" style="opacity:0;"/>
   </svg>`;
 }
 
-function attachChartHover(containerId, points, width, height) {
+// formatValue es opcional (default fmtARS, pesos) — la vista publica de
+// portafolio en modo "sin montos" grafica un indice arrancando en 100,
+// no pesos, y le pasa fmtNum en vez del default.
+function attachChartHover(containerId, points, width, height, formatValue) {
+  formatValue = formatValue || fmtARS;
   const container = document.getElementById(containerId);
   const svg = container.querySelector('svg');
   const dot = container.querySelector('.chart-hover-dot');
@@ -802,13 +838,13 @@ function attachChartHover(containerId, points, width, height) {
   }
 
   const coords = chartCoords(points, width, height);
-  const stepX = points.length > 1 ? (width - CHART_PAD * 2) / (points.length - 1) : 0;
+  const stepX = points.length > 1 ? (width - CHART_PAD_L - CHART_PAD_R) / (points.length - 1) : 0;
 
   function handleMove(e) {
     const rect = svg.getBoundingClientRect();
     const scaleX = width / rect.width;
     const relX = (e.clientX - rect.left) * scaleX;
-    let idx = Math.round((relX - CHART_PAD) / (stepX || 1));
+    let idx = Math.round((relX - CHART_PAD_L) / (stepX || 1));
     idx = Math.max(0, Math.min(points.length - 1, idx));
     const p = points[idx];
     const prev = points[idx - 1];
@@ -819,7 +855,7 @@ function attachChartHover(containerId, points, width, height) {
     dot.setAttribute('cy', coords[idx][1]);
     dot.style.opacity = '1';
 
-    tooltip.innerHTML = `<div class="ct-date">${dateLabel}</div><div class="ct-value mono">${fmtARS(p.value)}</div>` +
+    tooltip.innerHTML = `<div class="ct-date">${dateLabel}</div><div class="ct-value mono">${formatValue(p.value)}</div>` +
       (change != null ? `<div class="ct-change ${pctClass(change)}">${fmtPct(change)} vs día anterior</div>` : '');
     tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 190) + 'px';
     tooltip.style.top = Math.max(8, e.clientY - 56) + 'px';

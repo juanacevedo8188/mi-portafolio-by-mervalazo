@@ -274,7 +274,7 @@ function renderHistoryPrivacy(points) {
   const width = chartEl.clientWidth || 600;
   const height = Math.round(Math.min(140, Math.max(110, width * 0.24)));
   chartEl.innerHTML = buildLineChartSVG(points, width, height);
-  attachChartHover('historyChart', points, width, height);
+  attachChartHover('historyChart', points, width, height, v => fmtNum(v));
 
   const first = new Date(points[0].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
   const last = new Date(points[points.length - 1].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
