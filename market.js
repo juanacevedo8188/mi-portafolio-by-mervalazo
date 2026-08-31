@@ -1321,10 +1321,36 @@ function portfolioVol(w, covAnnual) {
 
 // Pesos aleatorios que suman 1, todos positivos (sin ventas en corto —
 // simplificacion razonable para una cartera de acciones minorista).
+//
+// Ojo con el metodo: sortear n numeros de Math.random() y normalizarlos
+// por la suma NO da una distribucion uniforme sobre el simplex — sesga
+// las combinaciones hacia el centro (pesos parecidos entre si) y, cuantos
+// mas activos hay, MENOS carteras caen cerca de una esquina (~100% en un
+// solo activo). Eso hacia que los activos individuales quedaran fuera de
+// la nube simulada con 5-6 activos. La forma correcta de samplear
+// uniforme sobre el simplex es generar n variables Exponencial(1) — via
+// -ln(uniforme) — y normalizar esas por su suma (equivale a Dirichlet
+// con todos los parametros en 1).
 function randomWeights(n) {
-  const r = Array.from({ length: n }, () => Math.random());
+  const r = Array.from({ length: n }, () => -Math.log(Math.random() || 1e-12));
   const s = r.reduce((a, b) => a + b, 0);
   return r.map(v => v / s);
+}
+
+// Ademas del sampleo general, se agregan carteras "concentradas": se
+// elige un subconjunto chico de activos al azar (1 a 3) y se les reparte
+// TODO el peso entre ellos, dejando el resto en cero. Esto cubre bien las
+// esquinas y aristas del simplex (carteras dominadas por 1-3 activos),
+// que el sampleo general casi no visita cuando hay muchos activos — sin
+// esto, los puntos de los activos individuales quedaban aislados fuera
+// de la nube en vez de estar en su borde.
+function concentratedWeights(n) {
+  const subsetSize = 1 + Math.floor(Math.random() * Math.min(3, n));
+  const indices = [...Array(n).keys()].sort(() => Math.random() - 0.5).slice(0, subsetSize);
+  const sub = randomWeights(subsetSize);
+  const w = new Array(n).fill(0);
+  indices.forEach((idx, i) => { w[idx] = sub[i]; });
+  return w;
 }
 
 // Simulacion de Monte Carlo: en vez de resolver la optimizacion cuadratica
@@ -1332,12 +1358,14 @@ function randomWeights(n) {
 // se grafica la nube resultante — es el enfoque estandar para introducir
 // el concepto sin depender de una libreria de algebra lineal, y el borde
 // superior de la nube ES, en la practica, una buena aproximacion visual
-// de la frontera eficiente.
+// de la frontera eficiente. Mitad de las muestras usa pesos generales,
+// mitad concentrados (ver concentratedWeights) para que la nube llegue
+// bien hasta cada activo individual.
 function simulatePortfolios(meanAnnual, covAnnual, count) {
   const n = meanAnnual.length;
   const out = [];
   for (let k = 0; k < count; k++) {
-    const w = randomWeights(n);
+    const w = k % 2 === 0 ? randomWeights(n) : concentratedWeights(n);
     out.push({ w, ret: portfolioReturn(w, meanAnnual), vol: portfolioVol(w, covAnnual) });
   }
   return out;

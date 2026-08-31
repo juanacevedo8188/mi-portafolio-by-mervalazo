@@ -300,7 +300,7 @@ async function runMarkowitz() {
     const covAnnual = covDaily.map(row => row.map(c => c * TRADING_DAYS * 100 * 100));
 
     const assets = tickers.map((t, i) => ({ ticker: t, ret: meanAnnual[i], vol: Math.sqrt(covAnnual[i][i]) }));
-    const sims = simulatePortfolios(meanAnnual, covAnnual, 1500);
+    const sims = simulatePortfolios(meanAnnual, covAnnual, 3000);
     const minVar = minVariancePortfolio(sims);
     const maxSharpe = maxSharpePortfolio(sims, rf);
     const frontier = computeFrontierLines(sims, 40);
