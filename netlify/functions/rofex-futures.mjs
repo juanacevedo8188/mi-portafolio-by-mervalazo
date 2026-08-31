@@ -70,31 +70,8 @@ async function getMarketData(token, symbol) {
 export default async (req) => {
   try {
     const url = new URL(req.url);
-    const debug = url.searchParams.get('debug');
-    if (debug === 'segments') {
-      const token = await getToken();
-      const res = await fetch(BASE_URL + 'rest/segment/all', { headers: { 'X-Auth-Token': token } });
-      return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } });
-    }
-    if (debug === 'detail') {
-      const token = await getToken();
-      const symbol = url.searchParams.get('symbol');
-      const res = await fetch(BASE_URL + `rest/instruments/detail?symbol=${encodeURIComponent(symbol)}&marketId=${encodeURIComponent(url.searchParams.get('marketId') || 'ROFX')}`, { headers: { 'X-Auth-Token': token } });
-      return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } });
-    }
-    if (debug === 'md') {
-      const token = await getToken();
-      const symbol = url.searchParams.get('symbol');
-      const marketId = url.searchParams.get('marketId') || 'ROFX';
-      const mdUrl = BASE_URL + `rest/marketdata/get?marketId=${encodeURIComponent(marketId)}&symbol=${encodeURIComponent(symbol)}&entries=BI,OF,LA,CL,SE,OI&depth=1`;
-      const res = await fetch(mdUrl, { headers: { 'X-Auth-Token': token } });
-      return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } });
-    }
-
-    const symbolsParam = url.searchParams.get('symbols');
-    const prefix = url.searchParams.get('prefix') === 'CAUC' ? 'CAUC' : 'DLR';
     const months = Math.min(parseInt(url.searchParams.get('months'), 10) || 12, 18);
-    const tickers = symbolsParam ? symbolsParam.split(',') : nextMonthlyTickers(prefix, months);
+    const tickers = nextMonthlyTickers('DLR', months);
 
     const token = await getToken();
     const results = await Promise.all(tickers.map(async t => [t, await getMarketData(token, t)]));

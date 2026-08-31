@@ -278,39 +278,33 @@
   <div id="catCaucion" style="display:none;">
     <section class="panel">
       <div class="panel-head">
-        <h2>Curva de Tasa de Caución</h2>
-        <span id="caucionCurveUpdated">—</span>
+        <h2>Caución</h2>
+        <span id="caucionTime">—</span>
       </div>
-      <div class="curve-wrap" id="caucionChart"><div class="empty-note">Cargando…</div></div>
+      <div class="mkw-chips" style="padding:16px 20px 4px;" id="caucionTenorChips">
+        <button type="button" class="mkw-chip active" data-tenor="1D" onclick="selectTenor('1D')">1 día</button>
+        <button type="button" class="mkw-chip" data-tenor="2D" onclick="selectTenor('2D')">2 días</button>
+        <button type="button" class="mkw-chip" data-tenor="3D" onclick="selectTenor('3D')">3 días</button>
+        <button type="button" class="mkw-chip" data-tenor="4D" onclick="selectTenor('4D')">4 días</button>
+        <button type="button" class="mkw-chip" data-tenor="7D" onclick="selectTenor('7D')">7 días</button>
+      </div>
+      <div class="infl-result" id="caucionResult">—</div>
+      <div class="quick-metrics" id="caucionStats"></div>
       <button class="info-toggle" onclick="toggleInfo('caucionInfo')">
         <span id="caucionInfoChevron">▾</span> ¿Qué es la caución?
       </button>
       <div id="caucionInfo" class="curve-info" style="display:none;">
-        <p>Es un préstamo a muy corto plazo garantizado con títulos: alguien pone acciones o bonos en garantía y toma pesos prestados hasta una fecha; del otro lado, alguien pone esos pesos y se queda con la garantía si no se lo devuelven. La <b>tasa (TNA)</b> es directamente lo que rinde ese préstamo — a diferencia de un futuro de dólar, acá no hace falta derivarla de ningún precio.</p>
-        <p>Es una de las referencias más usadas del costo del dinero a muy corto plazo en pesos, junto con la LECAP más corta de la curva de arriba — vale la pena compararlas entre sí.</p>
+        <p>Es un préstamo a muy corto plazo garantizado con títulos: alguien pone acciones o bonos en garantía y toma pesos prestados hasta una fecha; del otro lado, alguien pone esos pesos y se queda con la garantía si no se lo devuelven. La <b>tasa</b> es directamente lo que rinde ese préstamo.</p>
+        <p>Es una de las referencias más usadas del costo del dinero a muy corto plazo en pesos, junto con la LECAP más corta de Letras — vale la pena compararlas entre sí. Datos de <a href="https://www.rava.com" target="_blank" rel="noopener">Rava Bursátil</a>, el mercado real de BYMA (no el de futuros de ROFEX, que para estos plazos cortos no tiene volumen operado en la cuenta gratuita a la que tenemos acceso).</p>
       </div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h2>Plazos vigentes</h2>
-        <span id="caucionUpdated">—</span>
+        <h2>Histórico de cierres</h2>
+        <span id="caucionHistUpdated">—</span>
       </div>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Contrato</th>
-              <th>Vencimiento</th>
-              <th>DTV</th>
-              <th>Tasa (TNA)</th>
-            </tr>
-          </thead>
-          <tbody id="caucionBody">
-            <tr><td colspan="4" class="empty-note">Cargando…</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="history-chart" id="caucionHistChart"><div class="empty-note">Cargando…</div></div>
     </section>
   </div>
 
@@ -373,50 +367,80 @@ function loadCategory(cat) {
   if (cat === 'caucion') return loadCaucion();
 }
 
-// Los futuros de dolar de ROFEX/caucion vencen el ultimo dia habil del
-// mes del contrato — se aproxima con el ultimo dia calendario del mes,
-// corrido hacia atras si cae sabado/domingo (no contempla feriados).
-const MESES_IDX = { ENE: 0, FEB: 1, MAR: 2, ABR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11 };
-function contractExpiry(ticker) {
-  const [, code] = ticker.split('/');
-  const month = MESES_IDX[code.slice(0, 3)];
-  const year = 2000 + parseInt(code.slice(3), 10);
-  let d = new Date(Date.UTC(year, month + 1, 0));
-  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(d.getTime() - 86400000);
-  return d;
+// Caucion real de BYMA (via rava.com, ver netlify/functions/rava-caucion.mjs)
+// — a diferencia de los futuros CAUC de ROFEX, esta SI tiene volumen real
+// y cierres diarios historicos, que es lo que hace falta para el grafico.
+let caucionData = null;
+let activeTenor = '1D';
+
+function selectTenor(tenor) {
+  activeTenor = tenor;
+  document.querySelectorAll('#caucionTenorChips .mkw-chip').forEach(b => b.classList.toggle('active', b.dataset.tenor === tenor));
+  renderCaucionTenor();
 }
 
-function buildCaucionCurveSVG(points, width, height) {
-  const padL = 46, padR = 16, padT = 16, padB = 30;
-  const maxDtv = Math.max(...points.map(p => p.dtv)) * 1.06;
-  const rates = points.map(p => p.tna);
-  const minRate = Math.min(...rates) - 1, maxRate = Math.max(...rates) + 1;
-  const x = d => padL + (d / maxDtv) * (width - padL - padR);
-  const y = t => height - padB - ((t - minRate) / (maxRate - minRate || 1)) * (height - padT - padB);
-  const coords = points.map(p => [x(p.dtv), y(p.tna)]);
-  const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
-  const yTicks = [];
-  for (let i = 0; i <= 3; i++) {
-    const t = minRate + (maxRate - minRate) * (i / 3);
-    yTicks.push(`<line x1="${padL}" y1="${y(t).toFixed(1)}" x2="${width - padR}" y2="${y(t).toFixed(1)}" stroke="var(--divider)" stroke-width="1"/>
-      <text x="${padL - 8}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-faint)">${t.toFixed(0)}%</text>`);
+function renderCaucionTenor() {
+  if (!caucionData) return;
+  const d = caucionData[activeTenor];
+  const resultEl = document.getElementById('caucionResult');
+  const statsEl = document.getElementById('caucionStats');
+  const histEl = document.getElementById('caucionHistChart');
+  if (!d || d.price == null) {
+    resultEl.textContent = 'Sin datos para este plazo';
+    statsEl.innerHTML = '';
+    histEl.innerHTML = '<div class="empty-note">No hay historial para graficar.</div>';
+    document.getElementById('caucionHistUpdated').textContent = '';
+    return;
   }
-  const xTicks = [0, 30, 60, 90].filter(d => d <= maxDtv).map(d =>
-    `<text x="${x(d).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${d}d</text>`
-  );
-  const dots = coords.map((c, i) =>
-    `<circle class="cauc-dot" data-idx="${i}" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`
-  ).join('');
-  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
-    ${yTicks.join('')}
-    ${xTicks.join('')}
-    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.6"/>
-    ${dots}
+
+  const cls = pctClass(d.varPct);
+  resultEl.innerHTML = `<span style="color:${cls === 'up' ? 'var(--up)' : cls === 'down' ? 'var(--down)' : 'var(--text)'};">${fmtNum(d.price)}%</span>
+    <div class="fwd-note chg ${cls}" style="font-size:14px;margin-top:4px;">${fmtPct(d.varPct)} hoy</div>`;
+  statsEl.innerHTML = `
+    <div class="quick-stat"><div class="label">Anterior</div><div class="val">${d.anterior != null ? fmtNum(d.anterior) + '%' : '—'}</div></div>
+    <div class="quick-stat"><div class="label">Apertura</div><div class="val">${d.apertura != null ? fmtNum(d.apertura) + '%' : '—'}</div></div>
+    <div class="quick-stat"><div class="label">Máximo</div><div class="val">${d.maximo != null ? fmtNum(d.maximo) + '%' : '—'}</div></div>
+    <div class="quick-stat"><div class="label">Mínimo</div><div class="val">${d.minimo != null ? fmtNum(d.minimo) + '%' : '—'}</div></div>
+  `;
+
+  const points = [...d.history].reverse()
+    .filter(r => r.cierre != null)
+    .map(r => {
+      const [dd, mm, yyyy] = r.fecha.split('/');
+      return { date: `${yyyy}-${mm}-${dd}`, value: r.cierre };
+    });
+  if (points.length >= 2) {
+    const width = histEl.clientWidth || 700;
+    histEl.innerHTML = buildCaucionHistSVG(points, width, 160);
+    attachCaucionHistHover(points, width, 160);
+    document.getElementById('caucionHistUpdated').textContent = points.length + ' cierres · ' + points[0].date + ' a ' + points[points.length - 1].date;
+  } else {
+    histEl.innerHTML = '<div class="empty-note">No hay suficiente historial para graficar.</div>';
+    document.getElementById('caucionHistUpdated').textContent = '';
+  }
+}
+
+// Igual que buildLineChartSVG/attachChartHover (usadas en Inflación), pero
+// mostrando "%" en vez de $ARS en el tooltip, ya que esto es una tasa.
+function buildCaucionHistSVG(points, width, height) {
+  const coords = chartCoords(points, width, height);
+  const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+  const up = points[points.length - 1].value >= points[0].value;
+  const color = up ? 'var(--up)' : 'var(--down)';
+  const areaPath = `${path} L${coords[coords.length - 1][0].toFixed(1)} ${height - CHART_PAD} L${coords[0][0].toFixed(1)} ${height - CHART_PAD} Z`;
+  return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    <path d="${areaPath}" fill="${color}" opacity="0.12" stroke="none"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+    <circle class="cauc-hist-dot" r="4" fill="${color}" stroke="var(--card)" stroke-width="2" style="opacity:0;"/>
   </svg>`;
 }
 
-function attachCaucionInteraction(points) {
-  const container = document.getElementById('caucionChart');
+function attachCaucionHistHover(points, width, height) {
+  const container = document.getElementById('caucionHistChart');
+  const svg = container.querySelector('svg');
+  const dot = container.querySelector('.cauc-hist-dot');
+  if (!svg || points.length < 2) return;
+
   let tooltip = document.getElementById('chartTooltip');
   if (!tooltip) {
     tooltip = document.createElement('div');
@@ -424,78 +448,54 @@ function attachCaucionInteraction(points) {
     tooltip.className = 'chart-tooltip';
     document.body.appendChild(tooltip);
   }
-  const showTooltip = (idx, clientX, clientY) => {
+  const coords = chartCoords(points, width, height);
+  const stepX = points.length > 1 ? (width - CHART_PAD * 2) / (points.length - 1) : 0;
+
+  function handleMove(e) {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const relX = (e.clientX - rect.left) * scaleX;
+    let idx = Math.round((relX - CHART_PAD) / (stepX || 1));
+    idx = Math.max(0, Math.min(points.length - 1, idx));
     const p = points[idx];
-    tooltip.innerHTML = `<div class="ct-date">${p.ticker} · vto ${p.expiry.toLocaleDateString('es-AR')}</div>
-      <div class="ct-value mono">TNA ${fmtNum(p.tna)}%</div>
-      <div class="ct-change flat">${p.dtv}d al vencimiento</div>`;
-    tooltip.style.left = Math.min(clientX + 14, window.innerWidth - 200) + 'px';
-    tooltip.style.top = Math.max(8, clientY - 60) + 'px';
+    const dateLabel = new Date(p.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+    dot.setAttribute('cx', coords[idx][0]);
+    dot.setAttribute('cy', coords[idx][1]);
+    dot.style.opacity = '1';
+    tooltip.innerHTML = `<div class="ct-date">${dateLabel}</div><div class="ct-value mono">${fmtNum(p.value)}%</div>`;
+    tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 190) + 'px';
+    tooltip.style.top = Math.max(8, e.clientY - 56) + 'px';
     tooltip.style.display = 'block';
-  };
-  container.querySelectorAll('.cauc-dot').forEach(dot => {
-    const idx = Number(dot.dataset.idx);
-    dot.addEventListener('mouseenter', e => showTooltip(idx, e.clientX, e.clientY));
-    dot.addEventListener('mousemove', e => showTooltip(idx, e.clientX, e.clientY));
-    dot.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-    dot.addEventListener('click', e => showTooltip(idx, e.clientX, e.clientY));
-  });
-  document.addEventListener('click', e => {
-    if (!e.target.closest('.cauc-dot')) tooltip.style.display = 'none';
-  });
+  }
+  function hide() { dot.style.opacity = '0'; tooltip.style.display = 'none'; }
+
+  svg.addEventListener('mousemove', handleMove);
+  svg.addEventListener('mouseleave', hide);
+  svg.addEventListener('touchmove', e => { if (e.touches[0]) { e.preventDefault(); handleMove(e.touches[0]); } }, { passive: false });
+  svg.addEventListener('touchend', () => setTimeout(hide, 1500));
 }
 
-// La caucion viene expresada como tasa (TNA) directa en el precio de
-// ajuste de ROFEX — a diferencia del dolar futuro, no hace falta
-// derivarla contra ningun spot.
+let caucionHistResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(caucionHistResizeTimer);
+  caucionHistResizeTimer = setTimeout(() => { if (caucionData) renderCaucionTenor(); }, 200);
+});
+
 async function loadCaucion() {
-  const body = document.getElementById('caucionBody');
-  const curveEl = document.getElementById('caucionChart');
+  const resultEl = document.getElementById('caucionResult');
   try {
-    const res = await fetch('/.netlify/functions/rofex-futures?prefix=CAUC', { cache: 'no-store' });
-    if (!res.ok) throw new Error('rofex-futures (CAUC) failed: ' + res.status);
-    const quotes = await res.json();
-    if (quotes.error) throw new Error(quotes.error);
-
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-
-    const caucionCache = Object.entries(quotes).map(([ticker, q]) => {
-      const tna = q.last ?? q.close ?? q.settlement ?? null;
-      if (tna == null) return null;
-      const expiry = contractExpiry(ticker);
-      const dtv = Math.round((expiry - today) / 86400000);
-      if (dtv < 1) return null;
-      return { ticker, tna, expiry, dtv };
-    }).filter(Boolean).sort((a, b) => a.dtv - b.dtv);
-
-    if (!caucionCache.length) {
-      body.innerHTML = '<tr><td colspan="4" class="empty-note">No hay plazos vigentes con cotización.</td></tr>';
-      curveEl.innerHTML = '<div class="empty-note">No hay datos para graficar.</div>';
-      document.getElementById('caucionUpdated').textContent = '';
-      document.getElementById('caucionCurveUpdated').textContent = '';
-      return;
-    }
-
-    body.innerHTML = caucionCache.map(f => `
-      <tr>
-        <td><span class="tk">${f.ticker.replace('CAUC/', '')}</span></td>
-        <td class="mono">${f.expiry.toLocaleDateString('es-AR')}</td>
-        <td class="mono">${f.dtv}</td>
-        <td class="mono row-value chg ${pctClass(f.tna)}">${fmtNum(f.tna)}%</td>
-      </tr>
-    `).join('');
-    document.getElementById('caucionUpdated').textContent = caucionCache.length + ' plazos';
-
-    const width = curveEl.clientWidth || 700;
-    const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
-    curveEl.innerHTML = buildCaucionCurveSVG(caucionCache, width, height);
-    attachCaucionInteraction(caucionCache);
-    document.getElementById('caucionCurveUpdated').textContent = caucionCache.length + ' puntos';
+    const res = await fetch('/.netlify/functions/rava-caucion', { cache: 'no-store' });
+    if (!res.ok) throw new Error('rava-caucion failed: ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    caucionData = data;
+    renderCaucionTenor();
+    document.getElementById('caucionTime').textContent = 'BYMA en vivo';
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información de caución.</td></tr>';
-    curveEl.innerHTML = '<div class="empty-note">No se pudo cargar la curva.</div>';
+    resultEl.textContent = 'No se pudo cargar la información de caución.';
+    document.getElementById('caucionStats').innerHTML = '';
+    document.getElementById('caucionHistChart').innerHTML = '';
   }
 }
 
