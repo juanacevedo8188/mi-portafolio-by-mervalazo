@@ -165,22 +165,17 @@ async function loadDollar() {
     const brechaOf = r => oficial ? ((r.venta / oficial.venta) - 1) * 100 : null;
 
     grid.innerHTML = rates.map(r => {
-      const brecha = r.casa !== 'oficial' ? brechaOf(r) : null;
-      const badge = brecha != null
-        ? `<span class="pill ${pctClass(brecha)}">${fmtPct(brecha)}</span>`
-        : '<span class="pill flat">Referencia</span>';
       const movedAgo = fmtTimeAgo(r.fechaActualizacion);
       return `
       <div class="dollar-card">
         <div class="dollar-card-head">
           <span class="label">${r.nombre}</span>
-          ${badge}
         </div>
         <div class="rate mono">${fmtARS(r.venta)}</div>
         <div class="rate-sub">compra ${fmtARS(r.compra)}</div>
         ${movedAgo ? `<div class="rate-updated">${movedAgo}</div>` : ''}
       </div>`;
-    }).join('');
+    }).join('') + riesgoPaisCardHtml;
 
     document.getElementById('dolarUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
 
@@ -429,6 +424,45 @@ async function loadTopCrypto() {
   }
 }
 
+// Riesgo pais no cambia dentro del dia (una sola actualizacion diaria),
+// asi que se carga una sola vez por visita en vez de cada 60s como el
+// resto del dashboard — el endpoint no tiene forma de pedir solo los
+// ultimos valores, la unica manera de calcular la variacion diaria es
+// bajar la serie completa (~400KB, desde 1999), y repetir eso cada
+// refresh hubiera sido puro desperdicio de ancho de banda para un dato
+// que no se mueve en ese lapso.
+let riesgoPaisCardHtml = '';
+
+async function loadRiesgoPais() {
+  try {
+    const data = await fetch('https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais', { cache: 'no-store' }).then(r => r.json());
+    if (!data.length) return;
+    const last = data[data.length - 1];
+    const prev = data[data.length - 2];
+    const delta = prev ? last.valor - prev.valor : null;
+    // pctClass(-delta): para riesgo pais, que SUBA es malo — se invierte
+    // el signo para que el verde/rojo respete esa lectura en vez de la
+    // convencion habitual de "sube = verde".
+    const badge = delta != null
+      ? `<span class="pill ${pctClass(-delta)}">${delta >= 0 ? '+' : ''}${delta} pb</span>`
+      : '';
+    riesgoPaisCardHtml = `
+      <div class="dollar-card" id="riesgoPaisCard">
+        <div class="dollar-card-head">
+          <span class="label">Riesgo País</span>
+          ${badge}
+        </div>
+        <div class="rate mono">${fmtNum(last.valor)}</div>
+        <div class="rate-sub">${prev ? 'ayer ' + fmtNum(prev.valor) + ' pb' : 'puntos básicos'}</div>
+      </div>`;
+    const existing = document.getElementById('riesgoPaisCard');
+    if (existing) existing.outerHTML = riesgoPaisCardHtml;
+    else document.getElementById('dollarGrid').insertAdjacentHTML('beforeend', riesgoPaisCardHtml);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function loadAll(manual) {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
@@ -449,6 +483,7 @@ async function loadAll(manual) {
 renderNavTabs('dashboard');
 initTVHover();
 loadAll(false);
+loadRiesgoPais();
 setInterval(() => loadAll(false), REFRESH_MS);
 </script>
 

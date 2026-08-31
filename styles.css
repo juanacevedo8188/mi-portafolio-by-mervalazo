@@ -173,6 +173,7 @@ main{max-width:1140px;margin:0 auto;padding:28px 24px;}
 .summary-card .sub{font-size:12.5px;margin-top:6px;font-weight:600;}
 .pill{
   display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700;
+  white-space:nowrap;flex-shrink:0;
 }
 .pill.up{color:var(--up);background:var(--up-bg);}
 .pill.down{color:var(--down);background:var(--down-bg);}
