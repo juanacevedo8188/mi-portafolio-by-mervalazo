@@ -586,6 +586,7 @@ input[type=number]{-moz-appearance:textfield;}
 .dollar-card .label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;}
 .dollar-card .rate{font-size:19px;font-weight:700;}
 .dollar-card .rate-sub{font-size:11px;color:var(--text-dim);margin-top:4px;}
+.dollar-card .rate-updated{font-size:10px;color:var(--text-faint);margin-top:6px;}
 
 .rank-row{display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid var(--divider);font-size:13.5px;}
 .rank-row:last-child{border-bottom:none;}

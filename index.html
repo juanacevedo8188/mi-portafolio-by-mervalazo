@@ -141,6 +141,21 @@ function setStatus(state, text) {
   label.textContent = text;
 }
 
+// dolarapi.com informa cuándo se movió CADA cotización puntual
+// (fechaActualizacion) — nada que ver con cuándo tu navegador volvió a
+// preguntar. Mostramos las dos cosas por separado para no dar a entender
+// que un valor cambió recién porque el poll de 60s volvió a pasar.
+function fmtTimeAgo(dateStr) {
+  const ts = dateStr ? new Date(dateStr).getTime() : NaN;
+  if (isNaN(ts)) return null;
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 1) return 'recién';
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  return `hace ${Math.floor(hours / 24)} d`;
+}
+
 async function loadDollar() {
   const grid = document.getElementById('dollarGrid');
   const toggleEl = document.getElementById('dolarCasaToggle');
@@ -154,6 +169,7 @@ async function loadDollar() {
       const badge = brecha != null
         ? `<span class="pill ${pctClass(brecha)}">${fmtPct(brecha)}</span>`
         : '<span class="pill flat">Referencia</span>';
+      const movedAgo = fmtTimeAgo(r.fechaActualizacion);
       return `
       <div class="dollar-card">
         <div class="dollar-card-head">
@@ -162,6 +178,7 @@ async function loadDollar() {
         </div>
         <div class="rate mono">${fmtARS(r.venta)}</div>
         <div class="rate-sub">compra ${fmtARS(r.compra)}</div>
+        ${movedAgo ? `<div class="rate-updated">${movedAgo}</div>` : ''}
       </div>`;
     }).join('');
 
