@@ -57,6 +57,7 @@
     <button class="bond-cat-tab" data-cat="cer" onclick="selectCategory('cer')">Ajustables por CER</button>
     <button class="bond-cat-tab" data-cat="tamar" onclick="selectCategory('tamar')">Tasa TAMAR</button>
     <button class="bond-cat-tab" data-cat="caucion" onclick="selectCategory('caucion')">Caución</button>
+    <button class="bond-cat-tab" data-cat="carry" onclick="selectCategory('carry')">Carry Trade</button>
   </div>
 
   <div id="catLetras">
@@ -308,6 +309,43 @@
     </section>
   </div>
 
+  <div id="catCarry" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Carry Trade</h2>
+        <span id="carryUpdated">—</span>
+      </div>
+      <div class="quick-metrics" id="carryStats"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Vencimiento</th>
+              <th>DTM</th>
+              <th>TEA</th>
+              <th>Precio</th>
+              <th>Dólar MEP hoy</th>
+              <th>Dólar Breakeven</th>
+              <th>Suba admitida</th>
+            </tr>
+          </thead>
+          <tbody id="carryBody">
+            <tr><td colspan="8" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="info-toggle" onclick="toggleInfo('carryInfo')">
+        <span id="carryInfoChevron">▾</span> ¿Qué es el carry trade y el dólar breakeven?
+      </button>
+      <div id="carryInfo" class="curve-info" style="display:none;">
+        <p>Acá "carry trade" es vender dólares hoy, comprar una LECAP/BONCAP en pesos, y recomprar dólares cuando vence. Ganás en dólares si el MEP subió <b>menos</b> de lo que rindió la letra en ese período; perdés si subió más.</p>
+        <p><b>Dólar Breakeven:</b> a qué valor tendría que estar el MEP el día del vencimiento para que te dé exactamente lo mismo haber hecho el carry que haberte quedado en dólares. <b>Suba admitida:</b> cuánto puede subir el MEP desde hoy hasta esa fecha sin que pierdas — el rendimiento directo (sin anualizar) de la letra en todo el período, no la TEA.</p>
+        <p>Es una foto de hoy, no una promesa: si el dólar se mueve fuerte antes del vencimiento, podés necesitar vender la letra antes de tiempo a un precio distinto al esperado.</p>
+      </div>
+    </section>
+  </div>
+
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y fechas/valor final de letras por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
     Paridad, TIR y duration de Bonares/Globales se calculan con el cronograma de pagos oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a>, descontando flujos con convención Actual/365; pueden diferir levemente de otras calculadoras por convención de día de liquidación. El índice CER usado para los bonos ajustables es la variable 30 del <a href="https://www.bcra.gob.ar/" target="_blank" rel="noopener">BCRA</a>.
@@ -344,7 +382,7 @@ function toggleInfo(bodyId) {
   if (chevron) chevron.textContent = open ? '▾' : '▴';
 }
 
-const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar', caucion: 'catCaucion' };
+const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar', caucion: 'catCaucion', carry: 'catCarry' };
 let activeCat = 'letras';
 
 function selectCategory(cat) {
@@ -365,6 +403,69 @@ function loadCategory(cat) {
   if (cat === 'cer') return loadCerBonds();
   if (cat === 'tamar') return loadTamarBonds();
   if (cat === 'caucion') return loadCaucion();
+  if (cat === 'carry') return loadCarryTrade();
+}
+
+// Carry trade: vender dolares hoy, comprar la letra en pesos, recomprar
+// dolares al vencimiento. "ratio" (vpv/precio, ver getLecapData) es el
+// multiplo de capital de hoy al vencimiento — multiplicado por el MEP de
+// hoy da el dolar al que, si llega el MEP justo ahi al vencimiento, el
+// carry da lo mismo que haberse quedado en dolares (breakeven). La "suba
+// admitida" es ese mismo numero como %, osea el rendimiento directo (sin
+// anualizar) de la letra en el período.
+async function loadCarryTrade() {
+  const body = document.getElementById('carryBody');
+  const statsEl = document.getElementById('carryStats');
+  try {
+    const [data, mep] = await Promise.all([getLecapData(), getUsdArsRate()]);
+    lecapCache = data;
+    if (!data.length) {
+      body.innerHTML = '<tr><td colspan="8" class="empty-note">No hay LECAPs vigentes en este momento.</td></tr>';
+      statsEl.innerHTML = '';
+      document.getElementById('carryUpdated').textContent = '';
+      return;
+    }
+    const rows = data.map(l => ({
+      ...l,
+      breakeven: mep * l.ratio,
+      subaAdmitida: (l.ratio - 1) * 100
+    }));
+
+    body.innerHTML = rows.map(l => `
+      <tr>
+        <td><span class="tk">${l.ticker}</span></td>
+        <td class="mono">${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td class="mono">${l.dtm}</td>
+        <td class="mono">${fmtNum(l.tea)}%</td>
+        <td class="mono row-value">${fmtARS(l.price)}</td>
+        <td class="mono">${fmtARS(mep)}</td>
+        <td class="mono">${fmtARS(l.breakeven)}</td>
+        <td class="mono chg ${pctClass(l.subaAdmitida)}">${fmtPct(l.subaAdmitida)}</td>
+      </tr>
+    `).join('');
+    document.getElementById('carryUpdated').textContent = rows.length + ' letras vigentes · dólar MEP ' + fmtARS(mep);
+
+    const bestTea = rows.reduce((a, b) => (b.tea > a.tea ? b : a));
+    const bestCushion = rows.reduce((a, b) => (b.subaAdmitida > a.subaAdmitida ? b : a));
+    statsEl.innerHTML = `
+      <div class="quick-stat">
+        <div class="label">Dólar MEP hoy</div>
+        <div class="val mono">${fmtARS(mep)}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Mejor TEA</div>
+        <div class="val">${bestTea.ticker} · ${fmtNum(bestTea.tea)}%</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Mayor colchón a breakeven</div>
+        <div class="val">${bestCushion.ticker} · +${fmtNum(bestCushion.subaAdmitida)}%</div>
+      </div>
+    `;
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="8" class="empty-note">No se pudo cargar la información.</td></tr>';
+    statsEl.innerHTML = '';
+  }
 }
 
 // Caucion real de BYMA (via rava.com, ver netlify/functions/rava-caucion.mjs)
