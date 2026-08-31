@@ -54,6 +54,7 @@
       <h2>Dólar</h2>
       <span id="dolarUpdated">—</span>
     </div>
+    <div class="dolar-brecha-note" id="dolarBrechaNote"></div>
     <div class="dollar-grid" id="dollarGrid">
       <div class="empty-note">Cargando cotizaciones…</div>
     </div>
@@ -164,13 +165,16 @@ async function loadDollar() {
       </div>`;
     }).join('');
 
-    let updatedText = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+    document.getElementById('dolarUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+
+    const noteEl = document.getElementById('dolarBrechaNote');
     if (oficial) {
       const brechas = rates.filter(r => r.casa !== 'oficial').map(brechaOf);
       const avgBrecha = brechas.reduce((s, v) => s + v, 0) / brechas.length;
-      updatedText = `Brecha promedio vs. oficial ${fmtPct(avgBrecha)} · ${updatedText}`;
+      noteEl.innerHTML = `<span class="pill flat">Brecha promedio vs. oficial <b class="mono">${fmtPct(avgBrecha)}</b></span>`;
+    } else {
+      noteEl.innerHTML = '';
     }
-    document.getElementById('dolarUpdated').textContent = updatedText;
 
     if (!casaToggleBuilt) {
       casaToggleBuilt = true;
