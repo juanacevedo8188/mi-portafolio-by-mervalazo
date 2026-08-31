@@ -129,7 +129,14 @@ async function getLecapData() {
         pctChange: q.pct_change,
         tem: (Math.pow(ratio, 30 / dtm) - 1) * 100,
         tna: (ratio - 1) * (365 / dtm) * 100,
-        tea: (Math.pow(ratio, 365 / dtm) - 1) * 100
+        tea: (Math.pow(ratio, 365 / dtm) - 1) * 100,
+        // Multiplo de capital de hoy al vencimiento (vpv/precio) — el
+        // retorno directo, sin anualizar, que ya se usa arriba para
+        // derivar TEM/TNA/TEA. Se expone aparte porque el carry trade
+        // (ver "Carry Trade" en Renta Fija) lo necesita tal cual: cuanto
+        // puede subir el dolar hasta el vencimiento sin perder plata en
+        // dolares yendo a esta letra.
+        ratio
       };
     })
     .filter(Boolean)
