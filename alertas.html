@@ -106,8 +106,8 @@
           <div>
             <label for="precioDireccion">Condición</label>
             <select id="precioDireccion">
-              <option value="sube_a">Sube a</option>
-              <option value="baja_a">Baja a</option>
+              <option value="sube_a">Sube por encima de</option>
+              <option value="baja_a">Baja por debajo de</option>
             </select>
           </div>
           <div>
@@ -413,7 +413,7 @@ async function createAlert() {
 
 function alertLabel(a) {
   if (a.categoria === 'precio') {
-    const dir = a.direccion === 'sube_a' ? 'sube a' : 'baja a';
+    const dir = a.direccion === 'sube_a' ? 'sube por encima de' : 'baja por debajo de';
     return a.ticker + ' ' + dir + ' ' + fmtARS(a.precio_objetivo);
   }
   const fuente = a.instrumento_tipo === 'futuro_dolar' ? 'Futuro' : 'Letra';

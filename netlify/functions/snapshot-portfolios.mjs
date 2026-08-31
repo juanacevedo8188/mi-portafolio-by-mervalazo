@@ -2,6 +2,63 @@ import PORTFOLIO from '../../portfolio.js';
 
 const SUPABASE_URL = 'https://rdpwpcgaarbnpotxcvzz.supabase.co';
 
+// Mismas listas/fuentes que getCryptoMap()/getLetraPriceMap() en market.js
+// (uso del navegador) — se duplican acá porque esta funcion serverless no
+// puede importar ese script de browser. Sin esto, cualquier holding de
+// tipo 'cripto' o 'letra' no aparecia en priceMap y caia al fallback de
+// abajo (precio_compra, el costo original) en vez del precio de mercado
+// del dia — asi la "Evolucion" de esos usuarios quedaba congelada, sin
+// reflejar ningun movimiento real dia a dia.
+const CRYPTO_LIST = [
+  { id: 'bitcoin', symbol: 'BTC' }, { id: 'ethereum', symbol: 'ETH' },
+  { id: 'binancecoin', symbol: 'BNB' }, { id: 'ripple', symbol: 'XRP' },
+  { id: 'solana', symbol: 'SOL' }, { id: 'cardano', symbol: 'ADA' },
+  { id: 'dogecoin', symbol: 'DOGE' }, { id: 'tron', symbol: 'TRX' },
+  { id: 'polkadot', symbol: 'DOT' }, { id: 'avalanche-2', symbol: 'AVAX' },
+  { id: 'chainlink', symbol: 'LINK' }, { id: 'litecoin', symbol: 'LTC' },
+  { id: 'bitcoin-cash', symbol: 'BCH' }, { id: 'cosmos', symbol: 'ATOM' },
+  { id: 'ethereum-classic', symbol: 'ETC' }, { id: 'stellar', symbol: 'XLM' },
+  { id: 'shiba-inu', symbol: 'SHIB' }, { id: 'matic-network', symbol: 'MATIC' },
+  { id: 'tether', symbol: 'USDT' }, { id: 'usd-coin', symbol: 'USDC' }
+];
+
+async function getUsdArsRate() {
+  const data = await fetch('https://data912.com/live/mep').then(r => r.json());
+  const rates = data.map(d => d.close).filter(v => typeof v === 'number' && v > 0);
+  if (!rates.length) throw new Error('sin datos de dólar MEP');
+  return rates.reduce((s, v) => s + v, 0) / rates.length;
+}
+
+async function getCryptoMap() {
+  const ids = CRYPTO_LIST.map(c => c.id).join(',');
+  const [data, usdArsRate] = await Promise.all([
+    fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=' + ids).then(r => r.json()),
+    getUsdArsRate()
+  ]);
+  const map = new Map();
+  data.forEach(coin => {
+    const entry = CRYPTO_LIST.find(c => c.id === coin.id);
+    if (entry) map.set(entry.symbol, { c: coin.current_price * usdArsRate });
+  });
+  return map;
+}
+
+async function getLetraMap() {
+  const [letras, notes, bonds] = await Promise.all([
+    fetch('https://api.argentinadatos.com/v1/finanzas/letras').then(r => r.json()),
+    fetch('https://data912.com/live/arg_notes').then(r => r.json()),
+    fetch('https://data912.com/live/arg_bonds').then(r => r.json())
+  ]);
+  const priceMap = new Map();
+  [...notes, ...bonds].forEach(row => priceMap.set(row.symbol, row));
+  const map = new Map();
+  letras.forEach(l => {
+    const q = priceMap.get(l.ticker);
+    if (q && q.c) map.set(l.ticker, { c: q.c });
+  });
+  return map;
+}
+
 function computeTotals(holdings, priceMap) {
   return holdings.reduce((acc, h) => {
     const q = priceMap.get(h.ticker);
@@ -28,12 +85,16 @@ export default async () => {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const [stocks, cedears] = await Promise.all([
+  const [stocks, cedears, cryptoMap, letraMap] = await Promise.all([
     fetch('https://data912.com/live/arg_stocks').then(r => r.json()),
-    fetch('https://data912.com/live/arg_cedears').then(r => r.json())
+    fetch('https://data912.com/live/arg_cedears').then(r => r.json()),
+    getCryptoMap().catch(err => { console.error('cripto', err); return new Map(); }),
+    getLetraMap().catch(err => { console.error('letras', err); return new Map(); })
   ]);
   const priceMap = new Map();
   [...stocks, ...cedears].forEach(row => priceMap.set(row.symbol, row));
+  cryptoMap.forEach((v, k) => priceMap.set(k, v));
+  letraMap.forEach((v, k) => priceMap.set(k, v));
 
   const communityTotals = computeTotals(PORTFOLIO.holdings, priceMap);
   await fetch(`${SUPABASE_URL}/rest/v1/community_snapshots?on_conflict=snapshot_date`, {
