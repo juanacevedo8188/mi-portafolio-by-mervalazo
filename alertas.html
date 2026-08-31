@@ -43,6 +43,7 @@
   .alert-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
   .alert-form-grid label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
   .alert-hint{font-size:12px;color:var(--text-faint);margin-top:5px;min-height:16px;}
+  .alert-row-actions{display:flex;align-items:center;gap:6px;}
   @media (max-width:640px){ .alert-form-grid{grid-template-columns:1fr;} }
 </style>
 </head>
@@ -436,8 +437,10 @@ function triggeredRowHtml(a) {
     <span class="tag cripto">🔔</span>
     <span class="opt-trade-main">${alertLabel(a)}</span>
     <span class="opt-trade-sub mono">${fecha}</span>
-    <button class="btn-secondary" style="margin:0;width:auto;padding:6px 10px;font-size:11.5px;" onclick="reactivateAlert('${a.id}')">Reactivar</button>
-    <button class="opt-trade-del" onclick="deleteAlert('${a.id}')" title="Descartar">✕</button>
+    <span class="alert-row-actions">
+      <button class="btn-secondary" style="margin:0;width:auto;padding:6px 10px;font-size:11.5px;" onclick="reactivateAlert('${a.id}')">Reactivar</button>
+      <button class="opt-trade-del" onclick="deleteAlert('${a.id}')" title="Descartar">✕</button>
+    </span>
   </div>`;
 }
 
