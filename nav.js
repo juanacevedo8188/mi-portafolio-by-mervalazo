@@ -21,8 +21,7 @@ const NAV_GROUPS = [
       { key: 'opciones', label: 'Calculadora de Opciones', href: 'opciones.html' },
       { key: 'capm', label: 'Calculadora CAPM', href: 'capm.html' },
       { key: 'markowitz', label: 'Frontera Eficiente', href: 'markowitz.html' },
-      { key: 'vtd', label: 'Calculadora Financiera', href: 'calculadora-financiera.html' },
-      { key: 'vantir', label: 'VAN y TIR de Proyectos', href: 'van-tir.html' }
+      { key: 'vtd', label: 'Calculadora Financiera', href: 'calculadora-financiera.html' }
     ]
   },
   { key: 'portafolio', label: 'Mi Portafolio', href: 'mi-portafolio.html' },
