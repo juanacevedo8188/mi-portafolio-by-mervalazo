@@ -67,6 +67,7 @@
       <div id="curveInfo" class="curve-info" style="display:none;">
         <p>Cada contrato de futuro de dólar fija hoy el precio al que se va a comprar/vender USD en su fecha de vencimiento. La <b>tasa implícita (TNA)</b> es la tasa de interés en pesos que ese precio deja "implícita": <b>(Futuro / Dólar MEP − 1) × (365 / días al vencimiento)</b>.</p>
         <p>Es la tasa a la que el mercado te permite cubrirte del tipo de cambio — y por no-arbitraje, debería moverse parecido a las tasas de la curva de LECAP. Comparar esta curva contra la <a href="renta-fija.html">tasa forward implícita de Renta Fija</a> es un buen chequeo de consistencia entre mercados.</p>
+        <p><b>Puede dar negativa</b>, y no es un error: pasa cuando el precio de ese futuro está por debajo del dólar spot de hoy — el mercado está pricing un dólar más barato en pesos para ese mes (suele verse en los meses de mayor liquidación de dólares del agro, o cuando se espera estabilidad/apreciación cambiaria). Los números en rojo en la tabla son justamente eso.</p>
         <p>El contrato más próximo a vencer puede dar una tasa implícita rarísima (muy positiva o muy negativa): con pocos días de por medio, cualquier diferencia mínima contra el spot se anualiza y se dispara. No es un error — es que anualizar deja de tener sentido cuando casi no queda tiempo. Por eso esos contratos quedan afuera del gráfico (se guían mejor mirando el precio directo en la tabla).</p>
       </div>
     </section>
@@ -305,7 +306,8 @@ async function loadFutures() {
       const dtv = Math.round((expiry - today) / 86400000);
       if (dtv < 1) return null;
       const tna = (price / spot - 1) * (365 / dtv) * 100;
-      return { ticker, price, bid: q.bid, offer: q.offer, expiry, dtv, tna };
+      const premium = (price / spot - 1) * 100;
+      return { ticker, price, bid: q.bid, offer: q.offer, expiry, dtv, tna, premium };
     }).filter(Boolean).sort((a, b) => a.dtv - b.dtv);
 
     if (!fxCache.length) {
@@ -323,8 +325,8 @@ async function loadFutures() {
         <td class="mono">${f.dtv}</td>
         <td class="mono">${f.bid != null ? fmtARS(f.bid) : '—'}</td>
         <td class="mono">${f.offer != null ? fmtARS(f.offer) : '—'}</td>
-        <td class="mono row-value">${fmtARS(f.price)}</td>
-        <td class="mono">${fmtNum(f.tna)}%</td>
+        <td class="mono row-value chg ${pctClass(f.premium)}">${fmtARS(f.price)}</td>
+        <td class="mono chg ${pctClass(f.tna)}">${fmtNum(f.tna)}%</td>
       </tr>
     `).join('');
     document.getElementById('fxUpdated').textContent = fxCache.length + ' contratos';
@@ -375,7 +377,7 @@ async function loadCaucion() {
         <td><span class="tk">${f.ticker.replace('CAUC/', '')}</span></td>
         <td class="mono">${f.expiry.toLocaleDateString('es-AR')}</td>
         <td class="mono">${f.dtv}</td>
-        <td class="mono row-value">${fmtNum(f.tna)}%</td>
+        <td class="mono row-value chg ${pctClass(f.tna)}">${fmtNum(f.tna)}%</td>
       </tr>
     `).join('');
     document.getElementById('caucionUpdated').textContent = caucionCache.length + ' plazos';
