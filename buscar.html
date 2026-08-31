@@ -90,6 +90,7 @@
 <script src="supabase-config.js"></script>
 <script src="market.js"></script>
 <script src="nav.js"></script>
+<script src="alerts-badge.js"></script>
 <script>
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 let currentSession = null;
@@ -304,6 +305,7 @@ sb.auth.onAuthStateChange((_event, session) => {
   currentSession = session;
   const headerRight = document.getElementById('headerRight');
   headerRight.innerHTML = session ? '<span class="user-bar">' + session.user.email + '</span>' : '';
+  if (session) renderAlertsBadge(sb);
   loadWatchlist();
 });
 

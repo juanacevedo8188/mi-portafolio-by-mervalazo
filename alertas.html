@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Alertas</title>
+<meta name="description" content="Alertas de precio y de vencimiento para tus tickers e instrumentos favoritos.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Alertas">
+<meta property="og:description" content="Alertas de precio y de vencimiento para tus tickers e instrumentos favoritos.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/alertas.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Alertas">
+<meta name="twitter:description" content="Alertas de precio y de vencimiento para tus tickers e instrumentos favoritos.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .auth-wrap{max-width:380px;margin:80px auto;text-align:center;}
+  .auth-wrap h2{font-size:19px;font-weight:700;margin-bottom:6px;}
+  .auth-wrap p{color:var(--text-dim);font-size:13px;margin-bottom:22px;line-height:1.5;}
+  .auth-card{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:24px;}
+  .auth-msg{font-size:12.5px;margin-top:14px;color:var(--text-dim);}
+  .auth-msg.err{color:var(--down);}
+  .auth-msg.ok{color:var(--up);}
+  .field-label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.3px;}
+  .field-label:first-child{margin-top:0;}
+  .auth-links{margin-top:16px;display:flex;flex-direction:column;gap:8px;font-size:12.5px;}
+  .auth-links a{cursor:pointer;}
+  #app{display:none;}
+
+  .alert-form{padding:16px 20px;}
+  .alert-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+  .alert-form-grid label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+  .alert-hint{font-size:12px;color:var(--text-faint);margin-top:5px;min-height:16px;}
+  @media (max-width:640px){ .alert-form-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Alertas</h1>
+        <p>Avisos de precio y vencimiento</p>
+      </div>
+    </div>
+    <div class="status" id="headerRight"></div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <div id="authScreen" class="auth-wrap">
+    <h2 id="authTitle">Iniciá sesión</h2>
+    <p id="authSubtitle">Entrá con tu mail y contraseña.</p>
+    <div class="auth-card">
+      <label for="emailInput" class="field-label">Tu email</label>
+      <input type="email" id="emailInput" placeholder="vos@mail.com" autocomplete="email" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+      <div id="passwordField">
+        <label for="passwordInput" class="field-label">Contraseña</label>
+        <input type="password" id="passwordInput" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+      </div>
+      <div id="confirmPasswordField" style="display:none;">
+        <label for="confirmPasswordInput" class="field-label">Repetí la contraseña</label>
+        <input type="password" id="confirmPasswordInput" placeholder="••••••••" autocomplete="new-password" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+      </div>
+      <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Iniciar sesión</button>
+      <div class="auth-msg" id="authMsg"></div>
+      <div class="auth-links">
+        <a id="toggleModeLink" onclick="toggleAuthMode(event)">¿No tenés cuenta? Registrate</a>
+        <a id="forgotLink" onclick="startPasswordReset(event)">Olvidé mi contraseña</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="app">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Nueva alerta</h2>
+      </div>
+      <div class="alert-form">
+        <div class="bond-cat-tabs" id="categoriaTabs">
+          <button type="button" class="bond-cat-tab active" data-cat="precio" onclick="selectCategoria('precio')">Precio</button>
+          <button type="button" class="bond-cat-tab" data-cat="vencimiento" onclick="selectCategoria('vencimiento')">Vencimiento</button>
+        </div>
+
+        <div id="precioFields" class="alert-form-grid">
+          <div>
+            <label for="precioTicker">Ticker (acción o CEDEAR)</label>
+            <input type="text" id="precioTicker" placeholder="GGAL" oninput="onPrecioTickerInput()">
+            <div class="alert-hint" id="precioTickerHint"></div>
+          </div>
+          <div>
+            <label for="precioDireccion">Condición</label>
+            <select id="precioDireccion">
+              <option value="sube_a">Sube a</option>
+              <option value="baja_a">Baja a</option>
+            </select>
+          </div>
+          <div>
+            <label for="precioObjetivo">Precio objetivo (ARS)</label>
+            <input type="number" id="precioObjetivo" placeholder="1500" min="0" step="any">
+          </div>
+        </div>
+
+        <div id="vencimientoFields" class="alert-form-grid" style="display:none;">
+          <div>
+            <label>Instrumento</label>
+            <div class="bond-cat-tabs" id="instrumentoTabs">
+              <button type="button" class="bond-cat-tab active" data-tipo="futuro_dolar" onclick="selectInstrumentoTipo('futuro_dolar')">Futuro de Dólar</button>
+              <button type="button" class="bond-cat-tab" data-tipo="letra" onclick="selectInstrumentoTipo('letra')">Letra</button>
+            </div>
+          </div>
+          <div>
+            <label for="vencTicker">Contrato / ticker</label>
+            <select id="vencTicker"><option value="">Cargando…</option></select>
+          </div>
+          <div>
+            <label for="diasAnticipacion">Días de anticipación</label>
+            <input type="number" id="diasAnticipacion" value="5" min="1" step="1">
+          </div>
+        </div>
+
+        <button class="btn-primary" id="createAlertBtn" onclick="createAlert()">Crear alerta</button>
+        <div id="alertFormMsg" class="form-err" style="display:none;"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="triggeredPanel" style="display:none;">
+      <div class="panel-head">
+        <h2>Alertas disparadas</h2>
+        <span id="triggeredCount"></span>
+      </div>
+      <div id="triggeredList"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Alertas activas</h2>
+        <span id="activeCount"></span>
+      </div>
+      <div id="activeList"><div class="empty-note">Cargando…</div></div>
+    </section>
+  </div>
+
+  <footer>
+    Precios de acciones/CEDEARs vía <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a>, futuros de dólar vía PPI, letras vía argentinadatos.com. Las alertas se evalúan cada 15 minutos en horario de mercado — puede haber una demora corta entre que se cumple la condición y que la ves acá. A título informativo — no constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script src="alerts-badge.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+let currentSession = null;
+let authMode = 'login'; // 'login' | 'signup' | 'reset' | 'recovery'
+let categoria = 'precio';
+let instrumentoTipo = 'futuro_dolar';
+let precioMap = null; // Map(symbol -> row) de arg_stocks + arg_cedears, cacheado
+let alertsCache = [];
+
+function renderAuthMode() {
+  const title = document.getElementById('authTitle');
+  const subtitle = document.getElementById('authSubtitle');
+  const pwField = document.getElementById('passwordField');
+  const confirmField = document.getElementById('confirmPasswordField');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  const toggleLink = document.getElementById('toggleModeLink');
+  const forgotLink = document.getElementById('forgotLink');
+  document.getElementById('authMsg').textContent = '';
+  document.getElementById('authMsg').className = 'auth-msg';
+
+  if (authMode === 'signup') {
+    title.textContent = 'Creá tu cuenta';
+    subtitle.textContent = 'Elegí una contraseña para tus alertas.';
+    pwField.style.display = 'block';
+    confirmField.style.display = 'block';
+    submitBtn.textContent = 'Crear cuenta';
+    toggleLink.textContent = '¿Ya tenés cuenta? Iniciá sesión';
+    forgotLink.style.display = 'block';
+  } else if (authMode === 'reset') {
+    title.textContent = 'Recuperar contraseña';
+    subtitle.textContent = 'Te mandamos un link para elegir una nueva.';
+    pwField.style.display = 'none';
+    confirmField.style.display = 'none';
+    submitBtn.textContent = 'Enviarme el link';
+    toggleLink.textContent = 'Volver a iniciar sesión';
+    forgotLink.style.display = 'none';
+  } else if (authMode === 'recovery') {
+    title.textContent = 'Elegí tu nueva contraseña';
+    subtitle.textContent = 'Ingresá una contraseña nueva para tu cuenta.';
+    pwField.style.display = 'block';
+    confirmField.style.display = 'block';
+    submitBtn.textContent = 'Guardar nueva contraseña';
+    toggleLink.style.display = 'none';
+    forgotLink.style.display = 'none';
+  } else {
+    title.textContent = 'Iniciá sesión';
+    subtitle.textContent = 'Entrá con tu mail y contraseña.';
+    pwField.style.display = 'block';
+    confirmField.style.display = 'none';
+    submitBtn.textContent = 'Iniciar sesión';
+    toggleLink.textContent = '¿No tenés cuenta? Registrate';
+    toggleLink.style.display = 'block';
+    forgotLink.style.display = 'block';
+  }
+}
+
+function toggleAuthMode(evt) {
+  evt.preventDefault();
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  renderAuthMode();
+}
+
+function startPasswordReset(evt) {
+  evt.preventDefault();
+  authMode = 'reset';
+  renderAuthMode();
+}
+
+async function handleAuthSubmit() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  const confirm = document.getElementById('confirmPasswordInput').value;
+  const msg = document.getElementById('authMsg');
+  const btn = document.getElementById('authSubmitBtn');
+  msg.className = 'auth-msg';
+  msg.textContent = '';
+
+  if (!email) {
+    msg.className = 'auth-msg err';
+    msg.textContent = 'Ingresá tu mail.';
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    if (authMode === 'login') {
+      if (!password) throw new Error('Ingresá tu contraseña.');
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } else if (authMode === 'signup') {
+      if (password.length < 6) throw new Error('La contraseña tiene que tener al menos 6 caracteres.');
+      if (password !== confirm) throw new Error('Las contraseñas no coinciden.');
+      const { data, error } = await sb.auth.signUp({
+        email, password,
+        options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      });
+      if (error) throw error;
+      if (!data.session) {
+        authMode = 'login';
+        renderAuthMode();
+        msg.className = 'auth-msg ok';
+        msg.textContent = 'Cuenta creada. Revisá tu mail para confirmarla y después iniciá sesión.';
+      }
+    } else if (authMode === 'reset') {
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + window.location.pathname
+      });
+      if (error) throw error;
+      msg.className = 'auth-msg ok';
+      msg.textContent = 'Revisá tu mail — te mandamos un link para elegir una nueva contraseña.';
+    } else if (authMode === 'recovery') {
+      if (password.length < 6) throw new Error('La contraseña tiene que tener al menos 6 caracteres.');
+      if (password !== confirm) throw new Error('Las contraseñas no coinciden.');
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) throw error;
+      const { data: { session } } = await sb.auth.getSession();
+      showApp(session);
+    }
+  } catch (err) {
+    msg.className = 'auth-msg err';
+    msg.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showAuthScreen(mode) {
+  authMode = mode || 'login';
+  document.getElementById('authScreen').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('headerRight').innerHTML = '';
+  renderAuthMode();
+}
+
+function showApp(session) {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('headerRight').innerHTML =
+    '<span class="user-bar">' + session.user.email + '<button class="btn-secondary" onclick="signOut()">Salir</button></span>';
+  renderAlertsBadge(sb);
+  loadAlerts();
+  loadVencTickers();
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+}
+
+// --- Formulario ---
+
+function selectCategoria(cat) {
+  categoria = cat;
+  document.querySelectorAll('#categoriaTabs .bond-cat-tab').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  document.getElementById('precioFields').style.display = cat === 'precio' ? 'grid' : 'none';
+  document.getElementById('vencimientoFields').style.display = cat === 'vencimiento' ? 'grid' : 'none';
+}
+
+function selectInstrumentoTipo(tipo) {
+  instrumentoTipo = tipo;
+  document.querySelectorAll('#instrumentoTabs .bond-cat-tab').forEach(b => b.classList.toggle('active', b.dataset.tipo === tipo));
+  loadVencTickers();
+}
+
+async function ensurePrecioMap() {
+  if (precioMap) return precioMap;
+  const [stocks, cedears] = await Promise.all([fetchFeed('arg_stocks'), fetchFeed('arg_cedears')]);
+  precioMap = new Map();
+  [...stocks, ...cedears].forEach(row => precioMap.set(row.symbol, row));
+  return precioMap;
+}
+
+async function onPrecioTickerInput() {
+  const input = document.getElementById('precioTicker');
+  input.value = input.value.toUpperCase();
+  const hint = document.getElementById('precioTickerHint');
+  const ticker = input.value.trim();
+  if (!ticker) { hint.textContent = ''; return; }
+  const map = await ensurePrecioMap();
+  const row = map.get(ticker);
+  hint.textContent = row ? 'Precio actual: ' + fmtARS(row.c) : 'No encontramos ese ticker entre acciones/CEDEARs.';
+}
+
+async function loadVencTickers() {
+  const select = document.getElementById('vencTicker');
+  select.innerHTML = '<option value="">Cargando…</option>';
+  try {
+    if (instrumentoTipo === 'futuro_dolar') {
+      const res = await fetch('/.netlify/functions/ppi-futuros', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const opts = Object.entries(data)
+        .filter(([, q]) => q.expirationDate)
+        .sort((a, b) => new Date(a[1].expirationDate) - new Date(b[1].expirationDate))
+        .map(([ticker, q]) => `<option value="${ticker}">${ticker.replace('DLR/', '')} · vto ${new Date(q.expirationDate + 'T00:00:00Z').toLocaleDateString('es-AR')}</option>`);
+      select.innerHTML = opts.join('') || '<option value="">No hay contratos disponibles</option>';
+    } else {
+      const letras = await getLecapData();
+      const opts = letras
+        .sort((a, b) => a.dtm - b.dtm)
+        .map(l => `<option value="${l.ticker}">${l.ticker} · vto ${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</option>`);
+      select.innerHTML = opts.join('') || '<option value="">No hay letras disponibles</option>';
+    }
+  } catch (err) {
+    console.error(err);
+    select.innerHTML = '<option value="">No se pudo cargar</option>';
+  }
+}
+
+async function createAlert() {
+  const msg = document.getElementById('alertFormMsg');
+  msg.style.display = 'none';
+  const btn = document.getElementById('createAlertBtn');
+
+  let payload;
+  if (categoria === 'precio') {
+    const ticker = document.getElementById('precioTicker').value.trim().toUpperCase();
+    const direccion = document.getElementById('precioDireccion').value;
+    const precioObjetivo = parseFloat(document.getElementById('precioObjetivo').value);
+    if (!ticker) { msg.textContent = 'Ingresá un ticker.'; msg.style.display = 'block'; return; }
+    if (!(precioObjetivo > 0)) { msg.textContent = 'Ingresá un precio objetivo válido.'; msg.style.display = 'block'; return; }
+    payload = { categoria: 'precio', instrumento_tipo: 'accion_cedear', ticker, direccion, precio_objetivo: precioObjetivo };
+  } else {
+    const ticker = document.getElementById('vencTicker').value;
+    const diasAnticipacion = parseInt(document.getElementById('diasAnticipacion').value, 10);
+    if (!ticker) { msg.textContent = 'Elegí un contrato/ticker.'; msg.style.display = 'block'; return; }
+    if (!(diasAnticipacion > 0)) { msg.textContent = 'Ingresá días de anticipación válidos.'; msg.style.display = 'block'; return; }
+    payload = { categoria: 'vencimiento', instrumento_tipo: instrumentoTipo, ticker, dias_anticipacion: diasAnticipacion };
+  }
+
+  btn.disabled = true;
+  const { error } = await sb.from('alerts').insert(payload);
+  btn.disabled = false;
+  if (error) {
+    msg.textContent = error.message;
+    msg.style.display = 'block';
+    return;
+  }
+  document.getElementById('precioTicker').value = '';
+  document.getElementById('precioObjetivo').value = '';
+  document.getElementById('precioTickerHint').textContent = '';
+  loadAlerts();
+}
+
+// --- Listas ---
+
+function alertLabel(a) {
+  if (a.categoria === 'precio') {
+    const dir = a.direccion === 'sube_a' ? 'sube a' : 'baja a';
+    return a.ticker + ' ' + dir + ' ' + fmtARS(a.precio_objetivo);
+  }
+  const fuente = a.instrumento_tipo === 'futuro_dolar' ? 'Futuro' : 'Letra';
+  return fuente + ' ' + a.ticker.replace('DLR/', '') + ' · ' + a.dias_anticipacion + ' día' + (a.dias_anticipacion === 1 ? '' : 's') + ' antes del vencimiento';
+}
+
+function activeRowHtml(a) {
+  const fecha = new Date(a.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+  return `<div class="opt-trade-row">
+    <span class="tag ${a.categoria === 'precio' ? 'accion' : 'letra'}">${a.categoria === 'precio' ? 'PRECIO' : 'VENCIMIENTO'}</span>
+    <span class="opt-trade-main">${alertLabel(a)}</span>
+    <span class="opt-trade-sub mono">creada ${fecha}</span>
+    <button class="opt-trade-del" onclick="deleteAlert('${a.id}')" title="Cancelar">✕</button>
+  </div>`;
+}
+
+function triggeredRowHtml(a) {
+  const fecha = a.triggered_at ? new Date(a.triggered_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  return `<div class="opt-trade-row">
+    <span class="tag cripto">🔔</span>
+    <span class="opt-trade-main">${alertLabel(a)}</span>
+    <span class="opt-trade-sub mono">${fecha}</span>
+    <button class="btn-secondary" style="margin:0;width:auto;padding:6px 10px;font-size:11.5px;" onclick="reactivateAlert('${a.id}')">Reactivar</button>
+    <button class="opt-trade-del" onclick="deleteAlert('${a.id}')" title="Descartar">✕</button>
+  </div>`;
+}
+
+async function loadAlerts() {
+  const { data, error } = await sb.from('alerts').select('*').order('created_at', { ascending: false });
+  if (error) { console.error(error); return; }
+  alertsCache = data;
+
+  const activas = data.filter(a => a.estado === 'activa');
+  const disparadas = data.filter(a => a.estado === 'disparada');
+
+  const activeList = document.getElementById('activeList');
+  document.getElementById('activeCount').textContent = activas.length ? activas.length + ' alertas' : '';
+  activeList.innerHTML = activas.length ? activas.map(activeRowHtml).join('') : '<div class="empty-note">No tenés alertas activas todavía.</div>';
+
+  const triggeredPanel = document.getElementById('triggeredPanel');
+  triggeredPanel.style.display = disparadas.length ? 'block' : 'none';
+  document.getElementById('triggeredCount').textContent = disparadas.length ? disparadas.length + ' alertas' : '';
+  document.getElementById('triggeredList').innerHTML = disparadas.map(triggeredRowHtml).join('');
+
+  renderAlertsBadge(sb);
+}
+
+async function deleteAlert(id) {
+  await sb.from('alerts').delete().eq('id', id);
+  loadAlerts();
+}
+
+async function reactivateAlert(id) {
+  await sb.from('alerts').update({ estado: 'activa', triggered_at: null }).eq('id', id);
+  loadAlerts();
+}
+
+renderNavTabs('alertas');
+enhanceAllSelects();
+
+sb.auth.getSession().then(({ data: { session } }) => {
+  currentSession = session;
+  session ? showApp(session) : showAuthScreen();
+});
+sb.auth.onAuthStateChange((event, session) => {
+  currentSession = session;
+  if (event === 'PASSWORD_RECOVERY') {
+    showAuthScreen('recovery');
+    return;
+  }
+  if (authMode === 'recovery') return;
+  session ? showApp(session) : showAuthScreen();
+});
+</script>
+
+</body>
+</html>

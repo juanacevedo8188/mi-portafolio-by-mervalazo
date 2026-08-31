@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     ]
   },
   { key: 'portafolio', label: 'Mi Portafolio', href: 'mi-portafolio.html' },
+  { key: 'alertas', label: 'Alertas', href: 'alertas.html' },
   { key: 'buscar', label: 'Buscar', href: 'buscar.html' },
   { key: 'aprender', label: 'Aprender', href: 'https://mervalazo.netlify.app', external: true }
 ];
