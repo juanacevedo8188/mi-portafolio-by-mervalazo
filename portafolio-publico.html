@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Portafolio compartido</title>
+<meta name="description" content="Mirá este portafolio de acciones, CEDEARs y cripto compartido desde Mervalazo.">
+<meta name="robots" content="noindex">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Portafolio compartido">
+<meta property="og:description" content="Mirá este portafolio de acciones, CEDEARs y cripto compartido desde Mervalazo.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Portafolio compartido">
+<meta name="twitter:description" content="Mirá este portafolio de acciones, CEDEARs y cripto compartido desde Mervalazo.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .share-hero{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;}
+  .share-hero h2{font-size:19px;font-weight:700;}
+  .share-hero p{font-size:12.5px;color:var(--text-dim);margin-top:3px;}
+  .readonly-badge{font-size:11px;font-weight:700;color:var(--text-dim);background:var(--bg-alt);border:1px solid var(--card-border);padding:3px 10px;border-radius:20px;margin-left:8px;vertical-align:middle;}
+  .cta-card{
+    background:var(--card);border:1px solid var(--card-border);border-radius:14px;
+    padding:40px 24px;text-align:center;max-width:420px;margin:60px auto;
+  }
+  .cta-card h2{font-size:18px;margin-bottom:8px;}
+  .cta-card p{font-size:13px;color:var(--text-dim);line-height:1.5;margin-bottom:20px;}
+  #pubApp{display:none;}
+  .weight-cell{font-weight:600;}
+  .summary-card .value.up{color:var(--up);}
+  .summary-card .value.down{color:var(--down);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Portafolio compartido</h1>
+        <p>Vista pública de solo lectura</p>
+      </div>
+    </div>
+    <div class="status"><a class="nav-link" href="mi-portafolio.html">Creá el tuyo gratis →</a></div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <div id="loadingState" class="empty-note" style="padding:60px 0;text-align:center;">Cargando portafolio…</div>
+
+  <div id="notFoundState" style="display:none;">
+    <div class="cta-card">
+      <h2>Este portafolio no está disponible</h2>
+      <p>El link no existe o su dueño dejó de compartirlo.</p>
+      <a class="btn-primary" style="display:inline-block;text-decoration:none;" href="mi-portafolio.html">Creá tu propio portafolio</a>
+    </div>
+  </div>
+
+  <div id="pubApp">
+    <div class="share-hero">
+      <div>
+        <h2 id="pubTitle">Portafolio compartido</h2>
+        <p id="pubSubtitle">Datos en vivo de ByMA · <span id="pubLastUpdate">—</span></p>
+      </div>
+      <span class="readonly-badge">👁 Solo lectura</span>
+    </div>
+
+    <div class="summary-grid" id="summaryGrid"></div>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Radar rápido</h2></div>
+      <div class="quick-metrics" id="quickMetrics"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Evolución</h2>
+        <div class="history-pct-badge">
+          <span id="historyPct" class="history-pct-val">—</span>
+          <span id="historyRange" class="history-pct-range"></span>
+        </div>
+      </div>
+      <div class="history-chart" id="historyChart"><div class="empty-note">Cargando historial…</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Composición por sector</h2>
+        <span>por valor de mercado</span>
+      </div>
+      <div id="donutContainer"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Posiciones</h2>
+        <span id="lastUpdate">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead id="holdingsHead"></thead>
+          <tbody id="holdingsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> con demora de mercado, a título informativo. No constituye recomendación de inversión.
+    · <a href="mi-portafolio.html">Creá tu propio portafolio en Mervalazo</a>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+renderNavTabs('portafolio');
+
+function showNotFound() {
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('notFoundState').style.display = 'block';
+}
+
+function tipoLabelPub(tipo) { return tipoLabel(tipo); }
+
+async function computeRows(holdings, priceMap, oficialVenta) {
+  const usdArsRate = priceMap.usdArsRate;
+  return holdings.map(h => {
+    const q = priceMap.get(h.ticker);
+    const isCrypto = h.tipo === 'cripto';
+    const priceArs = q ? q.c : null;
+    const priceUsd = q ? (isCrypto ? q.usd : (oficialVenta ? q.c / oficialVenta : null)) : null;
+    const dailyPct = q ? q.pct_change : null;
+
+    const valueArs = priceArs != null ? priceArs * h.cantidad : null;
+    const valueUsd = priceUsd != null ? priceUsd * h.cantidad : null;
+
+    const precioCompraArs = isCrypto ? (usdArsRate ? h.precio_compra * usdArsRate : null) : h.precio_compra;
+    const precioCompraUsd = isCrypto ? h.precio_compra : (oficialVenta ? h.precio_compra / oficialVenta : null);
+    const costArs = precioCompraArs != null ? precioCompraArs * h.cantidad : h.precio_compra * h.cantidad;
+    const costUsd = precioCompraUsd != null ? precioCompraUsd * h.cantidad : null;
+
+    const nativePrice = isCrypto ? priceUsd : priceArs;
+    const totalPct = nativePrice != null ? ((nativePrice - h.precio_compra) / h.precio_compra) * 100 : null;
+
+    return {
+      ...h, dailyPct, totalPct, isCrypto, found: !!q,
+      priceArs, priceUsd, precioCompraArs, precioCompraUsd,
+      valueArs, valueUsd, costArs, costUsd,
+      value: valueArs, cost: costArs
+    };
+  });
+}
+
+function renderSummaryWithAmounts(rows) {
+  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  const totalCostArs = rows.reduce((s, r) => s + r.costArs, 0);
+  const totalGainArs = totalValueArs - totalCostArs;
+  const totalGainPctArs = totalCostArs ? (totalGainArs / totalCostArs) * 100 : 0;
+  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.valueArs ?? 0) : 0), 0) / (totalValueArs || 1);
+  const dailyDeltaArs = totalValueArs * (weightedDaily / 100);
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="summary-card">
+      <div class="label">Valor de cartera</div>
+      <div class="value mono">${rows.length ? fmtARS(totalValueArs) : '—'}</div>
+      <div class="sub">${rows.length ? `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)} hoy</span>` : '&nbsp;'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Variación diaria</div>
+      <div class="value mono">${rows.length ? (dailyDeltaArs >= 0 ? '+' : '') + fmtARS(dailyDeltaArs) : '—'}</div>
+      <div class="sub">${rows.length ? `<span class="pill ${pctClass(weightedDaily)}">${fmtPct(weightedDaily)}</span>` : '&nbsp;'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Resultado total</div>
+      <div class="value mono">${rows.length ? (totalGainArs >= 0 ? '+' : '') + fmtARS(totalGainArs) : '—'}</div>
+      <div class="sub">${rows.length ? `<span class="pill ${pctClass(totalGainPctArs)}">${fmtPct(totalGainPctArs)} desde compra</span>` : '&nbsp;'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Costo invertido</div>
+      <div class="value mono">${rows.length ? fmtARS(totalCostArs) : '—'}</div>
+      <div class="sub"><span class="pill flat">${rows.length} posiciones</span></div>
+    </div>`;
+  return { totalValueArs, weightedDaily };
+}
+
+function renderSummaryPrivacy(rows) {
+  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  const totalCostArs = rows.reduce((s, r) => s + r.costArs, 0);
+  const totalGainPctArs = totalCostArs ? ((totalValueArs - totalCostArs) / totalCostArs) * 100 : 0;
+  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.valueArs ?? 0) : 0), 0) / (totalValueArs || 1);
+  const sectors = groupBySector(rows);
+  const topSector = sectors[0];
+  const topSectorPct = topSector && totalValueArs ? (topSector.sectorValue / totalValueArs) * 100 : null;
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="summary-card">
+      <div class="label">Rendimiento total</div>
+      <div class="value mono ${pctClass(totalGainPctArs)}">${rows.length ? fmtPct(totalGainPctArs) : '—'}</div>
+      <div class="sub">${rows.length ? 'desde el precio de compra' : '&nbsp;'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Variación diaria</div>
+      <div class="value mono ${pctClass(weightedDaily)}">${rows.length ? fmtPct(weightedDaily) : '—'}</div>
+      <div class="sub">ponderada por peso en cartera</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Posiciones</div>
+      <div class="value mono">${rows.length || '—'}</div>
+      <div class="sub">&nbsp;</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Sector principal</div>
+      <div class="value mono">${topSectorPct != null ? fmtNum(topSectorPct) + '%' : '—'}</div>
+      <div class="sub">${topSector ? topSector.sector : '&nbsp;'}</div>
+    </div>`;
+  return { totalValueArs, weightedDaily };
+}
+
+function renderTableWithAmounts(rows) {
+  document.getElementById('holdingsHead').innerHTML = `<tr>
+    <th>Ticker</th><th>Cantidad</th><th>P. Compra</th><th>P. Actual</th>
+    <th>Var. Diaria</th><th>Var. Total</th><th>Valor</th>
+  </tr>`;
+  const sectors = groupBySector(rows);
+  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  const rowHtml = r => {
+    if (!r.found) {
+      return `<tr>
+        <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabelPub(r.tipo)}</span></div></td>
+        <td colspan="6" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
+      </tr>`;
+    }
+    return `<tr>
+      <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabelPub(r.tipo)}</span></div></td>
+      <td class="mono">${fmtNum(r.cantidad)}</td>
+      <td class="mono">${r.precioCompraArs != null ? fmtARS(r.precioCompraArs) : '—'}</td>
+      <td class="mono">${r.priceArs != null ? fmtARS(r.priceArs) : '—'}</td>
+      <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
+      <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
+      <td class="mono row-value">${r.valueArs != null ? fmtARS(r.valueArs) : '—'}</td>
+    </tr>`;
+  };
+  document.getElementById('holdingsBody').innerHTML = rows.length
+    ? sectors.map(({ sector, list, sectorValue }) => {
+        const weight = totalValueArs ? (sectorValue / totalValueArs) * 100 : 0;
+        return `<tr class="sector-row"><td colspan="7">${sector}<span class="sector-weight">${fmtNum(weight)}%</span></td></tr>` + list.map(rowHtml).join('');
+      }).join('')
+    : '<tr><td colspan="7" class="empty-note">Todavía no cargó ninguna posición.</td></tr>';
+}
+
+function renderTablePrivacy(rows) {
+  document.getElementById('holdingsHead').innerHTML = `<tr>
+    <th>Ticker</th><th>Peso en cartera</th><th>Var. Diaria</th><th>Var. Total</th>
+  </tr>`;
+  const sectors = groupBySector(rows);
+  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  const rowHtml = r => {
+    const weight = totalValueArs ? ((r.valueArs ?? r.costArs) / totalValueArs) * 100 : 0;
+    if (!r.found) {
+      return `<tr>
+        <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabelPub(r.tipo)}</span></div></td>
+        <td colspan="3" class="empty-note" style="text-align:left;">Sin datos para este ticker en el feed</td>
+      </tr>`;
+    }
+    return `<tr>
+      <td><div class="ticker-cell">${tvLink(r.ticker, r.tipo)}<span class="tag ${r.tipo}">${tipoLabelPub(r.tipo)}</span></div></td>
+      <td class="mono weight-cell">${fmtNum(weight)}%</td>
+      <td class="mono chg ${pctClass(r.dailyPct)}">${fmtPct(r.dailyPct)}</td>
+      <td class="mono chg ${pctClass(r.totalPct)}">${fmtPct(r.totalPct)}</td>
+    </tr>`;
+  };
+  document.getElementById('holdingsBody').innerHTML = rows.length
+    ? sectors.map(({ sector, list, sectorValue }) => {
+        const weight = totalValueArs ? (sectorValue / totalValueArs) * 100 : 0;
+        return `<tr class="sector-row"><td colspan="4">${sector}<span class="sector-weight">${fmtNum(weight)}%</span></td></tr>` + list.map(rowHtml).join('');
+      }).join('')
+    : '<tr><td colspan="4" class="empty-note">Todavía no cargó ninguna posición.</td></tr>';
+}
+
+// Grafico de evolucion sin exponer montos: normaliza el historial a un
+// indice que arranca en 100, asi se ve la forma/tendencia sin revelar el
+// valor real de la cartera en ningun momento (ni siquiera en el hover).
+function renderHistoryPrivacy(points) {
+  const chartEl = document.getElementById('historyChart');
+  const rangeEl = document.getElementById('historyRange');
+  const pctEl = document.getElementById('historyPct');
+  if (points.length < 2) {
+    chartEl.innerHTML = '<div class="empty-note">Todavía no hay suficiente historial para graficar la evolución.</div>';
+    rangeEl.textContent = '';
+    pctEl.textContent = '—';
+    return;
+  }
+  const base = points[0].value;
+  const indexed = points.map(p => ({ date: p.date, value: base ? (p.value / base) * 100 : 100 }));
+  const width = chartEl.clientWidth || 600;
+  const height = Math.round(Math.min(140, Math.max(110, width * 0.24)));
+  chartEl.innerHTML = buildLineChartSVG(indexed, width, height);
+
+  const first = new Date(points[0].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+  const last = new Date(points[points.length - 1].date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+  rangeEl.textContent = `${first} — ${last}`;
+  const periodPct = ((points[points.length - 1].value - points[0].value) / points[0].value) * 100;
+  pctEl.textContent = fmtPct(periodPct);
+  pctEl.className = 'history-pct-val ' + pctClass(periodPct);
+
+  const coords = chartCoords(indexed, width, height);
+  const svg = chartEl.querySelector('svg');
+  let tooltip = document.getElementById('chartTooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'chartTooltip';
+    tooltip.className = 'chart-tooltip';
+    document.body.appendChild(tooltip);
+  }
+  const stepX = (width - 20) / (indexed.length - 1);
+  chartEl.addEventListener('mousemove', e => {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const relX = (e.clientX - rect.left) * scaleX;
+    let idx = Math.round((relX - 10) / (stepX || 1));
+    idx = Math.max(0, Math.min(points.length - 1, idx));
+    const p = points[idx], prev = points[idx - 1];
+    const cumPct = ((p.value - base) / base) * 100;
+    const dailyChange = prev ? ((p.value - prev.value) / prev.value) * 100 : null;
+    const dateLabel = new Date(p.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+    tooltip.innerHTML = `<div class="ct-date">${dateLabel}</div><div class="ct-value mono ${pctClass(cumPct)}">${fmtPct(cumPct)} acumulado</div>` +
+      (dailyChange != null ? `<div class="ct-change ${pctClass(dailyChange)}">${fmtPct(dailyChange)} vs día anterior</div>` : '');
+    tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 190) + 'px';
+    tooltip.style.top = Math.max(8, e.clientY - 56) + 'px';
+    tooltip.style.display = 'block';
+  });
+  chartEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+}
+
+async function loadPublicPortfolio() {
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get('u');
+  if (!slug) { showNotFound(); return; }
+
+  const { data: profile, error: profileErr } = await sb.from('profiles')
+    .select('*').eq('public_slug', slug).eq('is_public', true).maybeSingle();
+  if (profileErr || !profile) { showNotFound(); return; }
+
+  const { data: holdings, error: holdingsErr } = await sb.from('holdings')
+    .select('*').eq('user_id', profile.id).order('created_at', { ascending: true });
+  if (holdingsErr) { showNotFound(); return; }
+
+  document.getElementById('pubTitle').textContent = profile.display_name || 'Portafolio compartido';
+
+  let priceMap, oficialVenta = null;
+  try {
+    [priceMap, oficialVenta] = await Promise.all([
+      getPriceMap(true, true),
+      getOficialRate().then(r => r.venta).catch(() => null)
+    ]);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('loadingState').textContent = 'No se pudo conectar con el feed de precios. Volvé a intentar en un momento.';
+    return;
+  }
+
+  const rows = await computeRows(holdings, priceMap, oficialVenta);
+
+  if (profile.show_amounts) {
+    renderSummaryWithAmounts(rows);
+    renderTableWithAmounts(rows);
+  } else {
+    renderSummaryPrivacy(rows);
+    renderTablePrivacy(rows);
+  }
+
+  const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.valueArs ?? 0) : 0), 0) /
+    (rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0) || 1);
+  renderQuickMetrics('quickMetrics', rows, priceMap, weightedDaily);
+
+  const sectors = groupBySector(rows);
+  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  renderDonut('donutContainer', sectors, totalValueArs, null, null);
+
+  document.getElementById('pubLastUpdate').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+  document.getElementById('lastUpdate').textContent = 'Última actualización ' + new Date().toLocaleTimeString('es-AR');
+
+  const { data: snapshots, error: snapErr } = await sb.from('portfolio_snapshots')
+    .select('snapshot_date,total_value').eq('user_id', profile.id).order('snapshot_date', { ascending: true });
+  const points = (!snapErr && snapshots) ? snapshots.map(d => ({ date: d.snapshot_date, value: d.total_value })) : [];
+  if (profile.show_amounts) {
+    renderHistory('historyChart', 'historyRange', points, 'historyPct');
+  } else {
+    renderHistoryPrivacy(points);
+  }
+
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('pubApp').style.display = 'block';
+  initTVHover();
+}
+
+loadPublicPortfolio();
+</script>
+
+</body>
+</html>

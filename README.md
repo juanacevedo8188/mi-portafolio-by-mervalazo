@@ -5,6 +5,7 @@ Sitio estático de la comunidad Mervalazo. Páginas:
 - `index.html` — **Dashboard**: dólar, top ganadores del mercado, top cripto y top acciones argentinas.
 - `cartera.html` — Cartera modelo de la comunidad, con precios y variaciones en vivo de acciones y CEDEARs argentinos ([data912.com](https://data912.com)).
 - `mi-portafolio.html` — Cuentas personales: cada usuario carga sus propias posiciones.
+- `portafolio-publico.html` — Vista pública de solo lectura de un portafolio personal, para compartir por link (ver "Compartir portafolio" más abajo).
 - `buscar.html` — Buscador de cualquier activo (acción, CEDEAR o cripto) con lista de seguimiento.
 
 La navegación entre páginas (`nav.js`) es compartida — se inyecta en cada una llamando a `renderNavTabs('<clave>')`.
@@ -33,6 +34,14 @@ Cada miembro se registra con mail y contraseña y carga sus propias posiciones, 
 2. `supabase-config.js` ya tiene la URL y la anon key del proyecto — no hace falta tocarlo salvo que cambies de proyecto.
 3. **Authentication → URL Configuration**: Site URL y Redirect URLs apuntando al dominio de Netlify (con `/mi-portafolio.html`).
 4. El plan gratis de Supabase manda mails (confirmación de cuenta, recuperación de contraseña) con un límite muy bajo (2-4/hora), pensado solo para pruebas. Para producción, conectar SMTP propio en **Authentication → SMTP Settings** (por ejemplo [Resend](https://resend.com), gratis hasta 3.000 mails/mes).
+
+## Compartir portafolio
+
+Desde "Mi Portafolio" cada usuario puede hacer público su portafolio con un switch: se genera un link (`portafolio-publico.html?u=<slug>`) que cualquiera puede ver, sin necesidad de cuenta ni login, en modo solo lectura (no puede editar ni ver el mail del dueño).
+
+Por defecto la vista pública **no muestra montos en pesos/dólares** — solo porcentajes (rendimiento, variación diaria, composición por sector, evolución indexada a 100). El dueño puede activar "Mostrar montos" si quiere que se vean los valores reales.
+
+Setup en Supabase: correr `supabase/schema_v11.sql` (después de todos los anteriores). Crea la tabla `profiles` (`is_public`, `show_amounts`, `public_slug`) y agrega políticas de RLS que permiten lectura anónima de `holdings` y `portfolio_snapshots` únicamente para los portafolios marcados como públicos — todo lo demás sigue privado por defecto.
 
 ## Historial y evolución
 
