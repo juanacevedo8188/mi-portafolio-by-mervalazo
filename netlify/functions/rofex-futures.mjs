@@ -70,9 +70,10 @@ async function getMarketData(token, symbol) {
 export default async (req) => {
   try {
     const url = new URL(req.url);
+    const symbolsParam = url.searchParams.get('symbols');
     const prefix = url.searchParams.get('prefix') === 'CAUC' ? 'CAUC' : 'DLR';
     const months = Math.min(parseInt(url.searchParams.get('months'), 10) || 12, 18);
-    const tickers = nextMonthlyTickers(prefix, months);
+    const tickers = symbolsParam ? symbolsParam.split(',') : nextMonthlyTickers(prefix, months);
 
     const token = await getToken();
     const results = await Promise.all(tickers.map(async t => [t, await getMarketData(token, t)]));
