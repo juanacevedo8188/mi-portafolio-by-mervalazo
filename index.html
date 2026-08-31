@@ -62,12 +62,17 @@
   <div class="dashboard-grid">
     <section class="panel">
       <div class="panel-head">
-        <h2>Brecha Cambiaria</h2>
-        <span>venta, de menor a mayor</span>
+        <h2>Evolución del Dólar</h2>
+        <div class="history-pct-badge">
+          <span id="dolarHistPct" class="history-pct-val">—</span>
+          <span id="dolarHistRange" class="history-pct-range"></span>
+        </div>
       </div>
-      <div class="brecha-summary" id="brechaSummary"></div>
-      <div class="dollar-bars" id="dollarBars"><div class="empty-note">Cargando…</div></div>
-      <div class="brecha-chart" id="brechaChart" style="display:none;"></div>
+      <div class="dolar-casa-row">
+        <div class="hm-toggle" id="dolarCasaToggle"></div>
+      </div>
+      <div class="quick-metrics dolar-hist-stats" id="dolarHistStats"></div>
+      <div class="brecha-chart" id="dolarHistChart"><div class="empty-note">Cargando…</div></div>
     </section>
 
     <section class="panel">
@@ -137,95 +142,123 @@ function setStatus(state, text) {
 
 async function loadDollar() {
   const grid = document.getElementById('dollarGrid');
-  const barsEl = document.getElementById('dollarBars');
-  const summaryEl = document.getElementById('brechaSummary');
+  const toggleEl = document.getElementById('dolarCasaToggle');
   try {
     const rates = await getAllDolarRates();
-    grid.innerHTML = rates.map(r => `
-      <div class="dollar-card">
-        <div class="label">${r.nombre}</div>
-        <div class="rate mono">${fmtARS(r.venta)}</div>
-        <div class="rate-sub">compra ${fmtARS(r.compra)}</div>
-      </div>
-    `).join('');
-    document.getElementById('dolarUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
-
     const oficial = rates.find(r => r.casa === 'oficial');
     const brechaOf = r => oficial ? ((r.venta / oficial.venta) - 1) * 100 : null;
 
-    if (oficial) {
-      const brechas = rates.filter(r => r.casa !== 'oficial').map(brechaOf);
-      const avgBrecha = brechas.reduce((s, v) => s + v, 0) / brechas.length;
-      summaryEl.innerHTML = `<span class="pill flat">Brecha promedio vs. oficial: <b class="mono">${fmtPct(avgBrecha)}</b></span>`;
-    } else {
-      summaryEl.innerHTML = '';
-    }
-
-    const sorted = [...rates].sort((a, b) => a.venta - b.venta);
-    const max = sorted[sorted.length - 1].venta;
-    barsEl.innerHTML = sorted.map(r => {
+    grid.innerHTML = rates.map(r => {
       const brecha = r.casa !== 'oficial' ? brechaOf(r) : null;
+      const badge = brecha != null
+        ? `<span class="pill ${pctClass(brecha)}">${fmtPct(brecha)}</span>`
+        : '<span class="pill flat">Referencia</span>';
       return `
-      <div class="dbar-row${activeBrechaCasa === r.casa ? ' active' : ''}" data-casa="${r.casa}" onclick="toggleBrechaChart('${r.casa}','${r.nombre}')">
-        <span class="dbar-label">${r.nombre}</span>
-        <span class="dbar-track"><span class="dbar-fill" style="width:${Math.max((r.venta / max) * 100, 4)}%"></span></span>
-        <span class="dbar-val mono">${fmtARS(r.venta)}${brecha != null ? `<span class="dbar-brecha">${fmtPct(brecha)}</span>` : ''}</span>
+      <div class="dollar-card">
+        <div class="dollar-card-head">
+          <span class="label">${r.nombre}</span>
+          ${badge}
+        </div>
+        <div class="rate mono">${fmtARS(r.venta)}</div>
+        <div class="rate-sub">compra ${fmtARS(r.compra)}</div>
       </div>`;
     }).join('');
 
-    if (!brechaDefaulted) {
-      brechaDefaulted = true;
-      toggleBrechaChart('oficial', 'Oficial');
+    let updatedText = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+    if (oficial) {
+      const brechas = rates.filter(r => r.casa !== 'oficial').map(brechaOf);
+      const avgBrecha = brechas.reduce((s, v) => s + v, 0) / brechas.length;
+      updatedText = `Brecha promedio vs. oficial ${fmtPct(avgBrecha)} · ${updatedText}`;
+    }
+    document.getElementById('dolarUpdated').textContent = updatedText;
+
+    if (!casaToggleBuilt) {
+      casaToggleBuilt = true;
+      toggleEl.innerHTML = rates.map(r =>
+        `<button class="hm-toggle-btn${r.casa === activeCasa ? ' active' : ''}" data-casa="${r.casa}" data-nombre="${r.nombre}">${r.nombre}</button>`
+      ).join('');
+      toggleEl.addEventListener('click', e => {
+        const btn = e.target.closest('.hm-toggle-btn');
+        if (!btn || btn.classList.contains('active')) return;
+        toggleEl.querySelectorAll('.hm-toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadDolarHistory(btn.dataset.casa, btn.dataset.nombre);
+      });
+      loadDolarHistory(activeCasa, oficial ? oficial.nombre : 'Oficial');
     }
   } catch (err) {
     console.error(err);
     grid.innerHTML = '<div class="empty-note">No se pudo cargar la cotización del dólar.</div>';
-    barsEl.innerHTML = '<div class="empty-note">No se pudo cargar.</div>';
-    summaryEl.innerHTML = '';
   }
 }
 
-let activeBrechaCasa = null;
-let brechaDefaulted = false;
+let activeCasa = 'oficial';
+let casaToggleBuilt = false;
 const dolarHistoryCache = {};
 
-async function toggleBrechaChart(casa, nombre) {
-  const slot = document.getElementById('brechaChart');
-  const rows = document.querySelectorAll('.dbar-row');
-  if (activeBrechaCasa === casa) {
-    activeBrechaCasa = null;
-    slot.style.display = 'none';
-    rows.forEach(r => r.classList.remove('active'));
-    return;
-  }
-  activeBrechaCasa = casa;
-  rows.forEach(r => r.classList.toggle('active', r.dataset.casa === casa));
-  slot.style.display = 'block';
-  slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div class="empty-note">Cargando…</div>`;
+async function loadDolarHistory(casa, nombre) {
+  activeCasa = casa;
+  const chartEl = document.getElementById('dolarHistChart');
+  const statsEl = document.getElementById('dolarHistStats');
+  const pctEl = document.getElementById('dolarHistPct');
+  const rangeEl = document.getElementById('dolarHistRange');
+  chartEl.innerHTML = '<div class="empty-note">Cargando…</div>';
   try {
     if (!dolarHistoryCache[casa]) dolarHistoryCache[casa] = await getDolarHistory(casa, 30);
     const points = dolarHistoryCache[casa];
-    slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div id="brechaChartSvg"></div>`;
-    const svgEl = document.getElementById('brechaChartSvg');
+    if (points.length < 2) {
+      chartEl.innerHTML = '<div class="empty-note">Todavía no hay suficiente historial para graficar.</div>';
+      pctEl.textContent = '—';
+      rangeEl.textContent = '';
+      statsEl.innerHTML = '';
+      return;
+    }
+
+    const first = points[0], last = points[points.length - 1];
+    const periodPct = ((last.value - first.value) / first.value) * 100;
+    pctEl.textContent = fmtPct(periodPct);
+    pctEl.className = 'history-pct-val ' + pctClass(periodPct);
+    rangeEl.textContent =
+      new Date(first.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) + ' — ' +
+      new Date(last.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+
+    const values = points.map(p => p.value);
+    const max = Math.max(...values), min = Math.min(...values);
+    statsEl.innerHTML = `
+      <div class="quick-stat">
+        <div class="label">Valor actual — ${nombre}</div>
+        <div class="val mono">${fmtARS(last.value)}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Máximo (30d)</div>
+        <div class="val mono">${fmtARS(max)}</div>
+      </div>
+      <div class="quick-stat">
+        <div class="label">Mínimo (30d)</div>
+        <div class="val mono">${fmtARS(min)}</div>
+      </div>`;
+
+    chartEl.innerHTML = `<div id="dolarHistSvg"></div>`;
+    const svgEl = document.getElementById('dolarHistSvg');
     const width = svgEl.clientWidth || 460;
-    document.getElementById('brechaChartSvg').innerHTML = buildLineChartSVG(points, width, 110);
-    attachChartHover('brechaChartSvg', points, width, 110);
+    svgEl.innerHTML = buildLineChartSVG(points, width, 110);
+    attachChartHover('dolarHistSvg', points, width, 110);
   } catch (err) {
     console.error(err);
-    slot.innerHTML = `<div class="brecha-chart-head">Histórico — ${nombre} (30 días)</div><div class="empty-note">No se pudo cargar el histórico.</div>`;
+    chartEl.innerHTML = '<div class="empty-note">No se pudo cargar el histórico.</div>';
   }
 }
 
-let brechaResizeTimer = null;
+let dolarResizeTimer = null;
 window.addEventListener('resize', () => {
-  clearTimeout(brechaResizeTimer);
-  brechaResizeTimer = setTimeout(() => {
-    const svgEl = document.getElementById('brechaChartSvg');
-    if (!svgEl || !activeBrechaCasa || !dolarHistoryCache[activeBrechaCasa]) return;
+  clearTimeout(dolarResizeTimer);
+  dolarResizeTimer = setTimeout(() => {
+    const svgEl = document.getElementById('dolarHistSvg');
+    if (!svgEl || !dolarHistoryCache[activeCasa]) return;
     const width = svgEl.clientWidth || 460;
-    const points = dolarHistoryCache[activeBrechaCasa];
+    const points = dolarHistoryCache[activeCasa];
     svgEl.innerHTML = buildLineChartSVG(points, width, 110);
-    attachChartHover('brechaChartSvg', points, width, 110);
+    attachChartHover('dolarHistSvg', points, width, 110);
   }, 200);
 });
 
