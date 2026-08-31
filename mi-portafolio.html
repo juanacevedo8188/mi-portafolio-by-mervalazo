@@ -50,6 +50,23 @@
   @media (max-width:760px){
     .add-form{grid-template-columns:1fr 1fr;}
   }
+
+  .share-body{padding:18px 20px;display:flex;flex-direction:column;gap:16px;}
+  .share-row{display:flex;align-items:flex-start;gap:14px;}
+  .share-copy strong{font-size:13.5px;}
+  .share-copy p{font-size:12.5px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+  .switch{position:relative;display:inline-block;width:38px;height:22px;flex-shrink:0;margin-top:1px;}
+  .switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1;}
+  .switch-track{position:absolute;inset:0;background:var(--bg-alt);border:1px solid var(--card-border);border-radius:20px;transition:background .15s,border-color .15s;}
+  .switch-track::before{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--text-faint);transition:transform .15s,background .15s;}
+  .switch input:checked + .switch-track{background:var(--up-bg);border-color:var(--up);}
+  .switch input:checked + .switch-track::before{transform:translateX(16px);background:var(--up);}
+  .switch input:disabled + .switch-track{opacity:.5;cursor:default;}
+  .share-link-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .share-link-row input{flex:1;min-width:180px;background:var(--bg-alt);border:1px solid var(--card-border);border-radius:8px;padding:9px 12px;font-size:12.5px;color:var(--text-dim);font-family:'JetBrains Mono',ui-monospace,monospace;}
+  .share-status-pill{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px;}
+  .share-status-pill.public{color:var(--up);background:var(--up-bg);}
+  .share-status-pill.private{color:var(--text-dim);background:var(--bg-alt);}
 </style>
 </head>
 <body>
@@ -97,6 +114,40 @@
       <span id="maturedNoticeText"></span>
       <button onclick="document.getElementById('maturedNotice').style.display='none'" title="Cerrar">✕</button>
     </div>
+    <section class="panel share-panel">
+      <div class="panel-head">
+        <h2>Compartir portafolio</h2>
+        <span class="share-status-pill private" id="shareStatusPill">Privado</span>
+      </div>
+      <div class="share-body">
+        <div class="share-row">
+          <label class="switch">
+            <input type="checkbox" id="sharePublicToggle" onchange="onTogglePublic()">
+            <span class="switch-track"></span>
+          </label>
+          <div class="share-copy">
+            <strong>Hacer público mi portafolio</strong>
+            <p>Cualquiera con el link va a poder verlo, en modo solo lectura — no puede editar ni ver tu mail.</p>
+          </div>
+        </div>
+        <div class="share-row" id="showAmountsRow" style="display:none;">
+          <label class="switch">
+            <input type="checkbox" id="shareAmountsToggle" onchange="onToggleAmounts()">
+            <span class="switch-track"></span>
+          </label>
+          <div class="share-copy">
+            <strong>Mostrar montos en pesos/dólares</strong>
+            <p>Si está apagado (recomendado), la vista pública solo muestra porcentajes y composición por sector — nunca los montos.</p>
+          </div>
+        </div>
+        <div class="share-link-row" id="shareLinkRow" style="display:none;">
+          <input type="text" id="shareLinkInput" readonly onclick="this.select()">
+          <button class="btn-secondary" onclick="copyShareLink()" id="copyShareBtn">Copiar link</button>
+          <button class="btn-secondary" id="nativeShareBtn" onclick="nativeShare()" style="display:none;">Compartir</button>
+        </div>
+      </div>
+    </section>
+
     <div class="currency-toggle-row">
       <span id="oficialRateLabel" class="rate-note">—</span>
       <div class="currency-toggle">
@@ -381,8 +432,97 @@ function showApp(session) {
   renderAlertsBadge(sb);
   loadHoldings();
   loadHistory();
+  loadShareProfile();
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(loadHoldings, REFRESH_MS);
+}
+
+let shareProfile = null;
+
+function shareLinkFor(slug) {
+  return window.location.origin + window.location.pathname.replace(/mi-portafolio\.html$/, '') + 'portafolio-publico.html?u=' + slug;
+}
+
+async function loadShareProfile() {
+  if (!currentSession) return;
+  const { data, error } = await sb.from('profiles').select('*').eq('id', currentSession.user.id).maybeSingle();
+  if (error) {
+    console.error(error);
+    return;
+  }
+  if (!data) {
+    const { data: created, error: insertErr } = await sb.from('profiles').insert({ id: currentSession.user.id }).select().single();
+    if (insertErr) {
+      console.error(insertErr);
+      return;
+    }
+    shareProfile = created;
+  } else {
+    shareProfile = data;
+  }
+  renderShareUI();
+}
+
+function renderShareUI() {
+  if (!shareProfile) return;
+  document.getElementById('sharePublicToggle').checked = shareProfile.is_public;
+  document.getElementById('shareAmountsToggle').checked = shareProfile.show_amounts;
+  document.getElementById('showAmountsRow').style.display = shareProfile.is_public ? 'flex' : 'none';
+  document.getElementById('shareLinkRow').style.display = shareProfile.is_public ? 'flex' : 'none';
+  document.getElementById('shareLinkInput').value = shareLinkFor(shareProfile.public_slug);
+  const pill = document.getElementById('shareStatusPill');
+  pill.textContent = shareProfile.is_public ? 'Público' : 'Privado';
+  pill.className = 'share-status-pill ' + (shareProfile.is_public ? 'public' : 'private');
+  document.getElementById('nativeShareBtn').style.display = (shareProfile.is_public && navigator.share) ? 'inline-flex' : 'none';
+}
+
+async function onTogglePublic() {
+  const checked = document.getElementById('sharePublicToggle').checked;
+  const { data, error } = await sb.from('profiles').update({ is_public: checked, updated_at: new Date().toISOString() })
+    .eq('id', currentSession.user.id).select().single();
+  if (error) {
+    console.error(error);
+    document.getElementById('sharePublicToggle').checked = !checked;
+    return;
+  }
+  shareProfile = data;
+  renderShareUI();
+}
+
+async function onToggleAmounts() {
+  const checked = document.getElementById('shareAmountsToggle').checked;
+  const { data, error } = await sb.from('profiles').update({ show_amounts: checked, updated_at: new Date().toISOString() })
+    .eq('id', currentSession.user.id).select().single();
+  if (error) {
+    console.error(error);
+    document.getElementById('shareAmountsToggle').checked = !checked;
+    return;
+  }
+  shareProfile = data;
+  renderShareUI();
+}
+
+async function copyShareLink() {
+  const input = document.getElementById('shareLinkInput');
+  const btn = document.getElementById('copyShareBtn');
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch (err) {
+    input.select();
+    document.execCommand('copy');
+  }
+  const original = btn.textContent;
+  btn.textContent = 'Copiado ✓';
+  setTimeout(() => { btn.textContent = original; }, 1800);
+}
+
+function nativeShare() {
+  if (!navigator.share) return;
+  navigator.share({
+    title: 'Mi Portafolio — Mervalazo',
+    text: 'Mirá mi portafolio en Mervalazo',
+    url: document.getElementById('shareLinkInput').value
+  }).catch(() => {});
 }
 
 async function signOut() {
