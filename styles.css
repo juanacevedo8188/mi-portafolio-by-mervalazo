@@ -576,10 +576,11 @@ input[type=number]{-moz-appearance:textfield;}
 
 /* flex (no grid) a propósito: con grid-auto-fit, si la última fila no se
    llena queda una card angosta con todo el resto de la fila vacío al lado.
-   Con flex-wrap + flex-grow, cada fila reparte su ancho entre las cards
-   que le tocaron — la última fila también queda completa, tenga 1 card o 5. */
-.dollar-grid{display:flex;flex-wrap:wrap;gap:12px;padding:18px 20px;}
-.dollar-card{background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:14px;flex:1 1 150px;}
+   Acá las cards tienen un ancho tope (no se estiran a lo gigante si quedan
+   solas) y la fila se centra, así el sobrante de la última fila queda
+   repartido en los dos bordes en vez de todo pegado a la derecha. */
+.dollar-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:18px 20px;}
+.dollar-card{background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:14px;flex:1 1 150px;max-width:200px;}
 @media (max-width:640px){.dollar-card{flex-basis:calc(50% - 6px);}}
 .dollar-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
 .dollar-card .label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;}
