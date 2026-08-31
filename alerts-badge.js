@@ -23,7 +23,7 @@ async function renderAlertsBadge(sb) {
   const slot = document.getElementById('headerRight');
   if (!slot) return;
 
-  const { data, error } = await sb.from('alerts').select('id').eq('estado', 'disparada');
+  const { data, error } = await sb.from('alerts').select('id').eq('estado', 'disparada').is('seen_at', null);
   if (seq !== alertsBadgeSeq) return; // una llamada mas nueva ya esta en curso — esta quedo vieja
 
   document.getElementById('alertsBell')?.remove();

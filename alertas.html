@@ -461,6 +461,14 @@ async function loadAlerts() {
   document.getElementById('triggeredCount').textContent = disparadas.length ? disparadas.length + ' alertas' : '';
   document.getElementById('triggeredList').innerHTML = disparadas.map(triggeredRowHtml).join('');
 
+  // Entrar acá ya cuenta como "vista" — baja el numerito de la campanita,
+  // pero la alerta se queda en la lista de disparadas hasta que la
+  // descartes o reactives a mano.
+  const unseenIds = disparadas.filter(a => !a.seen_at).map(a => a.id);
+  if (unseenIds.length) {
+    await sb.from('alerts').update({ seen_at: new Date().toISOString() }).in('id', unseenIds);
+  }
+
   renderAlertsBadge(sb);
 }
 
@@ -470,7 +478,7 @@ async function deleteAlert(id) {
 }
 
 async function reactivateAlert(id) {
-  await sb.from('alerts').update({ estado: 'activa', triggered_at: null }).eq('id', id);
+  await sb.from('alerts').update({ estado: 'activa', triggered_at: null, seen_at: null }).eq('id', id);
   loadAlerts();
 }
 
