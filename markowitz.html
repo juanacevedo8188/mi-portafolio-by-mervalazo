@@ -55,6 +55,13 @@
       <button class="btn-primary" style="margin-top:0;" onclick="runMarkowitz()" id="calcBtn">Calcular frontera eficiente</button>
     </div>
     <div class="form-err" id="mkwErr" style="padding:0 20px 16px;"></div>
+    <button class="info-toggle" onclick="toggleInfo('pickerInfo')">
+      <span id="pickerInfoChevron">▾</span> ¿Cómo elijo qué acciones analizar?
+    </button>
+    <div id="pickerInfo" class="curve-info" style="display:none;">
+      <p>Tocá un ticker para sumarlo o sacarlo — no hace falta guardar nada, se recalcula al tocar "Calcular".</p>
+      <p>La frontera se ve más interesante cuando mezclás sectores distintos entre sí (por ejemplo un banco, una energética y una real estate) en vez de elegir varias del mismo rubro: activos de un mismo sector suelen moverse muy parecido, así que combinarlos diversifica poco. Con 2 acciones ya alcanza para ver el efecto — podés arrancar chico e ir sumando.</p>
+    </div>
   </section>
 
   <section class="panel" id="resultsPanel" style="display:none;">
@@ -126,12 +133,9 @@ function renderPicker(preselected) {
   document.getElementById('mkwPicker').innerHTML = [...bySector.entries()].map(([sector, tickers]) => `
     <div class="mkw-sector">
       <div class="mkw-sector-label">${sector}</div>
-      <div class="mkw-checks">
+      <div class="mkw-chips">
         ${tickers.map(t => `
-          <label class="mkw-check">
-            <input type="checkbox" value="${t}" ${pre.has(t) ? 'checked' : ''}>
-            ${t}
-          </label>
+          <button type="button" class="mkw-chip${pre.has(t) ? ' active' : ''}" data-ticker="${t}" onclick="this.classList.toggle('active')">${t}</button>
         `).join('')}
       </div>
     </div>
@@ -139,7 +143,7 @@ function renderPicker(preselected) {
 }
 
 function selectedTickers() {
-  return [...document.querySelectorAll('#mkwPicker input:checked')].map(i => i.value);
+  return [...document.querySelectorAll('#mkwPicker .mkw-chip.active')].map(b => b.dataset.ticker);
 }
 
 async function loadCurrentHoldings() {

@@ -56,6 +56,7 @@
     <button class="bond-cat-tab" data-cat="bopreal" onclick="selectCategory('bopreal')">BOPREAL</button>
     <button class="bond-cat-tab" data-cat="cer" onclick="selectCategory('cer')">Ajustables por CER</button>
     <button class="bond-cat-tab" data-cat="tamar" onclick="selectCategory('tamar')">Tasa TAMAR</button>
+    <button class="bond-cat-tab" data-cat="caucion" onclick="selectCategory('caucion')">Caución</button>
   </div>
 
   <div id="catLetras">
@@ -274,6 +275,45 @@
     </section>
   </div>
 
+  <div id="catCaucion" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Curva de Tasa de Caución</h2>
+        <span id="caucionCurveUpdated">—</span>
+      </div>
+      <div class="curve-wrap" id="caucionChart"><div class="empty-note">Cargando…</div></div>
+      <button class="info-toggle" onclick="toggleInfo('caucionInfo')">
+        <span id="caucionInfoChevron">▾</span> ¿Qué es la caución?
+      </button>
+      <div id="caucionInfo" class="curve-info" style="display:none;">
+        <p>Es un préstamo a muy corto plazo garantizado con títulos: alguien pone acciones o bonos en garantía y toma pesos prestados hasta una fecha; del otro lado, alguien pone esos pesos y se queda con la garantía si no se lo devuelven. La <b>tasa (TNA)</b> es directamente lo que rinde ese préstamo — a diferencia de un futuro de dólar, acá no hace falta derivarla de ningún precio.</p>
+        <p>Es una de las referencias más usadas del costo del dinero a muy corto plazo en pesos, junto con la LECAP más corta de la curva de arriba — vale la pena compararlas entre sí.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Plazos vigentes</h2>
+        <span id="caucionUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Contrato</th>
+              <th>Vencimiento</th>
+              <th>DTV</th>
+              <th>Tasa (TNA)</th>
+            </tr>
+          </thead>
+          <tbody id="caucionBody">
+            <tr><td colspan="4" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> y fechas/valor final de letras por <a href="https://argentinadatos.com" target="_blank" rel="noopener">argentinadatos.com</a>, con demora de mercado, a título informativo. No constituye recomendación de inversión.
     Paridad, TIR y duration de Bonares/Globales se calculan con el cronograma de pagos oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a>, descontando flujos con convención Actual/365; pueden diferir levemente de otras calculadoras por convención de día de liquidación. El índice CER usado para los bonos ajustables es la variable 30 del <a href="https://www.bcra.gob.ar/" target="_blank" rel="noopener">BCRA</a>.
@@ -310,7 +350,7 @@ function toggleInfo(bodyId) {
   if (chevron) chevron.textContent = open ? '▾' : '▴';
 }
 
-const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar' };
+const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar', caucion: 'catCaucion' };
 let activeCat = 'letras';
 
 function selectCategory(cat) {
@@ -330,6 +370,133 @@ function loadCategory(cat) {
   if (cat === 'bopreal') return loadBopreal();
   if (cat === 'cer') return loadCerBonds();
   if (cat === 'tamar') return loadTamarBonds();
+  if (cat === 'caucion') return loadCaucion();
+}
+
+// Los futuros de dolar de ROFEX/caucion vencen el ultimo dia habil del
+// mes del contrato — se aproxima con el ultimo dia calendario del mes,
+// corrido hacia atras si cae sabado/domingo (no contempla feriados).
+const MESES_IDX = { ENE: 0, FEB: 1, MAR: 2, ABR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11 };
+function contractExpiry(ticker) {
+  const [, code] = ticker.split('/');
+  const month = MESES_IDX[code.slice(0, 3)];
+  const year = 2000 + parseInt(code.slice(3), 10);
+  let d = new Date(Date.UTC(year, month + 1, 0));
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(d.getTime() - 86400000);
+  return d;
+}
+
+function buildCaucionCurveSVG(points, width, height) {
+  const padL = 46, padR = 16, padT = 16, padB = 30;
+  const maxDtv = Math.max(...points.map(p => p.dtv)) * 1.06;
+  const rates = points.map(p => p.tna);
+  const minRate = Math.min(...rates) - 1, maxRate = Math.max(...rates) + 1;
+  const x = d => padL + (d / maxDtv) * (width - padL - padR);
+  const y = t => height - padB - ((t - minRate) / (maxRate - minRate || 1)) * (height - padT - padB);
+  const coords = points.map(p => [x(p.dtv), y(p.tna)]);
+  const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+  const yTicks = [];
+  for (let i = 0; i <= 3; i++) {
+    const t = minRate + (maxRate - minRate) * (i / 3);
+    yTicks.push(`<line x1="${padL}" y1="${y(t).toFixed(1)}" x2="${width - padR}" y2="${y(t).toFixed(1)}" stroke="var(--divider)" stroke-width="1"/>
+      <text x="${padL - 8}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-faint)">${t.toFixed(0)}%</text>`);
+  }
+  const xTicks = [0, 30, 60, 90].filter(d => d <= maxDtv).map(d =>
+    `<text x="${x(d).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${d}d</text>`
+  );
+  const dots = coords.map((c, i) =>
+    `<circle class="cauc-dot" data-idx="${i}" cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`
+  ).join('');
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
+    ${yTicks.join('')}
+    ${xTicks.join('')}
+    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.6"/>
+    ${dots}
+  </svg>`;
+}
+
+function attachCaucionInteraction(points) {
+  const container = document.getElementById('caucionChart');
+  let tooltip = document.getElementById('chartTooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'chartTooltip';
+    tooltip.className = 'chart-tooltip';
+    document.body.appendChild(tooltip);
+  }
+  const showTooltip = (idx, clientX, clientY) => {
+    const p = points[idx];
+    tooltip.innerHTML = `<div class="ct-date">${p.ticker} · vto ${p.expiry.toLocaleDateString('es-AR')}</div>
+      <div class="ct-value mono">TNA ${fmtNum(p.tna)}%</div>
+      <div class="ct-change flat">${p.dtv}d al vencimiento</div>`;
+    tooltip.style.left = Math.min(clientX + 14, window.innerWidth - 200) + 'px';
+    tooltip.style.top = Math.max(8, clientY - 60) + 'px';
+    tooltip.style.display = 'block';
+  };
+  container.querySelectorAll('.cauc-dot').forEach(dot => {
+    const idx = Number(dot.dataset.idx);
+    dot.addEventListener('mouseenter', e => showTooltip(idx, e.clientX, e.clientY));
+    dot.addEventListener('mousemove', e => showTooltip(idx, e.clientX, e.clientY));
+    dot.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    dot.addEventListener('click', e => showTooltip(idx, e.clientX, e.clientY));
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.cauc-dot')) tooltip.style.display = 'none';
+  });
+}
+
+// La caucion viene expresada como tasa (TNA) directa en el precio de
+// ajuste de ROFEX — a diferencia del dolar futuro, no hace falta
+// derivarla contra ningun spot.
+async function loadCaucion() {
+  const body = document.getElementById('caucionBody');
+  const curveEl = document.getElementById('caucionChart');
+  try {
+    const res = await fetch('/.netlify/functions/rofex-futures?prefix=CAUC', { cache: 'no-store' });
+    if (!res.ok) throw new Error('rofex-futures (CAUC) failed: ' + res.status);
+    const quotes = await res.json();
+    if (quotes.error) throw new Error(quotes.error);
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const caucionCache = Object.entries(quotes).map(([ticker, q]) => {
+      const tna = q.last ?? q.close ?? q.settlement ?? null;
+      if (tna == null) return null;
+      const expiry = contractExpiry(ticker);
+      const dtv = Math.round((expiry - today) / 86400000);
+      if (dtv < 1) return null;
+      return { ticker, tna, expiry, dtv };
+    }).filter(Boolean).sort((a, b) => a.dtv - b.dtv);
+
+    if (!caucionCache.length) {
+      body.innerHTML = '<tr><td colspan="4" class="empty-note">No hay plazos vigentes con cotización.</td></tr>';
+      curveEl.innerHTML = '<div class="empty-note">No hay datos para graficar.</div>';
+      document.getElementById('caucionUpdated').textContent = '';
+      document.getElementById('caucionCurveUpdated').textContent = '';
+      return;
+    }
+
+    body.innerHTML = caucionCache.map(f => `
+      <tr>
+        <td><span class="tk">${f.ticker.replace('CAUC/', '')}</span></td>
+        <td class="mono">${f.expiry.toLocaleDateString('es-AR')}</td>
+        <td class="mono">${f.dtv}</td>
+        <td class="mono row-value chg ${pctClass(f.tna)}">${fmtNum(f.tna)}%</td>
+      </tr>
+    `).join('');
+    document.getElementById('caucionUpdated').textContent = caucionCache.length + ' plazos';
+
+    const width = curveEl.clientWidth || 700;
+    const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
+    curveEl.innerHTML = buildCaucionCurveSVG(caucionCache, width, height);
+    attachCaucionInteraction(caucionCache);
+    document.getElementById('caucionCurveUpdated').textContent = caucionCache.length + ' puntos';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información de caución.</td></tr>';
+    curveEl.innerHTML = '<div class="empty-note">No se pudo cargar la curva.</div>';
+  }
 }
 
 // Fila con Paridad/TIR/Duration — "calc" son las metricas propias (o
