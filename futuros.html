@@ -60,9 +60,24 @@
     </button>
     <div id="curveInfo" class="curve-info" style="display:none;">
       <p>Cada contrato de futuro de dólar fija hoy el precio al que se va a comprar/vender USD en su fecha de vencimiento. La <b>tasa implícita (TNA)</b> es la tasa de interés en pesos que ese precio deja "implícita": <b>(Futuro / Dólar MEP − 1) × (365 / días al vencimiento)</b>.</p>
-      <p>Es la tasa a la que el mercado te permite cubrirte del tipo de cambio — y por no-arbitraje, debería moverse parecido a las tasas de la curva de LECAP. Comparar esta curva contra la <a href="renta-fija.html">tasa forward implícita de Renta Fija</a> es un buen chequeo de consistencia entre mercados.</p>
+      <p>Es la tasa a la que el mercado te permite cubrirte del tipo de cambio — y por no-arbitraje, debería moverse parecido a la tasa de LECAP al mismo plazo. Más abajo hay un gráfico que compara las dos curvas directamente.</p>
       <p><b>Puede dar negativa</b>, y no es un error: pasa cuando el precio de ese futuro está por debajo del dólar spot de hoy — el mercado está pricing un dólar más barato en pesos para ese mes (suele verse en los meses de mayor liquidación de dólares del agro, o cuando se espera estabilidad/apreciación cambiaria). Los números en rojo en la tabla son justamente eso.</p>
       <p>El contrato más próximo a vencer puede dar una tasa implícita rarísima (muy positiva o muy negativa): con pocos días de por medio, cualquier diferencia mínima contra el spot se anualiza y se dispara. No es un error — es que anualizar deja de tener sentido cuando casi no queda tiempo. Por eso esos contratos quedan afuera del gráfico (se guían mejor mirando el precio directo en la tabla).</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Futuros vs. LECAP (TEA)</h2>
+      <span id="compareUpdated">—</span>
+    </div>
+    <div class="curve-wrap" id="compareChart"><div class="empty-note">Cargando…</div></div>
+    <button class="info-toggle" onclick="toggleInfo('compareInfo')">
+      <span id="compareInfoChevron">▾</span> ¿Qué muestra esta comparación?
+    </button>
+    <div id="compareInfo" class="curve-info" style="display:none;">
+      <p>Las dos curvas están en la misma unidad (TEA, tasa efectiva anual) para poder compararse directo: la tasa que implícitamente paga cubrirse en dólares a futuro, contra la tasa que efectivamente rinde quedarse en pesos en una LECAP al mismo plazo.</p>
+      <p>Por no-arbitraje, deberían moverse parecido — la brecha entre las dos líneas en un plazo dado es el <b>carry</b> acumulado hasta ahí: en teoría lo que se podría capturar combinando ambas operaciones (ver <a href="renta-fija.html">Carry Trade</a> en Renta Fija), aunque en la práctica hay costos de transacción y riesgos que este gráfico no contempla.</p>
     </div>
   </section>
 
@@ -212,6 +227,83 @@ window.addEventListener('resize', () => {
   curveResizeTimer = setTimeout(paintCurve, 200);
 });
 
+// Compara la TEA implicita de futuros contra la TEA de LECAP al mismo
+// plazo (dias) — mismo patron que buildCurveSVG pero con dos series
+// sobre la misma escala en vez de una. compareCache guarda los puntos ya
+// calculados para poder repintar en el resize sin volver a pedir nada.
+let compareCache = null;
+
+function buildCompareSVG(futPoints, lecapPoints, width, height) {
+  const padL = 46, padR = 16, padT = 16, padB = 30;
+  const allD = futPoints.map(p => p.d).concat(lecapPoints.map(p => p.d));
+  const allTea = futPoints.map(p => p.tea).concat(lecapPoints.map(p => p.tea));
+  const maxD = Math.max(...allD) * 1.05;
+  const minRate = Math.min(...allTea) - 1;
+  const maxRate = Math.max(...allTea) + 1;
+  const x = d => padL + (d / maxD) * (width - padL - padR);
+  const y = t => height - padB - ((t - minRate) / (maxRate - minRate || 1)) * (height - padT - padB);
+  const pathOf = pts => pts.map((p, i) => (i === 0 ? 'M' : 'L') + x(p.d).toFixed(1) + ' ' + y(p.tea).toFixed(1)).join(' ');
+
+  const yTicks = [];
+  for (let i = 0; i <= 3; i++) {
+    const t = minRate + (maxRate - minRate) * (i / 3);
+    const yy = y(t).toFixed(1);
+    yTicks.push(`<line x1="${padL}" y1="${yy}" x2="${width - padR}" y2="${yy}" stroke="var(--divider)" stroke-width="1"/>
+      <text x="${padL - 8}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-faint)">${t.toFixed(0)}%</text>`);
+  }
+  const xTicks = [0, 90, 180, 270, 360].filter(d => d <= maxD).map(d =>
+    `<text x="${x(d).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${d}d</text>`
+  );
+
+  return `
+    <div style="display:flex;gap:16px;padding:0 20px 8px;font-size:12px;color:var(--text-dim);">
+      <span><span style="display:inline-block;width:14px;height:2px;background:var(--accent);vertical-align:middle;margin-right:5px;"></span>Futuros (implícita)</span>
+      <span><span style="display:inline-block;width:14px;border-top:2px dashed var(--up);vertical-align:middle;margin-right:5px;"></span>LECAP (TEA)</span>
+    </div>
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
+      ${yTicks.join('')}
+      ${xTicks.join('')}
+      <path d="${pathOf(lecapPoints)}" fill="none" stroke="var(--up)" stroke-width="2" stroke-dasharray="4 3"/>
+      <path d="${pathOf(futPoints)}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+    </svg>`;
+}
+
+function paintCompare() {
+  if (!compareCache) return;
+  const el = document.getElementById('compareChart');
+  const width = el.clientWidth || 700;
+  const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
+  el.innerHTML = buildCompareSVG(compareCache.futPoints, compareCache.lecapPoints, width, height);
+}
+
+let compareResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(compareResizeTimer);
+  compareResizeTimer = setTimeout(paintCompare, 200);
+});
+
+async function loadCompareCurve() {
+  const el = document.getElementById('compareChart');
+  try {
+    const futPoints = fxCache.filter(f => f.dtv >= MIN_DTV_FOR_CURVE).map(f => ({ d: f.dtv, tea: f.tea }));
+    const lecapData = await getLecapData();
+    const lecapPoints = lecapData.map(l => ({ d: l.dtm, tea: l.tea })).sort((a, b) => a.d - b.d);
+    if (!futPoints.length || !lecapPoints.length) {
+      compareCache = null;
+      el.innerHTML = '<div class="empty-note">No hay datos suficientes para comparar.</div>';
+      document.getElementById('compareUpdated').textContent = '';
+      return;
+    }
+    compareCache = { futPoints, lecapPoints };
+    paintCompare();
+    document.getElementById('compareUpdated').textContent = futPoints.length + ' futuros · ' + lecapPoints.length + ' letras';
+  } catch (err) {
+    console.error(err);
+    compareCache = null;
+    el.innerHTML = '<div class="empty-note">No se pudo cargar la comparación.</div>';
+  }
+}
+
 async function loadFutures() {
   const body = document.getElementById('fxBody');
   const curveEl = document.getElementById('curveChart');
@@ -234,8 +326,9 @@ async function loadFutures() {
       const dtv = Math.round((expiry - today) / 86400000);
       if (dtv < 1) return null;
       const tna = (price / spot - 1) * (365 / dtv) * 100;
+      const tea = (Math.pow(price / spot, 365 / dtv) - 1) * 100;
       const premium = (price / spot - 1) * 100;
-      return { ticker, price, bid: q.bid, offer: q.offer, volumen: q.volumen, expiry, dtv, tna, premium };
+      return { ticker, price, bid: q.bid, offer: q.offer, volumen: q.volumen, expiry, dtv, tna, tea, premium };
     }).filter(Boolean).sort((a, b) => a.dtv - b.dtv);
 
     if (!fxCache.length) {
@@ -276,6 +369,7 @@ async function loadAll(manual) {
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
     await loadFutures();
+    await loadCompareCurve();
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
