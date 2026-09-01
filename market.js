@@ -997,7 +997,7 @@ const TICKER_LOGO_OVERRIDE = {
 };
 
 function tickerLogoUrl(ticker, tipo) {
-  if (tipo === 'cripto') return null;
+  if (tipo === 'cripto') return `https://assets.coincap.io/assets/icons/${ticker.toLowerCase()}@2x.png`;
   const symbol = TICKER_LOGO_OVERRIDE[ticker] || ticker;
   return `https://financialmodelingprep.com/image-stock/${symbol}.png`;
 }
