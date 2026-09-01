@@ -312,9 +312,15 @@ function cycleView(panel, delta) {
   else renderCrypto();
 }
 
+// Las tres listas de abajo asumian que panelData siempre tiene algo — si
+// data912 devuelve un array vacio (no un error, solo un blip sin datos
+// por unos segundos), .map().join('') sobre [] deja el panel en blanco
+// sin ningun aviso, se ve como si algo se hubiera roto. Con esto al
+// menos avisa y se recupera solo en el proximo refresh de 60s.
 function renderMarket() {
   const view = GAIN_LOSE_VIEWS[viewIdx.market];
   document.getElementById('marketViewLabel').textContent = view.label + ' · Acciones + CEDEARs';
+  if (!panelData.market.length) { document.getElementById('topGainers').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.market].sort(view.cmp).slice(0, 15);
   document.getElementById('topGainers').innerHTML = top.map((s, i) => rankRow(
     i + 1,
@@ -327,6 +333,7 @@ function renderMarket() {
 function renderAr() {
   const view = GAIN_LOSE_VIEWS[viewIdx.ar];
   document.getElementById('arViewLabel').textContent = view.label;
+  if (!panelData.ar.length) { document.getElementById('topStocksArg').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.ar].sort(view.cmp).slice(0, 10);
   document.getElementById('topStocksArg').innerHTML = top.map((s, i) => rankRow(
     i + 1, tvLink(s.symbol, 'accion'), fmtARS(s.c), s.pct_change
@@ -336,6 +343,7 @@ function renderAr() {
 function renderCrypto() {
   const view = CRYPTO_VIEWS[viewIdx.crypto];
   document.getElementById('cryptoViewLabel').textContent = view.label;
+  if (!panelData.crypto.length) { document.getElementById('topCrypto').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.crypto].sort(view.cmp).slice(0, 10);
   document.getElementById('topCrypto').innerHTML = top.map((c, i) => rankRow(
     i + 1, `${tvLink(c.symbol, 'cripto')}<span class="rn-full">${c.name}</span>`, fmtUSD(c.usd), c.pct_change
