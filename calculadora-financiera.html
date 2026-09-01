@@ -4,19 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mervalazo — Calculadora Financiera</title>
-<meta name="description" content="Valor presente y futuro, conversión de tasas, perpetuidades y tablas de amortización (sistema francés y alemán).">
+<meta name="description" content="Valor presente y futuro, interés compuesto vs. simple, conversión de tasas, perpetuidades y tablas de amortización.">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Mervalazo">
 <meta property="og:title" content="Mervalazo — Calculadora Financiera">
-<meta property="og:description" content="Valor presente y futuro, conversión de tasas, perpetuidades y tablas de amortización (sistema francés y alemán).">
+<meta property="og:description" content="Valor presente y futuro, interés compuesto vs. simple, conversión de tasas, perpetuidades y tablas de amortización.">
 <meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/calculadora-financiera.html">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mervalazo — Calculadora Financiera">
-<meta name="twitter:description" content="Valor presente y futuro, conversión de tasas, perpetuidades y tablas de amortización (sistema francés y alemán).">
+<meta name="twitter:description" content="Valor presente y futuro, interés compuesto vs. simple, conversión de tasas, perpetuidades y tablas de amortización.">
 <meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
 
 <link rel="icon" href="favicon.ico">
@@ -74,6 +74,35 @@
     <div id="vpvfInfo" class="curve-info" style="display:none;">
       <p><b>VF = VP × (1+i)ⁿ</b> — cuánto vas a tener en el futuro si invertís un capital hoy a una tasa i durante n períodos, con capitalización compuesta.</p>
       <p><b>VP = VF / (1+i)ⁿ</b> — cuánto necesitás hoy para llegar a un monto futuro dado, descontando a la misma tasa. La tasa "i" tiene que estar en la misma unidad de tiempo que "n" (si n son meses, i tiene que ser la tasa mensual).</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Interés Compuesto vs. Simple</h2>
+    </div>
+    <div class="infl-form">
+      <div class="infl-field">
+        <label>Capital inicial</label>
+        <input type="number" id="csCapital" value="100000" oninput="calcCompSimple()">
+      </div>
+      <div class="infl-field">
+        <label>Tasa por período</label>
+        <span class="infl-amount"><input type="number" id="csTasa" value="5" step="0.01" oninput="calcCompSimple()">%</span>
+      </div>
+      <div class="infl-field">
+        <label>Cantidad de períodos (n)</label>
+        <input type="number" id="csN" value="24" min="1" step="1" oninput="calcCompSimple()">
+      </div>
+    </div>
+    <div class="quick-metrics" id="csStats"></div>
+    <div class="curve-wrap" id="csChart"></div>
+    <button class="info-toggle" onclick="toggleInfo('csInfo')">
+      <span id="csInfoChevron">▾</span> ¿Cuál es la diferencia?
+    </button>
+    <div id="csInfo" class="curve-info" style="display:none;">
+      <p><b>Interés simple:</b> VF = Capital × (1 + i × n) — el interés se calcula siempre sobre el capital original, así que crece en línea recta.</p>
+      <p><b>Interés compuesto:</b> VF = Capital × (1 + i)ⁿ — cada período el interés se calcula sobre el capital más los intereses ya ganados ("interés sobre interés"), así que crece cada vez más rápido. Cuantos más períodos pasen, más grande es la diferencia — por eso el tiempo es el factor más importante para el interés compuesto, más que la tasa en sí.</p>
     </div>
   </section>
 
@@ -217,6 +246,74 @@ function calcVpVf() {
   }
 }
 
+function buildCompSimpleSVG(compoundVals, simpleVals, width, height) {
+  const padL = 60, padR = 16, padT = 16, padB = 30;
+  const n = compoundVals.length - 1;
+  const maxV = Math.max(...compoundVals, ...simpleVals);
+  const x = i => padL + (i / (n || 1)) * (width - padL - padR);
+  const y = v => height - padB - (v / (maxV || 1)) * (height - padT - padB);
+  const pathOf = vals => vals.map((v, i) => (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+
+  const yTicks = [];
+  for (let k = 0; k <= 3; k++) {
+    const v = maxV * (k / 3);
+    const yy = y(v).toFixed(1);
+    yTicks.push(`<line x1="${padL}" y1="${yy}" x2="${width - padR}" y2="${yy}" stroke="var(--divider)" stroke-width="1"/>
+      <text x="${padL - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-faint)">${fmtNum(v)}</text>`);
+  }
+  const xTickCount = Math.min(6, n);
+  const xTicks = [];
+  for (let k = 0; k <= xTickCount; k++) {
+    const idx = Math.round(n * (k / (xTickCount || 1)));
+    xTicks.push(`<text x="${x(idx).toFixed(1)}" y="${height - padB + 18}" text-anchor="middle" font-size="10" fill="var(--text-faint)">${idx}</text>`);
+  }
+
+  return `
+    <div style="display:flex;gap:16px;padding:0 20px 8px;font-size:12px;color:var(--text-dim);">
+      <span><span style="display:inline-block;width:14px;height:2px;background:var(--accent);vertical-align:middle;margin-right:5px;"></span>Compuesto</span>
+      <span><span style="display:inline-block;width:14px;border-top:2px dashed var(--text-faint);vertical-align:middle;margin-right:5px;"></span>Simple</span>
+    </div>
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
+      ${yTicks.join('')}
+      <path d="${pathOf(simpleVals)}" fill="none" stroke="var(--text-faint)" stroke-width="2" stroke-dasharray="4 3"/>
+      <path d="${pathOf(compoundVals)}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+      ${xTicks.join('')}
+    </svg>`;
+}
+
+function calcCompSimple() {
+  const capital = parseFloat(document.getElementById('csCapital').value);
+  const i = parseFloat(document.getElementById('csTasa').value) / 100;
+  const n = parseInt(document.getElementById('csN').value, 10);
+  const statsEl = document.getElementById('csStats');
+  const chartEl = document.getElementById('csChart');
+  if (isNaN(capital) || isNaN(i) || !(n > 0)) { statsEl.innerHTML = ''; chartEl.innerHTML = ''; return; }
+
+  const compoundVals = [], simpleVals = [];
+  for (let t = 0; t <= n; t++) {
+    compoundVals.push(capital * Math.pow(1 + i, t));
+    simpleVals.push(capital * (1 + i * t));
+  }
+  const finalCompound = compoundVals[n];
+  const finalSimple = simpleVals[n];
+
+  statsEl.innerHTML = `
+    <div class="quick-stat"><div class="label">Interés compuesto (final)</div><div class="val" style="color:var(--accent);">${fmtARS(finalCompound)}</div></div>
+    <div class="quick-stat"><div class="label">Interés simple (final)</div><div class="val">${fmtARS(finalSimple)}</div></div>
+    <div class="quick-stat"><div class="label">Diferencia</div><div class="val chg up">+${fmtARS(finalCompound - finalSimple)}</div></div>
+  `;
+
+  const width = chartEl.clientWidth || 700;
+  const height = Math.round(Math.min(260, Math.max(200, width * 0.34)));
+  chartEl.innerHTML = buildCompSimpleSVG(compoundVals, simpleVals, width, height);
+}
+
+let csResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(csResizeTimer);
+  csResizeTimer = setTimeout(calcCompSimple, 200);
+});
+
 function calcTasas(source) {
   const m = parseFloat(document.getElementById('tasaCapPorAno').value) || 1;
   const infl = parseFloat(document.getElementById('inflInput').value) / 100 || 0;
@@ -295,6 +392,7 @@ function calcAmort() {
 
 renderNavTabs('vtd');
 calcVpVf();
+calcCompSimple();
 calcTasas('tna');
 calcPerp();
 calcAmort();
