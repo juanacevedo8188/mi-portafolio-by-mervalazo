@@ -1290,6 +1290,7 @@ function openModal(html) {
   document.getElementById('sharedModalBox').innerHTML = html;
   document.getElementById('sharedModalBackdrop').classList.add('open');
   document.getElementById('sharedModalBox').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
@@ -1297,6 +1298,7 @@ function closeModal() {
   const box = document.getElementById('sharedModalBox');
   if (backdrop) backdrop.classList.remove('open');
   if (box) box.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 // --- Teoria de Portafolio (Markowitz) ---

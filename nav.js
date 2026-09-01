@@ -117,10 +117,12 @@ function toggleDrawer() {
 function openDrawer() {
   document.getElementById('navDrawer').classList.add('open');
   document.getElementById('drawerBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 function closeDrawer() {
   document.getElementById('navDrawer').classList.remove('open');
   document.getElementById('drawerBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function toggleNavDropdown(e) {
