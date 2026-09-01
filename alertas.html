@@ -189,6 +189,7 @@
 <script src="market.js"></script>
 <script src="nav.js"></script>
 <script src="alerts-badge.js"></script>
+<script src="welcome-modal.js"></script>
 <script>
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 let currentSession = null;
@@ -343,6 +344,7 @@ function showApp(session) {
   document.getElementById('headerRight').innerHTML =
     '<span class="user-bar">' + session.user.email + '<button class="btn-secondary" onclick="signOut()">Salir</button></span>';
   renderAlertsBadge(sb);
+  checkWelcomeModal(sb, session);
   loadAlerts();
   loadVencTickers();
 }

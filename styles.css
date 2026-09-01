@@ -291,6 +291,12 @@ footer a{color:var(--text-dim);}
 .modal-close:hover{color:var(--text);background:var(--bg-alt);}
 .modal-title{font-size:14px;font-weight:700;color:var(--text);text-transform:capitalize;padding-right:24px;margin-bottom:14px;}
 
+.welcome-intro{font-size:13px;color:var(--text-dim);margin-bottom:14px;}
+.welcome-list{display:flex;flex-direction:column;gap:12px;margin-bottom:18px;}
+.welcome-item{display:flex;flex-direction:column;gap:2px;}
+.welcome-item b{font-size:13px;color:var(--accent);}
+.welcome-item span{font-size:12.5px;color:var(--text-dim);line-height:1.4;}
+
 .hm-legend-note{flex:1;min-width:220px;}
 @media (max-width:640px){
   .hm-legend-note{width:100%;}
