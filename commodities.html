@@ -4,19 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mervalazo — Commodities</title>
-<meta name="description" content="Petróleo, oro, plata, cobre, soja, trigo y maíz en vivo.">
+<meta name="description" content="Energía, metales y agro en vivo — con variación diaria, semanal, mensual, YTD e interanual.">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Mervalazo">
 <meta property="og:title" content="Mervalazo — Commodities">
-<meta property="og:description" content="Petróleo, oro, plata, cobre, soja, trigo y maíz en vivo.">
+<meta property="og:description" content="Energía, metales y agro en vivo — con variación diaria, semanal, mensual, YTD e interanual.">
 <meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/commodities.html">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mervalazo — Commodities">
-<meta name="twitter:description" content="Petróleo, oro, plata, cobre, soja, trigo y maíz en vivo.">
+<meta name="twitter:description" content="Energía, metales y agro en vivo — con variación diaria, semanal, mensual, YTD e interanual.">
 <meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.jpg">
 
 <link rel="icon" href="favicon.ico">
@@ -54,7 +54,25 @@
       <h2>Commodities</h2>
       <span id="commUpdated">—</span>
     </div>
-    <div id="commBody"><div class="empty-note">Cargando…</div></div>
+    <div class="table-scroll comm-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Commodity</th>
+            <th>Precio</th>
+            <th>Diaria</th>
+            <th>Semanal</th>
+            <th>Mensual</th>
+            <th>YTD</th>
+            <th>Interanual</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="commBody">
+          <tr><td colspan="8" class="empty-note">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <footer>
@@ -79,21 +97,21 @@ const GRUPO_ORDER = ['Energía', 'Metales', 'Agro'];
 
 function commodityRow(c) {
   if (c.error) {
-    return `<div class="comm-row">
-      <span class="comm-name"><span class="tk">${c.key}</span><span class="comm-full">${c.name}</span></span>
-      <span class="empty-note" style="padding:0;">Sin datos</span>
-    </div>`;
+    return `<tr>
+      <td><span class="tk">${c.key}</span> <span class="comm-full">${c.name}</span></td>
+      <td colspan="7" class="empty-note" style="text-align:left;">Sin datos</td>
+    </tr>`;
   }
-  const periodPct = c.sparkline && c.sparkline.length > 1
-    ? ((c.sparkline[c.sparkline.length - 1] - c.sparkline[0]) / c.sparkline[0]) * 100
-    : null;
-  return `<div class="comm-row">
-    <span class="comm-name"><span class="tk">${c.key}</span><span class="comm-full">${c.name}</span></span>
-    <span class="comm-price mono">${fmtNum(c.price)}</span>
-    <span class="chg comm-daily ${pctClass(c.pct_change)}">${fmtPct(c.pct_change)}</span>
-    <span class="chg comm-period ${pctClass(periodPct)}">${periodPct != null ? fmtPct(periodPct) : '—'}</span>
-    <span class="comm-spark">${c.sparkline ? buildSparklineSVG(c.sparkline) : ''}</span>
-  </div>`;
+  return `<tr>
+    <td><span class="tk">${c.key}</span> <span class="comm-full">${c.name}</span></td>
+    <td class="mono comm-price">${fmtNum(c.price)}</td>
+    <td class="mono chg ${pctClass(c.pct_change)}">${fmtPct(c.pct_change)}</td>
+    <td class="mono chg ${pctClass(c.weekPct)}">${fmtPct(c.weekPct)}</td>
+    <td class="mono chg ${pctClass(c.monthPct)}">${fmtPct(c.monthPct)}</td>
+    <td class="mono chg ${pctClass(c.ytdPct)}">${fmtPct(c.ytdPct)}</td>
+    <td class="mono chg ${pctClass(c.yoyPct)}">${fmtPct(c.yoyPct)}</td>
+    <td class="comm-spark">${c.sparkline ? buildSparklineSVG(c.sparkline) : ''}</td>
+  </tr>`;
 }
 
 async function loadCommodities(manual) {
@@ -114,7 +132,7 @@ async function loadCommodities(manual) {
     });
 
     body.innerHTML = GRUPO_ORDER.filter(g => groups.has(g)).map(g =>
-      `<div class="watch-group-header">${g}<span class="wg-count">${groups.get(g).length}</span></div>` +
+      `<tr class="sector-row"><td colspan="8">${g}<span class="sector-weight">${groups.get(g).length}</span></td></tr>` +
       groups.get(g).map(commodityRow).join('')
     ).join('');
 
@@ -122,7 +140,7 @@ async function loadCommodities(manual) {
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<div class="empty-note">No se pudo cargar la información de commodities.</div>';
+    body.innerHTML = '<tr><td colspan="8" class="empty-note">No se pudo cargar la información de commodities.</td></tr>';
     setStatus('err', 'No se pudo conectar');
   } finally {
     btn.disabled = false;

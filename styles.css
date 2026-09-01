@@ -611,21 +611,20 @@ input[type=number]{-moz-appearance:textfield;}
 }
 .vs-arrow:hover{border-color:var(--accent-dim);color:var(--accent);}
 
-.comm-row{
-  display:grid;grid-template-columns:1fr 110px 80px 80px 78px;gap:14px;align-items:center;
-  padding:11px 20px;border-bottom:1px solid var(--divider);font-size:13.5px;
-}
-.comm-row:last-child{border-bottom:none;}
-.comm-name{display:flex;align-items:baseline;gap:8px;min-width:0;}
-.comm-name .tk{flex-shrink:0;}
-.comm-full{color:var(--text-faint);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.comm-price{text-align:right;font-weight:600;}
-.comm-daily,.comm-period{text-align:right;font-variant-numeric:tabular-nums;}
-.comm-period{font-weight:700;}
+.comm-full{color:var(--text-faint);font-size:12px;}
+.comm-price{font-weight:600;}
 .comm-spark{display:flex;justify-content:flex-end;}
-@media (max-width:640px){
-  .comm-row{grid-template-columns:1fr 70px 62px;}
-  .comm-period,.comm-spark{display:none;}
+/* La tabla de Commodities tiene 8 columnas y ya scrollea horizontal
+   (.table-scroll) en vez de perder columnas — se restaura la visibilidad
+   que le sacan las reglas globales thead th:nth-child(3/4){display:none}
+   de mas arriba (pensadas para otra tabla, pero sin scope a ella asi que
+   afectan cualquier tabla del sitio). Mayor especificidad de selector para
+   ganarles sin tocar esas reglas ni la tabla para la que existen. */
+@media (max-width:760px){
+  .comm-table-wrap thead th:nth-child(4), .comm-table-wrap tbody td:nth-child(4){display:table-cell;}
+}
+@media (max-width:480px){
+  .comm-table-wrap thead th:nth-child(3), .comm-table-wrap tbody td:nth-child(3){display:table-cell;}
 }
 
 .opt-form{padding:16px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;border-bottom:1px solid var(--divider);}
