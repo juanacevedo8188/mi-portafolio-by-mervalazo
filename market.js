@@ -13,7 +13,7 @@ async function fetchFeed(path) {
   return res.json();
 }
 
-// BYMA/ROFEX operan ~11:00–17:00 ART, lunes a viernes. No contempla
+// BYMA/ROFEX operan ~10:30–17:00 ART, lunes a viernes. No contempla
 // feriados especificos del mercado (son pocos por año) — el aviso ya
 // cubre el caso mas comun de "esta fuera de horario de rueda".
 function isMarketOpenAR() {
@@ -23,7 +23,7 @@ function isMarketOpenAR() {
   }).formatToParts(new Date());
   const get = t => parts.find(p => p.type === t).value;
   const mins = Number(get('hour')) * 60 + Number(get('minute'));
-  return !['Sat', 'Sun'].includes(get('weekday')) && mins >= 11 * 60 && mins < 17 * 60;
+  return !['Sat', 'Sun'].includes(get('weekday')) && mins >= 10 * 60 + 30 && mins < 17 * 60;
 }
 
 function renderMarketStatusBanner(targetId) {
@@ -32,7 +32,7 @@ function renderMarketStatusBanner(targetId) {
   el.innerHTML = isMarketOpenAR() ? '' : `
     <div class="market-closed-banner">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      <span>Mercado cerrado — la rueda opera de 11 a 17hs (ART), lunes a viernes. Fuera de ese horario, algunas cotizaciones en vivo pueden verse desactualizadas o incompletas.</span>
+      <span>Mercado cerrado — la rueda opera de 10:30 a 17hs (ART), lunes a viernes. Fuera de ese horario, algunas cotizaciones en vivo pueden verse desactualizadas o incompletas.</span>
     </div>`;
 }
 
