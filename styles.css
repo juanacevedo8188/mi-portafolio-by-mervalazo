@@ -179,6 +179,13 @@ main{max-width:1140px;margin:0 auto;padding:28px 24px;}
 .pill.down{color:var(--down);background:var(--down-bg);}
 .pill.flat{color:var(--text-dim);background:var(--bg-alt);}
 
+.market-closed-banner{
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:11px 16px;
+  background:rgba(241,168,135,.08);border:1px solid rgba(241,168,135,.25);
+  border-radius:12px;color:var(--accent);font-size:12.5px;font-weight:500;line-height:1.45;
+}
+.market-closed-banner svg{width:17px;height:17px;flex-shrink:0;}
+
 section.panel{
   background:var(--card);border:1px solid var(--card-border);border-radius:14px;
   margin-bottom:22px;overflow:hidden;

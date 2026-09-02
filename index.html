@@ -49,6 +49,8 @@
 </header>
 
 <main>
+  <div id="marketClosedBanner"></div>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Dólar</h2>
@@ -478,6 +480,7 @@ async function loadAll(manual) {
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
     await Promise.all([loadDollar(), loadTopGainers(), loadTopCrypto(), loadTopStocksArg()]);
+    renderMarketStatusBanner('marketClosedBanner');
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);
