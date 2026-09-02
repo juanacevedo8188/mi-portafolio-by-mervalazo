@@ -772,6 +772,16 @@ input[type=number]{-moz-appearance:textfield;}
 .group-input::placeholder{color:var(--text-faint);}
 .group-input:focus{border-style:solid;border-color:var(--accent-dim);color:var(--text);}
 
+/* El input de categoria (130px fijos, no se achica) mas el precio empujaban
+   la fila entera mas ancha que la pantalla en mobile — el body tiene
+   overflow-x:hidden, asi que en vez de scrollear quedaba directamente
+   cortado (no se veian ni precio ni %). Pasa a su propia linea abajo: la
+   fila principal (ticker, tag, precio, cerrar) ya entra sola. */
+@media (max-width:480px){
+  .watchlist-row{flex-wrap:wrap;}
+  .watchlist-row .group-input{order:4;flex-basis:100%;width:auto;margin-top:2px;}
+}
+
 @media (max-width:820px){
   .quick-metrics{grid-template-columns:repeat(2,1fr);}
 }
