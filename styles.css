@@ -216,6 +216,10 @@ thead th.sortable{cursor:pointer;user-select:none;transition:color .15s;}
 thead th.sortable:hover{color:var(--text-dim);}
 thead th.sortable.sorted{color:var(--accent);}
 thead th.sortable .sort-arrow{margin-left:3px;font-size:9px;opacity:.8;}
+.cat-cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.cat-val{font-size:12.5px;font-weight:600;}
+.cat-bar-wrap{width:60px;height:5px;background:var(--card-border);border-radius:3px;overflow:hidden;}
+.cat-bar-fill{height:100%;border-radius:3px;}
 tbody td{padding:13px 16px;border-bottom:1px solid var(--divider);text-align:right;font-variant-numeric:tabular-nums;}
 tbody tr:last-child td{border-bottom:none;}
 tbody tr:hover{background:var(--bg-alt);}

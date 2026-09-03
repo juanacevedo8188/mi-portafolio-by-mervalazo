@@ -4,19 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mervalazo — Análisis Técnico</title>
-<meta name="description" content="Indicadores técnicos (RSI, SMA50, EMA200, 52 semanas, volumen) y un score propio 0-100 para los CEDEARs más líquidos.">
+<meta name="description" content="Score técnico propio (tendencia, fuerza relativa, contracción de volatilidad, setup) para ~170 CEDEARs y ADRs líquidos.">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Mervalazo">
 <meta property="og:title" content="Mervalazo — Análisis Técnico">
-<meta property="og:description" content="Indicadores técnicos (RSI, SMA50, EMA200, 52 semanas, volumen) y un score propio 0-100 para los CEDEARs más líquidos.">
+<meta property="og:description" content="Score técnico propio (tendencia, fuerza relativa, contracción de volatilidad, setup) para ~170 CEDEARs y ADRs líquidos.">
 <meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/analisis-tecnico.html">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mervalazo — Análisis Técnico">
-<meta name="twitter:description" content="Indicadores técnicos (RSI, SMA50, EMA200, 52 semanas, volumen) y un score propio 0-100 para los CEDEARs más líquidos.">
+<meta name="twitter:description" content="Score técnico propio (tendencia, fuerza relativa, contracción de volatilidad, setup) para ~170 CEDEARs y ADRs líquidos.">
 <meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
 
 <link rel="icon" href="favicon.ico">
@@ -65,7 +65,7 @@
           <tr id="indHeadRow"></tr>
         </thead>
         <tbody id="indBody">
-          <tr><td colspan="9" class="empty-note">Cargando…</td></tr>
+          <tr><td colspan="10" class="empty-note">Cargando…</td></tr>
         </tbody>
       </table>
     </div>
@@ -73,11 +73,12 @@
       <span id="indInfoChevron">▾</span> ¿Cómo se arma el score?
     </button>
     <div id="indInfo" class="curve-info" style="display:none;">
-      <p>Es un puntaje propio de 0 a 100, no el de ningún servicio externo — pensado para dar una lectura rápida, no una recomendación. Combina:</p>
-      <p><b>Tendencia (40 pts):</b> +20 si el precio está por encima de su promedio móvil de 50 ruedas (SMA50), +20 si está por encima del de 200 (EMA200) — la lectura clásica de "tendencia de corto/largo plazo intacta".</p>
-      <p><b>Momentum (30 pts):</b> según el RSI de 14 ruedas — mapeado para que RSI 30 sume 0 y RSI 70 sume el máximo, sin premiar sobrecompra extrema.</p>
-      <p><b>Posición en el rango de 52 semanas (20 pts):</b> cuanto más cerca del máximo anual, más puntos.</p>
-      <p><b>Volumen (10 pts):</b> bonus si hoy operó con volumen 50% por encima de su promedio de 20 ruedas Y el precio subió — confirmación, no solo ruido.</p>
+      <p>Es un puntaje propio de 0 a 100, no el de ningún servicio externo — pensado para dar una lectura rápida, no una recomendación. Se arma en 5 categorías, cada una con su propia fórmula (documentada en el código):</p>
+      <p><b>Tendencia (0-20):</b> 4 condiciones tipo "Trend Template" — precio por encima de su SMA50, SMA50 por encima de su EMA200, EMA200 en alza, y precio no más de 25% por debajo del máximo de 52 semanas. 5pts cada una.</p>
+      <p><b>Fuerza RS (0-25):</b> percentil del retorno de 6 meses del ticker <i>dentro de este mismo universo</i> de ~170 nombres (no contra todo el mercado de EEUU) — cuanto mejor performó relativo al resto, más puntos.</p>
+      <p><b>Contracción (0-35):</b> compara el rango diario promedio de las últimas 10 ruedas contra el de las últimas 50 — cuanto más se "achica" la volatilidad reciente, más puntos (lo que en trading se conoce como VCP, volatility contraction pattern: suele preceder a un movimiento fuerte).</p>
+      <p><b>Setup (0-20):</b> qué tan cerca está el precio del máximo de las últimas 20 ruedas — la lectura de "armando una base para romper".</p>
+      <p><b>Penalizaciones (negativo):</b> -1 por cada "distribution day" (baja de más de 0,2% con volumen mayor al día anterior) en las últimas 20 ruedas, tope -8, más -3 si hubo una caída de un día mayor a 7% en las últimas 10.</p>
       <p>Se recalcula una vez por día después del cierre — no es en vivo intra-rueda. A título informativo, no constituye recomendación de inversión.</p>
     </div>
   </section>
@@ -114,17 +115,22 @@ const SECTOR_ORDER = ['Argentina', 'Tecnología', 'Financiero', 'Consumo Cíclic
 // Cada columna sabe ordenarse sola (ticker alfabetico, el resto numerico)
 // -- asi el header y el sort comparten una sola fuente de verdad en vez de
 // tener el orden de columnas repetido en el <thead> estatico y en el sort.
+// Evolución (sparkline) no es ordenable -- no hay un "mayor/menor" para una
+// serie de precios.
 const COLUMNS = [
   { key: 'ticker', label: 'Ticker', align: 'left' },
   { key: 'precio', label: 'Precio' },
   { key: 'pct_change', label: 'Var. diaria' },
   { key: 'score', label: 'Score' },
-  { key: 'rsi14', label: 'RSI (14)' },
-  { key: 'smaDiff', label: 'vs. SMA50' },
-  { key: 'emaDiff', label: 'vs. EMA200' },
-  { key: 'rangePos', label: 'Rango 52 sem.' },
-  { key: 'volumen_ratio', label: 'Volumen' }
+  { key: 'sparkline', label: 'Evolución', sortable: false },
+  { key: 'tendencia', label: 'Tendencia' },
+  { key: 'fuerza_rs', label: 'Fuerza RS' },
+  { key: 'contraccion', label: 'Contracción' },
+  { key: 'setup', label: 'Setup' },
+  { key: 'penalizaciones', label: 'Penalizaciones' }
 ];
+
+const CAT_MAX = { tendencia: 20, fuerza_rs: 25, contraccion: 35, setup: 20 };
 
 let indCache = [];
 let activeSector = 'Todos';
@@ -135,22 +141,20 @@ function scoreClass(score) {
   return score >= 70 ? 'up' : score < 40 ? 'down' : 'flat';
 }
 
-// Distancia a un promedio movil / posicion en el rango de 52 semanas: se
-// calculan una sola vez por fila al llegar los datos (no en cada render ni
-// en cada comparacion de sort) para que la tabla y el ordenamiento lean
-// siempre el mismo numero.
-function enrichRow(r) {
-  r.smaDiff = r.sma50 ? ((r.precio - r.sma50) / r.sma50) * 100 : null;
-  r.emaDiff = r.ema200 ? ((r.precio - r.ema200) / r.ema200) * 100 : null;
-  r.rangePos = r.semana52_max > r.semana52_min
-    ? ((r.precio - r.semana52_min) / (r.semana52_max - r.semana52_min)) * 100
-    : null;
-  return r;
+// Cada categoria se muestra como numero + barra de progreso hasta su
+// maximo posible (CAT_MAX) -- el color de la barra es una lectura rapida
+// de que tan cerca esta del maximo, no un semaforo de "bueno/malo" en
+// terminos absolutos.
+function catBarCell(value, max) {
+  if (value == null) return '<td class="mono empty-note">—</td>';
+  const frac = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const color = frac >= 0.75 ? 'var(--up)' : frac >= 0.4 ? 'var(--accent)' : 'var(--down)';
+  return `<td><div class="cat-cell"><span class="cat-val mono">${value}</span><div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${(frac * 100).toFixed(0)}%;background:${color};"></div></div></div></td>`;
 }
 
-function maDiffCell(diff) {
-  if (diff == null) return '<td class="mono empty-note">—</td>';
-  return `<td class="mono chg ${pctClass(diff)}">${fmtPct(diff)}</td>`;
+function penCell(value) {
+  if (!value) return '<td class="mono empty-note">—</td>';
+  return `<td class="mono" style="color:var(--down);">${value}</td>`;
 }
 
 function indicatorRow(r) {
@@ -159,11 +163,12 @@ function indicatorRow(r) {
     <td class="mono">${fmtUSD(r.precio)}</td>
     <td class="mono chg ${pctClass(r.pct_change)}">${fmtPct(r.pct_change)}</td>
     <td><span class="pill ${scoreClass(r.score)}">${r.score}</span></td>
-    <td class="mono">${r.rsi14 != null ? fmtNum(r.rsi14) : '—'}</td>
-    ${maDiffCell(r.smaDiff)}
-    ${maDiffCell(r.emaDiff)}
-    <td class="mono">${r.rangePos != null ? fmtNum(r.rangePos) + '%' : '—'}</td>
-    <td class="mono">${r.volumen_ratio != null ? fmtNum(r.volumen_ratio) + 'x' : '—'}</td>
+    <td>${r.sparkline && r.sparkline.length > 1 ? buildSparklineSVG(r.sparkline) : ''}</td>
+    ${catBarCell(r.tendencia, CAT_MAX.tendencia)}
+    ${catBarCell(r.fuerza_rs, CAT_MAX.fuerza_rs)}
+    ${catBarCell(r.contraccion, CAT_MAX.contraccion)}
+    ${catBarCell(r.setup, CAT_MAX.setup)}
+    ${penCell(r.penalizaciones)}
   </tr>`;
 }
 
@@ -185,6 +190,7 @@ function sortRows(rows) {
 
 function renderHeader() {
   document.getElementById('indHeadRow').innerHTML = COLUMNS.map(c => {
+    if (c.sortable === false) return `<th>${c.label}</th>`;
     const isSorted = c.key === sortField;
     const arrow = isSorted ? `<span class="sort-arrow">${sortDir === 'desc' ? '▾' : '▴'}</span>` : '';
     return `<th class="sortable${isSorted ? ' sorted' : ''}"${c.align === 'left' ? ' style="text-align:left;"' : ''} onclick="setSort('${c.key}')">${c.label}${arrow}</th>`;
@@ -203,7 +209,7 @@ function paintIndicators() {
   const filtered = activeSector === 'Todos' ? indCache : indCache.filter(r => r.sector === activeSector);
   const rows = sortRows(filtered);
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="9" class="empty-note">No hay datos para este sector.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="empty-note">No hay datos para este sector.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(indicatorRow).join('');
@@ -231,9 +237,9 @@ async function loadIndicators(manual) {
   try {
     const { data, error } = await sb.from('technical_indicators').select('*');
     if (error) throw error;
-    indCache = (data || []).map(enrichRow);
+    indCache = data || [];
     if (!indCache.length) {
-      body.innerHTML = '<tr><td colspan="9" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
       document.getElementById('indUpdated').textContent = '';
       setStatus('live', 'En vivo');
       return;
@@ -247,7 +253,7 @@ async function loadIndicators(manual) {
     setStatus('live', 'Datos del cierre anterior');
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<tr><td colspan="9" class="empty-note">No se pudo cargar la información de indicadores.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="empty-note">No se pudo cargar la información de indicadores.</td></tr>';
     setStatus('err', 'No se pudo conectar');
   } finally {
     btn.disabled = false;
