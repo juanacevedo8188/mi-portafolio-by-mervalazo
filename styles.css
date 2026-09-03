@@ -212,6 +212,10 @@ thead th{
   white-space:nowrap;
 }
 thead th:first-child, tbody td:first-child{text-align:left;}
+thead th.sortable{cursor:pointer;user-select:none;transition:color .15s;}
+thead th.sortable:hover{color:var(--text-dim);}
+thead th.sortable.sorted{color:var(--accent);}
+thead th.sortable .sort-arrow{margin-left:3px;font-size:9px;opacity:.8;}
 tbody td{padding:13px 16px;border-bottom:1px solid var(--divider);text-align:right;font-variant-numeric:tabular-nums;}
 tbody tr:last-child td{border-bottom:none;}
 tbody tr:hover{background:var(--bg-alt);}

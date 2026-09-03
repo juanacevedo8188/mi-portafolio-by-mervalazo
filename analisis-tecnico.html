@@ -62,17 +62,7 @@
     <div class="table-scroll">
       <table>
         <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Precio</th>
-            <th>Var. diaria</th>
-            <th>Score</th>
-            <th>RSI (14)</th>
-            <th>vs. SMA50</th>
-            <th>vs. EMA200</th>
-            <th>Rango 52 sem.</th>
-            <th>Volumen</th>
-          </tr>
+          <tr id="indHeadRow"></tr>
         </thead>
         <tbody id="indBody">
           <tr><td colspan="9" class="empty-note">Cargando…</td></tr>
@@ -121,39 +111,97 @@ function toggleInfo(bodyId) {
 
 const SECTOR_ORDER = ['Argentina', 'Tecnología', 'Financiero', 'Consumo Cíclico', 'Consumo Defensivo', 'Salud', 'Comunicación', 'Industrial', 'Energía'];
 
+// Cada columna sabe ordenarse sola (ticker alfabetico, el resto numerico)
+// -- asi el header y el sort comparten una sola fuente de verdad en vez de
+// tener el orden de columnas repetido en el <thead> estatico y en el sort.
+const COLUMNS = [
+  { key: 'ticker', label: 'Ticker', align: 'left' },
+  { key: 'precio', label: 'Precio' },
+  { key: 'pct_change', label: 'Var. diaria' },
+  { key: 'score', label: 'Score' },
+  { key: 'rsi14', label: 'RSI (14)' },
+  { key: 'smaDiff', label: 'vs. SMA50' },
+  { key: 'emaDiff', label: 'vs. EMA200' },
+  { key: 'rangePos', label: 'Rango 52 sem.' },
+  { key: 'volumen_ratio', label: 'Volumen' }
+];
+
 let indCache = [];
 let activeSector = 'Todos';
+let sortField = 'score';
+let sortDir = 'desc';
 
 function scoreClass(score) {
   return score >= 70 ? 'up' : score < 40 ? 'down' : 'flat';
 }
 
-function maDiffCell(price, ma) {
-  if (ma == null) return '<td class="mono empty-note">—</td>';
-  const diff = ((price - ma) / ma) * 100;
+// Distancia a un promedio movil / posicion en el rango de 52 semanas: se
+// calculan una sola vez por fila al llegar los datos (no en cada render ni
+// en cada comparacion de sort) para que la tabla y el ordenamiento lean
+// siempre el mismo numero.
+function enrichRow(r) {
+  r.smaDiff = r.sma50 ? ((r.precio - r.sma50) / r.sma50) * 100 : null;
+  r.emaDiff = r.ema200 ? ((r.precio - r.ema200) / r.ema200) * 100 : null;
+  r.rangePos = r.semana52_max > r.semana52_min
+    ? ((r.precio - r.semana52_min) / (r.semana52_max - r.semana52_min)) * 100
+    : null;
+  return r;
+}
+
+function maDiffCell(diff) {
+  if (diff == null) return '<td class="mono empty-note">—</td>';
   return `<td class="mono chg ${pctClass(diff)}">${fmtPct(diff)}</td>`;
 }
 
 function indicatorRow(r) {
-  const rangePos = r.semana52_max > r.semana52_min
-    ? ((r.precio - r.semana52_min) / (r.semana52_max - r.semana52_min)) * 100
-    : null;
   return `<tr>
     <td>${tvLink(r.ticker, 'global')}</td>
     <td class="mono">${fmtUSD(r.precio)}</td>
     <td class="mono chg ${pctClass(r.pct_change)}">${fmtPct(r.pct_change)}</td>
     <td><span class="pill ${scoreClass(r.score)}">${r.score}</span></td>
     <td class="mono">${r.rsi14 != null ? fmtNum(r.rsi14) : '—'}</td>
-    ${maDiffCell(r.precio, r.sma50)}
-    ${maDiffCell(r.precio, r.ema200)}
-    <td class="mono">${rangePos != null ? fmtNum(rangePos) + '%' : '—'}</td>
+    ${maDiffCell(r.smaDiff)}
+    ${maDiffCell(r.emaDiff)}
+    <td class="mono">${r.rangePos != null ? fmtNum(r.rangePos) + '%' : '—'}</td>
     <td class="mono">${r.volumen_ratio != null ? fmtNum(r.volumen_ratio) + 'x' : '—'}</td>
   </tr>`;
 }
 
+function sortRows(rows) {
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    if (sortField === 'ticker') return dir * a.ticker.localeCompare(b.ticker);
+    const va = a[sortField], vb = b[sortField];
+    // Los null (indicador sin dato suficiente todavia, ej. EMA200 recien
+    // agregado a la lista) quedan siempre al final, sin importar la
+    // direccion -- si no, "ascendente" los mostraria primero como si
+    // fueran el valor mas bajo posible.
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return dir * (va - vb);
+  });
+}
+
+function renderHeader() {
+  document.getElementById('indHeadRow').innerHTML = COLUMNS.map(c => {
+    const isSorted = c.key === sortField;
+    const arrow = isSorted ? `<span class="sort-arrow">${sortDir === 'desc' ? '▾' : '▴'}</span>` : '';
+    return `<th class="sortable${isSorted ? ' sorted' : ''}"${c.align === 'left' ? ' style="text-align:left;"' : ''} onclick="setSort('${c.key}')">${c.label}${arrow}</th>`;
+  }).join('');
+}
+
+function setSort(key) {
+  sortDir = sortField === key ? (sortDir === 'desc' ? 'asc' : 'desc') : 'desc';
+  sortField = key;
+  renderHeader();
+  paintIndicators();
+}
+
 function paintIndicators() {
   const body = document.getElementById('indBody');
-  const rows = activeSector === 'Todos' ? indCache : indCache.filter(r => r.sector === activeSector);
+  const filtered = activeSector === 'Todos' ? indCache : indCache.filter(r => r.sector === activeSector);
+  const rows = sortRows(filtered);
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="9" class="empty-note">No hay datos para este sector.</td></tr>';
     return;
@@ -181,15 +229,16 @@ async function loadIndicators(manual) {
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   const body = document.getElementById('indBody');
   try {
-    const { data, error } = await sb.from('technical_indicators').select('*').order('score', { ascending: false });
+    const { data, error } = await sb.from('technical_indicators').select('*');
     if (error) throw error;
-    indCache = data || [];
+    indCache = (data || []).map(enrichRow);
     if (!indCache.length) {
       body.innerHTML = '<tr><td colspan="9" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
       document.getElementById('indUpdated').textContent = '';
       setStatus('live', 'En vivo');
       return;
     }
+    renderHeader();
     paintSectorChips();
     paintIndicators();
     const latest = indCache.reduce((max, r) => r.updated_at > max ? r.updated_at : max, indCache[0].updated_at);
@@ -208,6 +257,7 @@ async function loadIndicators(manual) {
 
 renderNavTabs('tecnico');
 initTVHover();
+renderHeader();
 loadIndicators(false);
 </script>
 
