@@ -56,8 +56,17 @@
       <h2>Indicadores Técnicos</h2>
       <span id="indUpdated">—</span>
     </div>
-    <div class="mkw-picker" style="padding-bottom:0;">
-      <div class="mkw-chips" id="sectorChips"></div>
+    <button class="info-toggle" style="border-top:none;border-bottom:1px solid var(--divider);" onclick="toggleInfo('indInfo')">
+      <span id="indInfoChevron">▾</span> ¿Cómo se arma el score?
+    </button>
+    <div id="indInfo" class="curve-info" style="display:none;border-bottom:1px solid var(--divider);padding-top:6px;">
+      <p>Es un puntaje propio de 0 a 100, no el de ningún servicio externo — pensado para dar una lectura rápida, no una recomendación. Se arma en 5 categorías, cada una con su propia fórmula (documentada en el código):</p>
+      <p><b>Tendencia (0-20):</b> 4 condiciones tipo "Trend Template" — precio por encima de su SMA50, SMA50 por encima de su EMA200, EMA200 en alza, y precio no más de 25% por debajo del máximo de 52 semanas. 5pts cada una.</p>
+      <p><b>Fuerza RS (0-25):</b> percentil del retorno de 6 meses del ticker <i>dentro de este mismo universo</i> de ~170 nombres (no contra todo el mercado de EEUU) — cuanto mejor performó relativo al resto, más puntos.</p>
+      <p><b>Contracción (0-35):</b> compara el rango diario promedio de las últimas 10 ruedas contra el de las últimas 50 — cuanto más se "achica" la volatilidad reciente, más puntos (lo que en trading se conoce como VCP, volatility contraction pattern: suele preceder a un movimiento fuerte).</p>
+      <p><b>Setup (0-20):</b> qué tan cerca está el precio del máximo de las últimas 20 ruedas — la lectura de "armando una base para romper".</p>
+      <p><b>Penalizaciones (negativo):</b> -1 por cada "distribution day" (baja de más de 0,2% con volumen mayor al día anterior) en las últimas 20 ruedas, tope -8, más -3 si hubo una caída de un día mayor a 7% en las últimas 10.</p>
+      <p>Se recalcula una vez por día después del cierre — no es en vivo intra-rueda. A título informativo, no constituye recomendación de inversión.</p>
     </div>
     <div class="table-scroll">
       <table>
@@ -68,18 +77,6 @@
           <tr><td colspan="10" class="empty-note">Cargando…</td></tr>
         </tbody>
       </table>
-    </div>
-    <button class="info-toggle" onclick="toggleInfo('indInfo')">
-      <span id="indInfoChevron">▾</span> ¿Cómo se arma el score?
-    </button>
-    <div id="indInfo" class="curve-info" style="display:none;">
-      <p>Es un puntaje propio de 0 a 100, no el de ningún servicio externo — pensado para dar una lectura rápida, no una recomendación. Se arma en 5 categorías, cada una con su propia fórmula (documentada en el código):</p>
-      <p><b>Tendencia (0-20):</b> 4 condiciones tipo "Trend Template" — precio por encima de su SMA50, SMA50 por encima de su EMA200, EMA200 en alza, y precio no más de 25% por debajo del máximo de 52 semanas. 5pts cada una.</p>
-      <p><b>Fuerza RS (0-25):</b> percentil del retorno de 6 meses del ticker <i>dentro de este mismo universo</i> de ~170 nombres (no contra todo el mercado de EEUU) — cuanto mejor performó relativo al resto, más puntos.</p>
-      <p><b>Contracción (0-35):</b> compara el rango diario promedio de las últimas 10 ruedas contra el de las últimas 50 — cuanto más se "achica" la volatilidad reciente, más puntos (lo que en trading se conoce como VCP, volatility contraction pattern: suele preceder a un movimiento fuerte).</p>
-      <p><b>Setup (0-20):</b> qué tan cerca está el precio del máximo de las últimas 20 ruedas — la lectura de "armando una base para romper".</p>
-      <p><b>Penalizaciones (negativo):</b> -1 por cada "distribution day" (baja de más de 0,2% con volumen mayor al día anterior) en las últimas 20 ruedas, tope -8, más -3 si hubo una caída de un día mayor a 7% en las últimas 10.</p>
-      <p>Se recalcula una vez por día después del cierre — no es en vivo intra-rueda. A título informativo, no constituye recomendación de inversión.</p>
     </div>
   </section>
 
@@ -110,8 +107,6 @@ function toggleInfo(bodyId) {
   if (chevron) chevron.textContent = open ? '▾' : '▴';
 }
 
-const SECTOR_ORDER = ['Argentina', 'Tecnología', 'Financiero', 'Consumo Cíclico', 'Consumo Defensivo', 'Salud', 'Comunicación', 'Industrial', 'Energía'];
-
 // Cada columna sabe ordenarse sola (ticker alfabetico, el resto numerico)
 // -- asi el header y el sort comparten una sola fuente de verdad en vez de
 // tener el orden de columnas repetido en el <thead> estatico y en el sort.
@@ -133,7 +128,6 @@ const COLUMNS = [
 const CAT_MAX = { tendencia: 20, fuerza_rs: 25, contraccion: 35, setup: 20 };
 
 let indCache = [];
-let activeSector = 'Todos';
 let sortField = 'score';
 let sortDir = 'desc';
 
@@ -206,26 +200,12 @@ function setSort(key) {
 
 function paintIndicators() {
   const body = document.getElementById('indBody');
-  const filtered = activeSector === 'Todos' ? indCache : indCache.filter(r => r.sector === activeSector);
-  const rows = sortRows(filtered);
+  const rows = sortRows(indCache);
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="10" class="empty-note">No hay datos para este sector.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="empty-note">No hay datos.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(indicatorRow).join('');
-}
-
-function paintSectorChips() {
-  const sectors = ['Todos', ...SECTOR_ORDER.filter(s => indCache.some(r => r.sector === s))];
-  document.getElementById('sectorChips').innerHTML = sectors.map(s =>
-    `<button class="mkw-chip${s === activeSector ? ' active' : ''}" onclick="selectSector('${s}')">${s}</button>`
-  ).join('');
-}
-
-function selectSector(s) {
-  activeSector = s;
-  paintSectorChips();
-  paintIndicators();
 }
 
 async function loadIndicators(manual) {
@@ -245,7 +225,6 @@ async function loadIndicators(manual) {
       return;
     }
     renderHeader();
-    paintSectorChips();
     paintIndicators();
     const latest = indCache.reduce((max, r) => r.updated_at > max ? r.updated_at : max, indCache[0].updated_at);
     document.getElementById('indUpdated').textContent = indCache.length + ' tickers · actualizado ' + new Date(latest).toLocaleString('es-AR');
