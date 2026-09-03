@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Análisis Técnico</title>
+<meta name="description" content="Indicadores técnicos (RSI, SMA50, EMA200, 52 semanas, volumen) y un score propio 0-100 para los CEDEARs más líquidos.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Análisis Técnico">
+<meta property="og:description" content="Indicadores técnicos (RSI, SMA50, EMA200, 52 semanas, volumen) y un score propio 0-100 para los CEDEARs más líquidos.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/analisis-tecnico.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Análisis Técnico">
+<meta name="twitter:description" content="Indicadores técnicos (RSI, SMA50, EMA200, 52 semanas, volumen) y un score propio 0-100 para los CEDEARs más líquidos.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Análisis Técnico</h1>
+        <p>CEDEARs y ADRs más líquidos</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Conectando…</span></span>
+      <button id="refreshBtn" onclick="loadIndicators(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <div id="marketClosedBanner"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Indicadores Técnicos</h2>
+      <span id="indUpdated">—</span>
+    </div>
+    <div class="mkw-picker" style="padding-bottom:0;">
+      <div class="mkw-chips" id="sectorChips"></div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Precio</th>
+            <th>Var. diaria</th>
+            <th>Score</th>
+            <th>RSI (14)</th>
+            <th>vs. SMA50</th>
+            <th>vs. EMA200</th>
+            <th>Rango 52 sem.</th>
+            <th>Volumen</th>
+          </tr>
+        </thead>
+        <tbody id="indBody">
+          <tr><td colspan="9" class="empty-note">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="info-toggle" onclick="toggleInfo('indInfo')">
+      <span id="indInfoChevron">▾</span> ¿Cómo se arma el score?
+    </button>
+    <div id="indInfo" class="curve-info" style="display:none;">
+      <p>Es un puntaje propio de 0 a 100, no el de ningún servicio externo — pensado para dar una lectura rápida, no una recomendación. Combina:</p>
+      <p><b>Tendencia (40 pts):</b> +20 si el precio está por encima de su promedio móvil de 50 ruedas (SMA50), +20 si está por encima del de 200 (EMA200) — la lectura clásica de "tendencia de corto/largo plazo intacta".</p>
+      <p><b>Momentum (30 pts):</b> según el RSI de 14 ruedas — mapeado para que RSI 30 sume 0 y RSI 70 sume el máximo, sin premiar sobrecompra extrema.</p>
+      <p><b>Posición en el rango de 52 semanas (20 pts):</b> cuanto más cerca del máximo anual, más puntos.</p>
+      <p><b>Volumen (10 pts):</b> bonus si hoy operó con volumen 50% por encima de su promedio de 20 ruedas Y el precio subió — confirmación, no solo ruido.</p>
+      <p>Se recalcula una vez por día después del cierre — no es en vivo intra-rueda. A título informativo, no constituye recomendación de inversión.</p>
+    </div>
+  </section>
+
+  <footer>
+    Precios e historial vía Yahoo Finance, con demora de mercado. El score y los indicadores son de elaboración propia de Mervalazo y se recalculan una vez por día tras el cierre — a título informativo, no constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+const SECTOR_ORDER = ['Argentina', 'Tecnología', 'Financiero', 'Consumo Cíclico', 'Consumo Defensivo', 'Salud', 'Comunicación', 'Industrial', 'Energía'];
+
+let indCache = [];
+let activeSector = 'Todos';
+
+function scoreClass(score) {
+  return score >= 70 ? 'up' : score < 40 ? 'down' : 'flat';
+}
+
+function maDiffCell(price, ma) {
+  if (ma == null) return '<td class="mono empty-note">—</td>';
+  const diff = ((price - ma) / ma) * 100;
+  return `<td class="mono chg ${pctClass(diff)}">${fmtPct(diff)}</td>`;
+}
+
+function indicatorRow(r) {
+  const rangePos = r.semana52_max > r.semana52_min
+    ? ((r.precio - r.semana52_min) / (r.semana52_max - r.semana52_min)) * 100
+    : null;
+  return `<tr>
+    <td>${tvLink(r.ticker, 'global')}</td>
+    <td class="mono">${fmtUSD(r.precio)}</td>
+    <td class="mono chg ${pctClass(r.pct_change)}">${fmtPct(r.pct_change)}</td>
+    <td><span class="pill ${scoreClass(r.score)}">${r.score}</span></td>
+    <td class="mono">${r.rsi14 != null ? fmtNum(r.rsi14) : '—'}</td>
+    ${maDiffCell(r.precio, r.sma50)}
+    ${maDiffCell(r.precio, r.ema200)}
+    <td class="mono">${rangePos != null ? fmtNum(rangePos) + '%' : '—'}</td>
+    <td class="mono">${r.volumen_ratio != null ? fmtNum(r.volumen_ratio) + 'x' : '—'}</td>
+  </tr>`;
+}
+
+function paintIndicators() {
+  const body = document.getElementById('indBody');
+  const rows = activeSector === 'Todos' ? indCache : indCache.filter(r => r.sector === activeSector);
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="9" class="empty-note">No hay datos para este sector.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(indicatorRow).join('');
+}
+
+function paintSectorChips() {
+  const sectors = ['Todos', ...SECTOR_ORDER.filter(s => indCache.some(r => r.sector === s))];
+  document.getElementById('sectorChips').innerHTML = sectors.map(s =>
+    `<button class="mkw-chip${s === activeSector ? ' active' : ''}" onclick="selectSector('${s}')">${s}</button>`
+  ).join('');
+}
+
+function selectSector(s) {
+  activeSector = s;
+  paintSectorChips();
+  paintIndicators();
+}
+
+async function loadIndicators(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Conectando…');
+  const body = document.getElementById('indBody');
+  try {
+    const { data, error } = await sb.from('technical_indicators').select('*').order('score', { ascending: false });
+    if (error) throw error;
+    indCache = data || [];
+    if (!indCache.length) {
+      body.innerHTML = '<tr><td colspan="9" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
+      document.getElementById('indUpdated').textContent = '';
+      setStatus('live', 'En vivo');
+      return;
+    }
+    paintSectorChips();
+    paintIndicators();
+    const latest = indCache.reduce((max, r) => r.updated_at > max ? r.updated_at : max, indCache[0].updated_at);
+    document.getElementById('indUpdated').textContent = indCache.length + ' tickers · actualizado ' + new Date(latest).toLocaleString('es-AR');
+    renderMarketStatusBanner('marketClosedBanner');
+    setStatus('live', 'Datos del cierre anterior');
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="9" class="empty-note">No se pudo cargar la información de indicadores.</td></tr>';
+    setStatus('err', 'No se pudo conectar');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+renderNavTabs('tecnico');
+initTVHover();
+loadIndicators(false);
+</script>
+
+</body>
+</html>
