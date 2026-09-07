@@ -162,6 +162,14 @@ header{
    no se nota. Se pausa al pasar el mouse para poder leer con calma. */
 .market-ticker-wrap{
   overflow:hidden;background:var(--bg-alt);border-bottom:1px solid var(--divider);
+}
+/* El fondo/borde de .market-ticker-wrap va de punta a punta (igual que el
+   fondo del <header>), pero el contenido que gira se centra en la misma
+   columna de 1140px que .header-inner/.nav-tabs/main -- si no, la cinta
+   se ve mas ancha que la barra de tabs de arriba y el layout queda
+   desalineado. */
+.market-ticker-inner{
+  max-width:1140px;margin:0 auto;overflow:hidden;
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);
   mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);
 }
