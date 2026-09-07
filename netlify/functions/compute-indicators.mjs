@@ -3,18 +3,29 @@
 // Supabase para que analisis-tecnico.html lo lea sin golpear Yahoo Finance
 // ni recalcular nada en vivo.
 //
-// El score se arma en 5 categorias, cada una con su propia formula:
+// El score se arma en 5 categorias, cada una con su propia formula. La
+// primera version de esto (commit anterior) era demasiado estricta --
+// pedia que TODA una ventana reciente estuviera tranquila para puntuar
+// Contraccion, y Fuerza RS era un ranking puro donde solo el #1 del
+// universo se llevaba el maximo -- asi que en la practica casi nada
+// llegaba a un score alto. Esta version es mas generosa a proposito:
 //
-//  - Tendencia (0-20): 4 condiciones estilo "Trend Template" de Minervini
-//    (precio > SMA50 > EMA200, EMA200 en alza, cerca del maximo de 52
-//    semanas), 5pts cada una.
-//  - Fuerza RS (0-25): percentil del retorno de 6 meses del ticker DENTRO
-//    de este mismo universo (no contra todo el mercado de EEUU) -- estilo
-//    RS Rating de IBD pero con nuestra propia base de comparacion.
-//  - Contraccion (0-35): rango diario promedio (high-low/close) de las
-//    ultimas 10 ruedas comparado contra el de las ultimas 50 -- cuanto mas
-//    se "achica" la volatilidad reciente, mas puntos (volatility
-//    contraction pattern).
+//  - Tendencia (0-20): no son condiciones binarias sueltas, es la
+//    distancia del precio a SMA50 y a EMA200 normalizada por ATR14 (0-8
+//    pts cada una, saturando alrededor de +2 ATR de distancia) mas 4pts
+//    si la EMA200 viene en alza.
+//  - Fuerza RS (0-25): el MAYOR entre el nivel (percentil del retorno de
+//    6 meses dentro de este universo) y la aceleracion (percentil del
+//    retorno del ultimo mes) -- ambos mapeados de forma generosa, no
+//    hace falta ser el #1 del universo para puntuar bien -- mas 5pts si
+//    el precio esta sobre su SMA50. Si el ticker se desplomo en la
+//    ultima semana (percentil de retorno a 5 ruedas <15), se ignora la
+//    via de aceleracion mensual (para no premiar un rebote falso).
+//  - Contraccion (0-35): la MEJOR ventana de 7 ruedas dentro de las
+//    ultimas 20 (no toda la ventana entera) comparada contra el rango
+//    promedio de referencia de 50 ruedas (0-20 pts) mas un bonus por RSI
+//    en zona sana 40-70 (0-15 pts; si viene sobrecomprado sin confirmar
+//    con 2 velas verdes seguidas, no suma).
 //  - Setup (0-20): que tan cerca esta el precio del maximo de las ultimas
 //    20 ruedas -- la lectura de "armando una base para romper".
 //  - Penalizaciones (negativo): -1 por cada "distribution day" (baja de
@@ -167,6 +178,66 @@ function avgDailyRangePct(closes, highs, lows, period) {
   return (sum / period) * 100;
 }
 
+// La ventana de `windowLen` ruedas MAS comprimida dentro de las ultimas
+// `lookback` -- a diferencia de avgDailyRangePct (que promedia un tramo
+// fijo entero), esto encuentra el mejor tramo de acumulacion reciente,
+// aunque el resto de esas ruedas haya sido mas movido. Es lo que hace que
+// Contraccion no exija que TODA la ultima semana y media este quieta.
+function bestWindowRangePct(closes, highs, lows, windowLen, lookback) {
+  const n = closes.length;
+  if (n < lookback) return null;
+  let best = Infinity;
+  for (let start = n - lookback; start <= n - windowLen; start++) {
+    let sum = 0;
+    for (let i = start; i < start + windowLen; i++) sum += (highs[i] - lows[i]) / closes[i];
+    const avg = (sum / windowLen) * 100;
+    if (avg < best) best = avg;
+  }
+  return best === Infinity ? null : best;
+}
+
+// ATR de Wilder (14 ruedas por defecto): promedio del "true range" (el
+// mayor entre el rango del dia, la distancia al cierre previo hacia
+// arriba y hacia abajo) -- se usa para normalizar Tendencia por
+// volatilidad propia de cada activo, en vez de un % fijo que le pega
+// distinto a una acción tranquila que a una volátil.
+function atr(closes, highs, lows, period) {
+  const n = closes.length;
+  if (n < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < n; i++) {
+    trs.push(Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    ));
+  }
+  return sma(trs, period);
+}
+
+// RSI de Wilder: promedio simple de ganancias/perdidas en los primeros
+// `period` cambios, despues suavizado exponencial (factor 1/period) el
+// resto de la serie.
+function rsi(values, period) {
+  if (values.length < period + 1) return null;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = values[i] - values[i - 1];
+    if (diff >= 0) avgGain += diff; else avgLoss -= diff;
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  for (let i = period + 1; i < values.length; i++) {
+    const diff = values[i] - values[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - 100 / (1 + avgGain / avgLoss);
+}
+
 // "Distribution day" (termino de IBD/Minervini): baja de mas de 0.2% con
 // volumen mayor al dia anterior -- señal de que institucionales estan
 // vendiendo, no solo ruido minorista.
@@ -189,18 +260,45 @@ function hadBigDrop(closes, lookback, threshold) {
   return false;
 }
 
-function computeTendencia({ price, sma50, ema200, trendRising, hi52 }) {
-  let pts = 0;
-  if (sma50 != null && price > sma50) pts += 5;
-  if (sma50 != null && ema200 != null && sma50 > ema200) pts += 5;
-  if (trendRising) pts += 5;
-  if (hi52 && price >= hi52 * 0.75) pts += 5;
-  return pts;
+// Distancia (en ATRs) de un precio a una media, mapeada 0-1: a -1 ATR o
+// mas abajo, 0; a +2/+3 ATR o mas arriba, el maximo -- una accion
+// tranquila y una volatil que esten "igual de arriba" en terminos
+// propios puntuan parecido, en vez de que el % fijo castigue mas a la
+// volatil.
+function atrDistFrac(price, level, atr14, satAtr) {
+  if (level == null || !atr14) return 0;
+  const distAtr = (price - level) / atr14;
+  return Math.max(0, Math.min(1, (distAtr + 1) / (satAtr + 1)));
 }
 
-function computeContraccion(recentRange, longRange) {
-  if (!recentRange || !longRange) return 0;
-  return Math.round(Math.max(0, Math.min(1, 1 - recentRange / longRange)) * 35);
+function computeTendencia({ price, sma50, ema200, trendRising, atr14 }) {
+  let pts = 0;
+  pts += atrDistFrac(price, sma50, atr14, 2) * 8;
+  pts += atrDistFrac(price, ema200, atr14, 3) * 8;
+  if (trendRising) pts += 4;
+  return Math.round(pts);
+}
+
+function computeContraccion(closes, highs, lows, rsi14) {
+  const bestRecent = bestWindowRangePct(closes, highs, lows, 7, 20);
+  const longRange = avgDailyRangePct(closes, highs, lows, 50);
+  let volPts = 0;
+  if (bestRecent != null && longRange) {
+    volPts = Math.max(0, Math.min(1, 1 - bestRecent / longRange)) * 20;
+  }
+  let rsiPts = 0;
+  if (rsi14 != null) {
+    if (rsi14 >= 40 && rsi14 <= 70) {
+      rsiPts = 15;
+    } else if (rsi14 > 70) {
+      const n = closes.length;
+      const twoGreen = n >= 3 && closes[n - 1] > closes[n - 2] && closes[n - 2] > closes[n - 3];
+      rsiPts = twoGreen ? 8 : 0;
+    } else {
+      rsiPts = Math.max(0, rsi14 / 40) * 8;
+    }
+  }
+  return Math.round(volPts + rsiPts);
 }
 
 function computeSetup(price, hi20) {
@@ -256,14 +354,17 @@ async function fetchOne([ticker, sector]) {
     const ema200 = ema(closes, 200);
     const ema200Prev = closes.length > 220 ? ema(closes.slice(0, -20), 200) : null;
     const trendRising = ema200 != null && ema200Prev != null && ema200 > ema200Prev;
-    const hi52 = Math.max(...closes);
+    const atr14 = atr(closes, highs, lows, 14);
+    const rsi14 = rsi(closes, 14);
     const hi20 = Math.max(...closes.slice(-20));
-    const recentRange = avgDailyRangePct(closes, highs, lows, 10);
-    const longRange = avgDailyRangePct(closes, highs, lows, 50);
     const distDays = countDistributionDays(closes, volumes, 20);
     const bigDrop = hadBigDrop(closes, 10, -0.07);
     const sixMoIdx = Math.max(0, closes.length - 127);
     const sixMoReturn = closes[sixMoIdx] ? ((price - closes[sixMoIdx]) / closes[sixMoIdx]) * 100 : null;
+    const oneMoIdx = Math.max(0, closes.length - 22);
+    const oneMoReturn = closes[oneMoIdx] ? ((price - closes[oneMoIdx]) / closes[oneMoIdx]) * 100 : null;
+    const fiveDIdx = Math.max(0, closes.length - 6);
+    const fiveDReturn = closes[fiveDIdx] ? ((price - closes[fiveDIdx]) / closes[fiveDIdx]) * 100 : null;
     const avgVol20 = volumes.length > 1 ? sma(volumes.slice(0, -1), Math.min(20, volumes.length - 1)) : null;
     const volRatio = avgVol20 ? volumes[volumes.length - 1] / avgVol20 : null;
 
@@ -275,15 +376,17 @@ async function fetchOne([ticker, sector]) {
       pct_change: pctChange,
       sma50,
       ema200,
-      tendencia: computeTendencia({ price, sma50, ema200, trendRising, hi52 }),
-      contraccion: computeContraccion(recentRange, longRange),
+      tendencia: computeTendencia({ price, sma50, ema200, trendRising, atr14 }),
+      contraccion: computeContraccion(closes, highs, lows, rsi14),
       setup: computeSetup(price, hi20),
       penalizaciones: computePenalizaciones(distDays, bigDrop),
       estadio: computeEstadio(price, ema200, trendRising),
       retorno_6m: sixMoReturn,
       vol_ratio: volRatio,
       sparkline: closes.slice(-20),
-      sixMoReturn
+      // Campos internos, solo para el ranking de Fuerza RS entre todo el
+      // universo -- se borran antes de guardar (ver export default).
+      sixMoReturn, oneMoReturn, fiveDReturn
     };
   } catch (err) {
     return null;
@@ -298,20 +401,45 @@ export default async () => {
 
   const rows = (await Promise.all(TICKERS.map(fetchOne))).filter(Boolean);
 
-  // Fuerza RS = percentil del retorno de 6 meses DENTRO de este universo,
-  // asi que necesita que todos los tickers ya esten calculados antes de
-  // poder rankear a cada uno.
-  const withReturn = rows.filter(r => r.sixMoReturn != null).sort((a, b) => a.sixMoReturn - b.sixMoReturn);
-  withReturn.forEach((r, i) => {
-    const percentile = withReturn.length > 1 ? (i / (withReturn.length - 1)) * 100 : 50;
-    r.fuerza_rs = Math.round((percentile / 100) * 25);
-  });
+  // Fuerza RS necesita el percentil de cada ticker DENTRO de este mismo
+  // universo, asi que hace falta que todos ya esten calculados antes de
+  // poder rankear. percentileMap() arma un Map(row -> percentil 0-100)
+  // para un campo dado, dejando afuera del ranking a los que no tengan
+  // ese dato (universo nuevo, historial corto, etc).
+  function percentileMap(field) {
+    const withVal = rows.filter(r => r[field] != null).sort((a, b) => a[field] - b[field]);
+    const map = new Map();
+    withVal.forEach((r, i) => {
+      map.set(r, withVal.length > 1 ? (i / (withVal.length - 1)) * 100 : 50);
+    });
+    return map;
+  }
+  // Percentil -> puntos, generoso a proposito: no hace falta ser el mejor
+  // del universo (percentil 100) para llegar al maximo, con estar bien
+  // por encima de la mediana (percentil ~70) ya alcanza.
+  function pctToPoints(pct, max) {
+    if (pct == null) return max * 0.4; // sin dato: neutro-generoso, no castiga
+    return Math.round(Math.max(0, Math.min(1, pct / 70)) * max);
+  }
+
+  const p6Map = percentileMap('sixMoReturn');
+  const p1Map = percentileMap('oneMoReturn');
+  const p5Map = percentileMap('fiveDReturn');
+
   rows.forEach(r => {
-    if (r.fuerza_rs == null) r.fuerza_rs = 12; // sin retorno de 6 meses calculable: percentil neutro
+    const levelPts = pctToPoints(p6Map.get(r), 20);
+    const p5 = p5Map.get(r);
+    const crashedThisWeek = p5 != null && p5 < 15;
+    const accelPts = crashedThisWeek ? 0 : pctToPoints(p1Map.get(r), 20);
+    const smaBonus = r.sma50 != null && r.precio > r.sma50 ? 5 : 0;
+    r.fuerza_rs = Math.min(25, Math.max(levelPts, accelPts) + smaBonus);
+
     r.score = Math.round(Math.max(0, Math.min(100,
       r.tendencia + r.fuerza_rs + r.contraccion + r.setup + r.penalizaciones
     )));
     delete r.sixMoReturn;
+    delete r.oneMoReturn;
+    delete r.fiveDReturn;
     r.updated_at = new Date().toISOString();
   });
 

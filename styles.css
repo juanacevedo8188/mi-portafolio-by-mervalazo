@@ -218,10 +218,21 @@ thead th.sortable.sorted{color:var(--accent);}
 thead th.sortable .sort-arrow{margin-left:3px;font-size:9px;opacity:.8;}
 .cat-cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
 .cat-val{font-size:12.5px;font-weight:600;}
-.cat-bar-wrap{width:60px;height:5px;background:var(--card-border);border-radius:3px;overflow:hidden;}
+.cat-bar-wrap{width:42px;height:5px;background:var(--card-border);border-radius:3px;overflow:hidden;}
 .cat-bar-fill{height:100%;border-radius:3px;}
 tbody td{padding:13px 16px;border-bottom:1px solid var(--divider);text-align:right;font-variant-numeric:tabular-nums;}
 tbody tr:last-child td{border-bottom:none;}
+
+/* Analisis Tecnico tiene 11 columnas -- el padding y ancho de columna
+   por defecto de las tablas del sitio (pensado para tablas de 6-8
+   columnas) la hace desbordar en desktop. Se achica solo para esta
+   tabla en vez de tocar el padding global de todas las demas. */
+.ind-table-wrap td, .ind-table-wrap th{padding:8px 8px;}
+.ind-search{
+  background:var(--bg-alt);border:1px solid var(--card-border);border-radius:8px;
+  padding:8px 12px;color:var(--text);font-size:13px;font-family:inherit;width:100%;max-width:220px;
+}
+.ind-search:focus{outline:none;border-color:var(--accent-dim);}
 tbody tr:hover{background:var(--bg-alt);}
 .ticker-cell{display:flex;align-items:center;gap:9px;}
 .ticker-cell .tk{font-weight:700;font-size:14px;}
