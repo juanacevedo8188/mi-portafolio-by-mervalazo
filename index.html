@@ -101,7 +101,7 @@
           <button class="vs-arrow" onclick="cycleView('market', 1)" title="Siguiente">›</button>
         </div>
       </div>
-      <div id="topGainers"><div class="empty-note">Cargando…</div></div>
+      <div id="topGainers" class="movers-grid"><div class="empty-note">Cargando…</div></div>
     </section>
 
     <section class="panel">
@@ -113,7 +113,7 @@
           <button class="vs-arrow" onclick="cycleView('crypto', 1)" title="Siguiente">›</button>
         </div>
       </div>
-      <div id="topCrypto"><div class="empty-note">Cargando…</div></div>
+      <div id="topCrypto" class="movers-grid"><div class="empty-note">Cargando…</div></div>
     </section>
   </div>
 
@@ -126,7 +126,7 @@
         <button class="vs-arrow" onclick="cycleView('ar', 1)" title="Siguiente">›</button>
       </div>
     </div>
-    <div id="topStocksArg"><div class="empty-note">Cargando…</div></div>
+    <div id="topStocksArg" class="movers-grid"><div class="empty-note">Cargando…</div></div>
   </section>
 
   <footer>
@@ -309,13 +309,21 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
-function rankRow(rank, tickerHtml, priceLabel, pct) {
-  return `<div class="rank-row">
-    <span class="rank-num">${rank}</span>
-    <div class="rank-name">${tickerHtml}</div>
-    <span class="rank-price mono">${priceLabel}</span>
-    <span class="chg ${pctClass(pct)}" style="width:66px;text-align:right;">${fmtPct(pct)}</span>
-  </div>`;
+// Tarjeta compacta para los rankings de abajo (Mercado/Cripto/Acciones
+// Argentinas) -- antes eran filas de lista con mucho texto apretado en una
+// sola linea (rank + logo + ticker + tag + precio + %), lo que se sentia
+// denso. La grilla de tarjetas da mas aire a cada item sin sacar
+// informacion, solo reordenandola verticalmente.
+function moverCard(rank, symbol, tipo, tag, name, priceLabel, pct) {
+  const logo = tickerLogoUrl(symbol, tipo);
+  return `<a href="${tvUrl(symbol, tipo)}" target="_blank" rel="noopener" class="mover-card tk-link" data-ticker="${symbol}" data-tipo="${tipo}">
+    <span class="mover-rank">#${rank}</span>
+    ${logo ? `<img class="mover-logo" src="${logo}" alt="" onerror="this.style.display='none'">` : ''}
+    <span class="mover-ticker">${symbol}</span>
+    ${tag ? `<span class="tag ${tipo}">${tag}</span>` : (name ? `<span class="mover-name">${name}</span>` : '')}
+    <span class="mover-price mono">${priceLabel}</span>
+    <span class="pill ${pctClass(pct)}">${fmtPct(pct)}</span>
+  </a>`;
 }
 
 // pct_change puede venir null (ej: stablecoins) — esas quedan siempre al final,
@@ -353,12 +361,9 @@ function renderMarket() {
   document.getElementById('marketViewLabel').textContent = view.label + ' · Acciones + CEDEARs';
   if (!panelData.market.length) { document.getElementById('topGainers').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.market].sort(view.cmp).slice(0, 15);
-  document.getElementById('topGainers').innerHTML = top.map((s, i) => rankRow(
-    i + 1,
-    `${tvLink(s.symbol, s.tipo)}<span class="tag ${s.tipo}" style="margin-left:7px;">${tipoLabel(s.tipo)}</span>`,
-    fmtARS(s.c),
-    s.pct_change
-  )).join('');
+  document.getElementById('topGainers').innerHTML = top.map((s, i) =>
+    moverCard(i + 1, s.symbol, s.tipo, tipoLabel(s.tipo), null, fmtARS(s.c), s.pct_change)
+  ).join('');
 }
 
 function renderAr() {
@@ -366,9 +371,9 @@ function renderAr() {
   document.getElementById('arViewLabel').textContent = view.label;
   if (!panelData.ar.length) { document.getElementById('topStocksArg').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.ar].sort(view.cmp).slice(0, 10);
-  document.getElementById('topStocksArg').innerHTML = top.map((s, i) => rankRow(
-    i + 1, tvLink(s.symbol, 'accion'), fmtARS(s.c), s.pct_change
-  )).join('');
+  document.getElementById('topStocksArg').innerHTML = top.map((s, i) =>
+    moverCard(i + 1, s.symbol, 'accion', null, null, fmtARS(s.c), s.pct_change)
+  ).join('');
 }
 
 function renderCrypto() {
@@ -376,9 +381,9 @@ function renderCrypto() {
   document.getElementById('cryptoViewLabel').textContent = view.label;
   if (!panelData.crypto.length) { document.getElementById('topCrypto').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.crypto].sort(view.cmp).slice(0, 10);
-  document.getElementById('topCrypto').innerHTML = top.map((c, i) => rankRow(
-    i + 1, `${tvLink(c.symbol, 'cripto')}<span class="rn-full">${c.name}</span>`, fmtUSD(c.usd), c.pct_change
-  )).join('');
+  document.getElementById('topCrypto').innerHTML = top.map((c, i) =>
+    moverCard(i + 1, c.symbol, 'cripto', null, c.name, fmtUSD(c.usd), c.pct_change)
+  ).join('');
 }
 
 function renderMarketBreadth() {
