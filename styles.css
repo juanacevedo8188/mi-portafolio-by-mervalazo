@@ -804,6 +804,9 @@ input[type=number]{-moz-appearance:textfield;}
 .tv-chart-wrap{height:420px;}
 .tv-chart-wrap iframe{width:100%;height:100%;border:0;display:block;}
 
+.tv-fundamentals-wrap{height:500px;}
+.tv-fundamentals-wrap iframe{width:100%;height:100%;border:0;display:block;}
+
 .watchlist-row{
   display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--divider);font-size:13.5px;
 }

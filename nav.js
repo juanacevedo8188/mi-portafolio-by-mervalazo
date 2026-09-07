@@ -9,6 +9,7 @@ const NAV_GROUPS = [
       { key: 'futuros', label: 'Futuros de Dólar', href: 'futuros.html' },
       { key: 'commodities', label: 'Commodities', href: 'commodities.html' },
       { key: 'tecnico', label: 'Análisis Técnico', href: 'analisis-tecnico.html' },
+      { key: 'fundamental', label: 'Análisis Fundamental', href: 'analisis-fundamental.html' },
       { key: 'earnings', label: 'Calendario de Earnings', href: 'earnings.html' }
     ]
   },

@@ -70,6 +70,13 @@
     <div class="tv-chart-wrap" id="tvChartWrap"></div>
   </section>
 
+  <section class="panel" id="fundamentalsPanel" style="display:none;">
+    <div class="panel-head">
+      <h2>Fundamentals</h2>
+    </div>
+    <div class="tv-fundamentals-wrap" id="tvFundamentalsWrap"></div>
+  </section>
+
   <section class="panel" id="cedearFairPanel" style="display:none;">
     <div class="panel-head">
       <h2>Precio recomendado del CEDEAR</h2>
@@ -214,6 +221,30 @@ function selectTicker(ticker, tipo) {
   updateFollowBtn();
   renderCedearFairValue(ticker, tipo);
   renderAdrImplicitPrice(ticker, tipo);
+  renderFundamentalsWidget(ticker, tipo);
+}
+
+// Widget de TradingView (no calculamos nada nosotros aca, es su dato). Para
+// un CEDEAR el simbolo local de BYMA (BCBA:TICKER) es el certificado, no
+// la empresa -- no tiene fundamentals propios, asi que se usa el ticker
+// "pelado" para que TradingView lo resuelva a su listing primario (ej.
+// NASDAQ:AAPL). Para una accion argentina real si tiene sentido BCBA:
+// directo. Cripto no tiene fundamentals de empresa, se oculta el panel.
+function renderFundamentalsWidget(ticker, tipo) {
+  const panel = document.getElementById('fundamentalsPanel');
+  if (tipo !== 'cedear' && tipo !== 'accion') {
+    panel.style.display = 'none';
+    return;
+  }
+  const symbol = tipo === 'cedear' ? ticker : 'BCBA:' + ticker;
+  const config = {
+    symbol, colorTheme: 'dark', isTransparent: false, displayMode: 'compact',
+    width: '100%', height: '500', locale: 'es'
+  };
+  const url = 'https://s.tradingview.com/embed-widget/financials/?symbol=' + encodeURIComponent(symbol) +
+    '#' + encodeURIComponent(JSON.stringify(config));
+  document.getElementById('tvFundamentalsWrap').innerHTML = `<iframe src="${url}" frameborder="0"></iframe>`;
+  panel.style.display = 'block';
 }
 
 // "Precio recomendado" del CEDEAR: (precio del subyacente en USD × dólar
