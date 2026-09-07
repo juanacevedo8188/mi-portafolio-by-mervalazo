@@ -193,7 +193,7 @@ async function run(serviceKey) {
   // Mismo criterio "generoso" que compute-indicators.mjs: percentil ~70
   // ya alcanza el maximo, no hace falta ser el mejor del universo.
   function pctToPoints(pct, max) {
-    if (pct == null) return max * 0.4;
+    if (pct == null) return Math.round(max * 0.4);
     return Math.round(Math.max(0, Math.min(1, pct / 70)) * max);
   }
 
@@ -210,13 +210,13 @@ async function run(serviceKey) {
     const calidad = pctToPoints(roeMap.get(r), 15) + pctToPoints(marginMap.get(r), 10);
     const crecimiento = pctToPoints(revGrowthMap.get(r), 13) + pctToPoints(earnGrowthMap.get(r), 12);
     const deudaPts = pctToPoints(deMap.get(r), 12);
-    const liquidezPts = r.current_ratio == null ? 8 * 0.4 : Math.round(Math.max(0, Math.min(1, r.current_ratio / 1.5)) * 8);
+    const liquidezPts = r.current_ratio == null ? Math.round(8 * 0.4) : Math.round(Math.max(0, Math.min(1, r.current_ratio / 1.5)) * 8);
     const salud = deudaPts + liquidezPts;
 
-    r.valuacion = valuacion;
-    r.calidad = calidad;
-    r.crecimiento = crecimiento;
-    r.salud_financiera = salud;
+    r.valuacion = Math.round(valuacion);
+    r.calidad = Math.round(calidad);
+    r.crecimiento = Math.round(crecimiento);
+    r.salud_financiera = Math.round(salud);
     r.score = Math.round(Math.max(0, Math.min(100, valuacion + calidad + crecimiento + salud)));
     r.updated_at = new Date().toISOString();
   });
