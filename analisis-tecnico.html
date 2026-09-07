@@ -68,13 +68,16 @@
       <p><b>Penalizaciones (negativo):</b> -1 por cada "distribution day" (baja de más de 0,2% con volumen mayor al día anterior) en las últimas 20 ruedas, tope -8, más -3 si hubo una caída de un día mayor a 7% en las últimas 10.</p>
       <p>Se recalcula una vez por día después del cierre — no es en vivo intra-rueda. A título informativo, no constituye recomendación de inversión.</p>
     </div>
+    <div class="mkw-picker" style="padding-bottom:0;">
+      <div class="mkw-chips" id="limitChips"></div>
+    </div>
     <div class="table-scroll">
       <table>
         <thead>
           <tr id="indHeadRow"></tr>
         </thead>
         <tbody id="indBody">
-          <tr><td colspan="10" class="empty-note">Cargando…</td></tr>
+          <tr><td colspan="11" class="empty-note">Cargando…</td></tr>
         </tbody>
       </table>
     </div>
@@ -127,9 +130,16 @@ const COLUMNS = [
 
 const CAT_MAX = { tendencia: 20, fuerza_rs: 25, contraccion: 35, setup: 20 };
 
+// El limite se aplica DESPUES de ordenar -- "Top 20" muestra los 20
+// mejores segun la columna que este ordenando en ese momento (score por
+// defecto, pero si el usuario ordena por otra cosa, el top pasa a ser de
+// esa columna). null = sin limite.
+const LIMIT_OPTIONS = [{ label: 'Top 20', value: 20 }, { label: 'Top 50', value: 50 }, { label: 'Todos', value: null }];
+
 let indCache = [];
 let sortField = 'score';
 let sortDir = 'desc';
+let rowLimit = 20;
 
 function scoreClass(score) {
   return score >= 70 ? 'up' : score < 40 ? 'down' : 'flat';
@@ -151,8 +161,9 @@ function penCell(value) {
   return `<td class="mono" style="color:var(--down);">${value}</td>`;
 }
 
-function indicatorRow(r) {
+function indicatorRow(r, rank) {
   return `<tr>
+    <td class="mono empty-note">${rank}</td>
     <td>${tvLink(r.ticker, 'global')}</td>
     <td class="mono">${fmtUSD(r.precio)}</td>
     <td class="mono chg ${pctClass(r.pct_change)}">${fmtPct(r.pct_change)}</td>
@@ -183,12 +194,25 @@ function sortRows(rows) {
 }
 
 function renderHeader() {
-  document.getElementById('indHeadRow').innerHTML = COLUMNS.map(c => {
+  const rankTh = '<th style="text-align:left;">#</th>';
+  document.getElementById('indHeadRow').innerHTML = rankTh + COLUMNS.map(c => {
     if (c.sortable === false) return `<th>${c.label}</th>`;
     const isSorted = c.key === sortField;
     const arrow = isSorted ? `<span class="sort-arrow">${sortDir === 'desc' ? '▾' : '▴'}</span>` : '';
     return `<th class="sortable${isSorted ? ' sorted' : ''}"${c.align === 'left' ? ' style="text-align:left;"' : ''} onclick="setSort('${c.key}')">${c.label}${arrow}</th>`;
   }).join('');
+}
+
+function paintLimitChips() {
+  document.getElementById('limitChips').innerHTML = LIMIT_OPTIONS.map(o =>
+    `<button class="mkw-chip${o.value === rowLimit ? ' active' : ''}" onclick="setLimit(${o.value})">${o.label}</button>`
+  ).join('');
+}
+
+function setLimit(v) {
+  rowLimit = v;
+  paintLimitChips();
+  paintIndicators();
 }
 
 function setSort(key) {
@@ -200,12 +224,13 @@ function setSort(key) {
 
 function paintIndicators() {
   const body = document.getElementById('indBody');
-  const rows = sortRows(indCache);
+  let rows = sortRows(indCache);
+  if (rowLimit) rows = rows.slice(0, rowLimit);
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="10" class="empty-note">No hay datos.</td></tr>';
+    body.innerHTML = '<tr><td colspan="11" class="empty-note">No hay datos.</td></tr>';
     return;
   }
-  body.innerHTML = rows.map(indicatorRow).join('');
+  body.innerHTML = rows.map((r, i) => indicatorRow(r, i + 1)).join('');
 }
 
 async function loadIndicators(manual) {
@@ -219,20 +244,21 @@ async function loadIndicators(manual) {
     if (error) throw error;
     indCache = data || [];
     if (!indCache.length) {
-      body.innerHTML = '<tr><td colspan="10" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
+      body.innerHTML = '<tr><td colspan="11" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
       document.getElementById('indUpdated').textContent = '';
       setStatus('live', 'En vivo');
       return;
     }
     renderHeader();
+    paintLimitChips();
     paintIndicators();
     const latest = indCache.reduce((max, r) => r.updated_at > max ? r.updated_at : max, indCache[0].updated_at);
-    document.getElementById('indUpdated').textContent = indCache.length + ' tickers · actualizado ' + new Date(latest).toLocaleString('es-AR');
+    document.getElementById('indUpdated').textContent = 'Universo: ' + indCache.length + ' tickers · actualizado ' + new Date(latest).toLocaleString('es-AR');
     renderMarketStatusBanner('marketClosedBanner');
     setStatus('live', 'Datos del cierre anterior');
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<tr><td colspan="10" class="empty-note">No se pudo cargar la información de indicadores.</td></tr>';
+    body.innerHTML = '<tr><td colspan="11" class="empty-note">No se pudo cargar la información de indicadores.</td></tr>';
     setStatus('err', 'No se pudo conectar');
   } finally {
     btn.disabled = false;
