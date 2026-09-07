@@ -196,7 +196,11 @@ async function getBcraSeries(idVariable, limit) {
 async function getLecapData() {
   const [letras, notes, bonds] = await Promise.all([
     fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error('letras failed: ' + r.status); return r.json(); }),
+      .then(r => { if (!r.ok) throw new Error('letras failed: ' + r.status); return r.json(); })
+      // La API paso de devolver el array directo a envolverlo en
+      // { fechaActualizacion, letras: [...] } (detectado 7/9/2026) -- se
+      // acepta cualquiera de las dos formas por si vuelve a cambiar.
+      .then(data => Array.isArray(data) ? data : (data.letras || [])),
     fetchFeed('arg_notes'),
     fetchFeed('arg_bonds')
   ]);
@@ -209,12 +213,18 @@ async function getLecapData() {
   return letras
     .map(l => {
       const q = priceMap.get(l.ticker);
-      if (!q || !q.c || !l.fechaVencimiento || !l.vpv) return null;
+      if (!q || !q.c || !l.fechaVencimiento || l.precioArs == null || l.teaPorcentaje == null || !l.diasAlVencimiento) return null;
       const vencimiento = new Date(l.fechaVencimiento + 'T00:00:00');
       const calendarDays = Math.round((vencimiento - today) / 86400000);
       const dtm = calendarDays - 1;
       if (dtm < 1) return null; // vencida o vence manana: fuera de rango util
-      const ratio = l.vpv / q.c;
+      // La API ya no expone el valor al vencimiento (vpv) directo -- se
+      // reconstruye a partir de su propio precio + TEA (self-consistentes
+      // entre si, aunque son de un snapshot diario, no intradia) y despues
+      // se aplica contra el precio EN VIVO de data912 (q.c), para no
+      // perder la actualizacion intradia que ese feed si tiene.
+      const valorVencimiento = l.precioArs * Math.pow(1 + l.teaPorcentaje / 100, l.diasAlVencimiento / 365);
+      const ratio = valorVencimiento / q.c;
       return {
         ticker: l.ticker,
         vencimiento: l.fechaVencimiento,
@@ -245,7 +255,8 @@ async function getLecapData() {
 async function getLetraVencimientos() {
   const res = await fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' });
   if (!res.ok) throw new Error('letras vencimientos failed: ' + res.status);
-  const data = await res.json();
+  const raw = await res.json();
+  const data = Array.isArray(raw) ? raw : (raw.letras || []);
   const map = new Map();
   data.forEach(l => { if (l.ticker && l.fechaVencimiento) map.set(l.ticker, l.fechaVencimiento); });
   return map;

@@ -39,11 +39,14 @@ async function getCryptoMap() {
 }
 
 async function getLetraMap() {
-  const [letras, notes, bonds] = await Promise.all([
+  const [letrasRaw, notes, bonds] = await Promise.all([
     fetch('https://api.argentinadatos.com/v1/finanzas/letras').then(r => r.json()),
     fetch('https://data912.com/live/arg_notes').then(r => r.json()),
     fetch('https://data912.com/live/arg_bonds').then(r => r.json())
   ]);
+  // La API paso de devolver el array directo a envolverlo en
+  // { fechaActualizacion, letras: [...] } (detectado 7/9/2026).
+  const letras = Array.isArray(letrasRaw) ? letrasRaw : (letrasRaw.letras || []);
   const priceMap = new Map();
   [...notes, ...bonds].forEach(row => priceMap.set(row.symbol, row));
   const map = new Map();
