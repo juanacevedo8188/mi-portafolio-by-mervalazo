@@ -208,11 +208,11 @@
       <form class="add-form" style="grid-template-columns:1fr 1fr auto;" onsubmit="saveLiquidez(event)">
         <div>
           <label>Efectivo ARS</label>
-          <input type="number" id="fCashArs" step="0.01" min="0" placeholder="0">
+          <input type="text" inputmode="numeric" id="fCashArs" placeholder="0" oninput="formatCashInput(event)">
         </div>
         <div>
           <label>Efectivo USD</label>
-          <input type="number" id="fCashUsd" step="0.01" min="0" placeholder="0">
+          <input type="text" inputmode="numeric" id="fCashUsd" placeholder="0" oninput="formatCashInput(event)">
         </div>
         <button type="submit" class="btn-primary">Guardar</button>
         <div class="auth-msg" id="liquidezMsg" style="grid-column:1/-1;margin-top:0;"></div>
@@ -523,16 +523,32 @@ async function loadShareProfile() {
 
   cashArs = shareProfile.cash_ars || 0;
   cashUsd = shareProfile.cash_usd || 0;
-  document.getElementById('fCashArs').value = cashArs || '';
-  document.getElementById('fCashUsd').value = cashUsd || '';
+  document.getElementById('fCashArs').value = cashArs ? formatThousands(String(cashArs)) : '';
+  document.getElementById('fCashUsd').value = cashUsd ? formatThousands(String(cashUsd)) : '';
   if (lastPriceMap) render(lastPriceMap);
+}
+
+// Separador de miles mientras se escribe (100000 -> 100.000). Solo enteros
+// -- el efectivo se carga como monto redondo, no hace falta manejar
+// centavos y simplifica bastante no tener que separar parte decimal.
+function formatThousands(digitsStr) {
+  return digitsStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function formatCashInput(e) {
+  const input = e.target;
+  const cursorFromEnd = input.value.length - input.selectionStart;
+  const digits = input.value.replace(/\D/g, '');
+  input.value = digits ? formatThousands(digits) : '';
+  const pos = Math.max(0, input.value.length - cursorFromEnd);
+  input.setSelectionRange(pos, pos);
 }
 
 async function saveLiquidez(e) {
   e.preventDefault();
   if (!currentSession) return;
-  const ars = Math.max(0, parseFloat(document.getElementById('fCashArs').value) || 0);
-  const usd = Math.max(0, parseFloat(document.getElementById('fCashUsd').value) || 0);
+  const ars = Math.max(0, parseFloat(document.getElementById('fCashArs').value.replace(/\./g, '')) || 0);
+  const usd = Math.max(0, parseFloat(document.getElementById('fCashUsd').value.replace(/\./g, '')) || 0);
   const btn = e.target.querySelector('button[type="submit"]');
   const msgEl = document.getElementById('liquidezMsg');
   btn.disabled = true;
