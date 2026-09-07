@@ -92,6 +92,24 @@
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Dimensionamiento</h2>
+      <span>opcional</span>
+    </div>
+    <div class="opt-form" style="grid-template-columns:1fr 1fr;">
+      <div>
+        <label>Capital disponible</label>
+        <input type="text" inputmode="numeric" id="oCapital" placeholder="0" oninput="formatThousandsInput(event); calcularSizing();">
+      </div>
+      <div>
+        <label>Riesgo máximo (% del capital)</label>
+        <input type="number" id="oRiesgoPct" placeholder="2" min="0.1" max="100" step="0.1" oninput="calcularSizing()">
+      </div>
+    </div>
+    <div class="quick-metrics" id="sizingStats"><div class="empty-note">Completá tu capital y el % máximo a arriesgar en esta operación.</div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Resultado al vencimiento</h2>
       <span id="optRange"></span>
     </div>
@@ -359,6 +377,7 @@ function calcular() {
     statsEl.innerHTML = '';
     chartEl.innerHTML = '<div class="empty-note">Completá strike y prima para ver el resultado.</div>';
     rangeEl.textContent = '';
+    calcularSizing();
     return;
   }
 
@@ -420,6 +439,65 @@ function calcular() {
   chartEl.innerHTML = buildPayoffChartSVG(points, width, height, breakeven, center, subyacente);
   attachPayoffHover(points);
   rangeEl.textContent = `Resultado total (${fmtNum(lotes)} lote${lotes === 1 ? '' : 's'} · ${fmtNum(cantidad)} opciones) según el precio de ${document.getElementById('oSubyacente').value} al vencimiento`;
+  calcularSizing();
+}
+
+// Cuánto arriesgar y cuántos lotes entran, dado el capital disponible y un
+// % máximo a perder en esta operación. Solo tiene sentido siendo TITULAR
+// (comprador): ahí la pérdida máxima está acotada a la prima pagada. De
+// lanzador (vendedor) el riesgo no está acotado del mismo modo (en un call
+// vendido, en teoría es ilimitado) y no hay un numero honesto que mostrar
+// ahi con esta calculadora.
+function calcularSizing() {
+  const el = document.getElementById('sizingStats');
+  const capital = parseFloat(document.getElementById('oCapital').value.replace(/\./g, '')) || 0;
+  const riesgoPct = parseFloat(document.getElementById('oRiesgoPct').value) || 0;
+  const prima = parseFloat(document.getElementById('oPrima').value);
+  const posicion = document.getElementById('oPosicion').value;
+
+  if (posicion !== 'long') {
+    el.innerHTML = '<div class="empty-note">El dimensionamiento por pérdida máxima solo aplica siendo titular (comprador) — vendiendo opciones el riesgo no está acotado a la prima.</div>';
+    return;
+  }
+  if (!(prima >= 0)) {
+    el.innerHTML = '<div class="empty-note">Completá la prima arriba para poder calcular el dimensionamiento.</div>';
+    return;
+  }
+  if (!capital || !riesgoPct) {
+    el.innerHTML = '<div class="empty-note">Completá tu capital y el % máximo a arriesgar en esta operación.</div>';
+    return;
+  }
+
+  const riesgoMonto = capital * (riesgoPct / 100);
+  const maxLossPerLote = prima * 100; // 1 lote = 100 opciones
+  const lotesSugeridos = maxLossPerLote > 0 ? Math.floor(riesgoMonto / maxLossPerLote) : 0;
+  const perdidaMaxima = lotesSugeridos * maxLossPerLote;
+
+  el.innerHTML = `
+    <div class="quick-stat">
+      <div class="label">Capital en riesgo</div>
+      <div class="val mono">${fmtARS(riesgoMonto)}</div>
+      <div class="note">${fmtNum(riesgoPct)}% de ${fmtARS(capital)}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Lotes sugeridos</div>
+      <div class="val mono">${lotesSugeridos}</div>
+      <div class="note">${lotesSugeridos * 100} opciones</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Pérdida máxima</div>
+      <div class="val mono chg down">${fmtARS(perdidaMaxima)}</div>
+      <div class="note">si la opción vence sin valor</div>
+    </div>
+  ` + (lotesSugeridos > 0
+    ? `<button type="button" class="btn-secondary" style="grid-column:1/-1;" onclick="aplicarLotesSugeridos(${lotesSugeridos})">Usar ${lotesSugeridos} lote${lotesSugeridos === 1 ? '' : 's'} en la simulación de arriba</button>`
+    : `<div class="empty-note" style="grid-column:1/-1;">Con ese riesgo máximo no alcanza ni para 1 lote (cada lote cuesta ${fmtARS(maxLossPerLote)} de prima). Subí el capital, el % de riesgo, o buscá una prima más baja.</div>`);
+}
+
+function aplicarLotesSugeridos(lotes) {
+  document.getElementById('oCantidad').value = lotes;
+  calcular();
+  document.getElementById('payoffChart').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 let optResizeTimer = null;

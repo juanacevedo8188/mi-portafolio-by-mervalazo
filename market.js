@@ -13,6 +13,22 @@ async function fetchFeed(path) {
   return res.json();
 }
 
+// Separador de miles mientras se escribe (100000 -> 100.000) para inputs
+// de montos en pesos -- type="number" no puede mostrar esto (rechaza el
+// "."), asi que estos inputs son type="text" con oninput="formatThousandsInput(event)".
+// Solo enteros: el monto se carga redondo, no hace falta manejar centavos.
+function formatThousands(digitsStr) {
+  return digitsStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function formatThousandsInput(e) {
+  const input = e.target;
+  const cursorFromEnd = input.value.length - input.selectionStart;
+  const digits = input.value.replace(/\D/g, '');
+  input.value = digits ? formatThousands(digits) : '';
+  const pos = Math.max(0, input.value.length - cursorFromEnd);
+  input.setSelectionRange(pos, pos);
+}
+
 // BYMA/ROFEX operan ~10:30–17:00 ART, lunes a viernes. No contempla
 // feriados especificos del mercado (son pocos por año) — el aviso ya
 // cubre el caso mas comun de "esta fuera de horario de rueda".
