@@ -21,9 +21,13 @@
 //    >0.2% con volumen mayor al dia anterior) en las ultimas 20 ruedas,
 //    tope -8, mas -3 si hubo una caida de un dia >7% en las ultimas 10.
 //
-// Universo acotado a ~170 nombres (no los 200+ de Buscar): calcular esto
-// en vivo para todo ese universo en cada carga de pagina seria pesado y
-// lento -- por eso se precalcula 1 vez por dia y se guarda.
+// Ademas del score, se guarda el Estadio (1-4, posicion+pendiente vs
+// EMA200), el retorno de 6 meses crudo y el volumen relativo -- para la
+// ficha de detalle de cada ticker en el frontend.
+//
+// Universo acotado a ~300 nombres: calcular esto en vivo para todo el
+// mercado en cada carga de pagina seria pesado y lento -- por eso se
+// precalcula 1 vez por dia y se guarda.
 
 const SUPABASE_URL = 'https://rdpwpcgaarbnpotxcvzz.supabase.co';
 
@@ -83,11 +87,58 @@ const TICKERS = [
   // Utilities
   ['NEE', 'Utilities'], ['DUK', 'Utilities'], ['SO', 'Utilities'], ['D', 'Utilities'],
   ['AEP', 'Utilities'], ['EXC', 'Utilities'], ['SRE', 'Utilities'],
+  ['ANET', 'Tecnología'], ['FTNT', 'Tecnología'], ['CDNS', 'Tecnología'], ['SNPS', 'Tecnología'],
+  ['KLAC', 'Tecnología'], ['ON', 'Tecnología'], ['MPWR', 'Tecnología'], ['GRMN', 'Tecnología'],
+  ['OKTA', 'Tecnología'], ['ZS', 'Tecnología'], ['DOCU', 'Tecnología'], ['TWLO', 'Tecnología'],
+  ['RBLX', 'Tecnología'], ['U', 'Tecnología'], ['HOOD', 'Tecnología'], ['WDC', 'Tecnología'],
+  ['STX', 'Tecnología'], ['NTAP', 'Tecnología'], ['KEYS', 'Tecnología'],
+  // Consumo Cíclico
+  ['YUM', 'Consumo Cíclico'], ['DPZ', 'Consumo Cíclico'], ['DRI', 'Consumo Cíclico'],
+  ['WYNN', 'Consumo Cíclico'], ['MGM', 'Consumo Cíclico'], ['LVS', 'Consumo Cíclico'],
+  ['EXPE', 'Consumo Cíclico'], ['ORLY', 'Consumo Cíclico'], ['AZO', 'Consumo Cíclico'],
+  ['BBY', 'Consumo Cíclico'], ['GAP', 'Consumo Cíclico'], ['RL', 'Consumo Cíclico'],
+  ['DECK', 'Consumo Cíclico'], ['POOL', 'Consumo Cíclico'],
+  // Consumo Defensivo
+  ['CLX', 'Consumo Defensivo'], ['CHD', 'Consumo Defensivo'], ['HSY', 'Consumo Defensivo'],
+  ['SJM', 'Consumo Defensivo'], ['CAG', 'Consumo Defensivo'],
+  ['HRL', 'Consumo Defensivo'], ['TAP', 'Consumo Defensivo'], ['EL', 'Consumo Defensivo'],
+  ['KR', 'Consumo Defensivo'],
+  // Financiero
+  ['TFC', 'Financiero'], ['RF', 'Financiero'], ['HBAN', 'Financiero'], ['KEY', 'Financiero'],
+  ['FITB', 'Financiero'], ['ZION', 'Financiero'], ['CFG', 'Financiero'], ['ALL', 'Financiero'],
+  ['TRV', 'Financiero'], ['HIG', 'Financiero'], ['AFL', 'Financiero'], ['PRU', 'Financiero'],
+  ['SYF', 'Financiero'],
+  // Salud
+  ['HCA', 'Salud'], ['CNC', 'Salud'], ['MOH', 'Salud'], ['IQV', 'Salud'], ['A', 'Salud'],
+  ['EW', 'Salud'], ['ALGN', 'Salud'], ['IDXX', 'Salud'], ['RMD', 'Salud'], ['DXCM', 'Salud'],
+  ['PODD', 'Salud'], ['MRNA', 'Salud'],
+  // Industrial
+  ['NOC', 'Industrial'], ['GD', 'Industrial'], ['TXT', 'Industrial'], ['PCAR', 'Industrial'],
+  ['CMI', 'Industrial'], ['PH', 'Industrial'], ['ROK', 'Industrial'], ['DOV', 'Industrial'],
+  ['XYL', 'Industrial'], ['AME', 'Industrial'],
+  // Energía
+  ['DVN', 'Energía'], ['FANG', 'Energía'], ['APA', 'Energía'], ['BKR', 'Energía'],
+  ['HAL', 'Energía'], ['TRGP', 'Energía'], ['OKE', 'Energía'],
+  // Materiales
+  ['DOW', 'Materiales'], ['DD', 'Materiales'], ['PPG', 'Materiales'], ['VMC', 'Materiales'],
+  ['MLM', 'Materiales'], ['ALB', 'Materiales'], ['CE', 'Materiales'], ['IFF', 'Materiales'],
+  // Utilities
+  ['PEG', 'Utilities'], ['ED', 'Utilities'], ['XEL', 'Utilities'], ['WEC', 'Utilities'],
+  ['ES', 'Utilities'], ['ETR', 'Utilities'], ['FE', 'Utilities'], ['AEE', 'Utilities'],
+  // Comunicación
+  ['LYV', 'Comunicación'], ['OMC', 'Comunicación'], ['FOXA', 'Comunicación'],
+  ['NWSA', 'Comunicación'], ['MTCH', 'Comunicación'], ['PINS', 'Comunicación'],
+  // ETFs (indices y sectoriales -- tambien tienen CEDEAR y se siguen mucho)
+  ['SPY', 'ETF'], ['QQQ', 'ETF'], ['DIA', 'ETF'], ['IWM', 'ETF'], ['EEM', 'ETF'], ['EFA', 'ETF'],
+  ['XLK', 'ETF'], ['XLF', 'ETF'], ['XLE', 'ETF'], ['XLV', 'ETF'], ['XLI', 'ETF'], ['XLY', 'ETF'],
+  ['XLP', 'ETF'], ['XLU', 'ETF'], ['XLB', 'ETF'], ['XLC', 'ETF'], ['GLD', 'ETF'], ['SLV', 'ETF'],
+  ['TLT', 'ETF'], ['HYG', 'ETF'], ['LQD', 'ETF'], ['SMH', 'ETF'], ['XBI', 'ETF'], ['KRE', 'ETF'],
+  ['ARKK', 'ETF'],
   // Argentina (ADRs, subyacente de los CEDEARs mas seguidos localmente)
   ['GGAL', 'Argentina'], ['BMA', 'Argentina'], ['SUPV', 'Argentina'], ['YPF', 'Argentina'],
   ['PAM', 'Argentina'], ['TGS', 'Argentina'], ['EDN', 'Argentina'], ['CRESY', 'Argentina'],
   ['IRS', 'Argentina'], ['LOMA', 'Argentina'], ['TX', 'Argentina'], ['VIST', 'Argentina'],
-  ['MELI', 'Argentina'], ['GLOB', 'Argentina']
+  ['MELI', 'Argentina'], ['GLOB', 'Argentina'], ['BBAR', 'Argentina']
 ];
 
 function sma(values, period) {
@@ -163,6 +214,18 @@ function computePenalizaciones(distDays, bigDrop) {
   return pen;
 }
 
+// Estadio (1-4), segun posicion del precio respecto a la EMA200 y si esa
+// media viene subiendo o bajando -- 2 es la lectura mas favorable (encima
+// de la media y esa media en alza), 4 la menos favorable.
+function computeEstadio(price, ema200, trendRising) {
+  if (ema200 == null) return null;
+  const above = price > ema200;
+  if (above && trendRising) return 2;
+  if (above && !trendRising) return 3;
+  if (!above && trendRising) return 1;
+  return 4;
+}
+
 async function fetchOne([ticker, sector]) {
   try {
     const res = await fetch(
@@ -201,6 +264,8 @@ async function fetchOne([ticker, sector]) {
     const bigDrop = hadBigDrop(closes, 10, -0.07);
     const sixMoIdx = Math.max(0, closes.length - 127);
     const sixMoReturn = closes[sixMoIdx] ? ((price - closes[sixMoIdx]) / closes[sixMoIdx]) * 100 : null;
+    const avgVol20 = volumes.length > 1 ? sma(volumes.slice(0, -1), Math.min(20, volumes.length - 1)) : null;
+    const volRatio = avgVol20 ? volumes[volumes.length - 1] / avgVol20 : null;
 
     return {
       ticker,
@@ -214,6 +279,9 @@ async function fetchOne([ticker, sector]) {
       contraccion: computeContraccion(recentRange, longRange),
       setup: computeSetup(price, hi20),
       penalizaciones: computePenalizaciones(distDays, bigDrop),
+      estadio: computeEstadio(price, ema200, trendRising),
+      retorno_6m: sixMoReturn,
+      vol_ratio: volRatio,
       sparkline: closes.slice(-20),
       sixMoReturn
     };
