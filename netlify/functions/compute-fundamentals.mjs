@@ -122,48 +122,11 @@ export default async () => {
   if (!serviceKey) {
     return new Response('Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY en Netlify', { status: 500 });
   }
-  try {
-    return await run(serviceKey);
-  } catch (err) {
-    // TEMPORAL: cualquier excepcion no atrapada mas abajo tambien queda
-    // registrada aca, para no quedarse sin pista de diagnostico.
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/fundamental_indicators?on_conflict=ticker`, {
-        method: 'POST',
-        headers: {
-          apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify([{ ticker: '_DEBUG_', sector: 'debug', recommendation_key: ('uncaught: ' + (err && err.stack || err)).slice(0, 490), updated_at: new Date().toISOString() }])
-      });
-    } catch (e) { /* nada mas para hacer */ }
-    return new Response('Error no atrapado: ' + (err && err.message || err), { status: 500 });
-  }
-};
-
-async function run(serviceKey) {
-
-  // TEMPORAL: escribe un marcador de diagnostico en la misma tabla (fuera
-  // del anon key no hay forma de leer los logs de esta funcion desde
-  // afuera de Netlify) -- sacar apenas se confirme que la funcion anda.
-  async function debugLog(msg) {
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/fundamental_indicators?on_conflict=ticker`, {
-        method: 'POST',
-        headers: {
-          apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify([{ ticker: '_DEBUG_', sector: 'debug', recommendation_key: msg.slice(0, 490), updated_at: new Date().toISOString() }])
-      });
-    } catch (e) { /* si ni esto anda, no hay mucho mas para hacer */ }
-  }
 
   let crumb, cookieHeader;
   try {
     ({ crumb, cookieHeader } = await getCrumb());
   } catch (err) {
-    await debugLog('crumb failed: ' + err.message);
     return new Response('No se pudo autenticar contra Yahoo Finance (crumb): ' + err.message, { status: 502 });
   }
 
@@ -171,10 +134,8 @@ async function run(serviceKey) {
   const rows = (await Promise.all(universe.map(t => fetchOne(t, crumb, cookieHeader)))).filter(Boolean);
 
   if (!rows.length) {
-    await debugLog('0 rows after fetch, universe size ' + universe.length + ', crumb was: ' + crumb.slice(0, 20));
     return new Response('Yahoo no devolvio datos utiles para ningun ticker -- no se escribio nada.', { status: 502 });
   }
-  await debugLog('OK so far, got ' + rows.length + ' rows, about to score+write');
 
   // Percentil de cada ticker dentro de este universo para un campo dado.
   // invert=true cuando "menos es mejor" (P/E, P/B, deuda/patrimonio) --
@@ -232,18 +193,15 @@ async function run(serviceKey) {
     body: JSON.stringify(rows)
   });
   if (!res.ok) {
-    const bodyText = await res.text();
-    await debugLog('write failed: ' + res.status + ' ' + bodyText);
-    return new Response('Fallo el guardado en Supabase: ' + res.status + ' ' + bodyText, { status: 502 });
+    return new Response('Fallo el guardado en Supabase: ' + res.status + ' ' + (await res.text()), { status: 502 });
   }
-  await debugLog('SUCCESS: wrote ' + rows.length + ' rows at ' + new Date().toISOString());
 
   return new Response(JSON.stringify({ ok: true, count: rows.length, total: universe.length }), {
     headers: { 'Content-Type': 'application/json' }
   });
-}
+};
 
-// TEMPORAL para la primera verificacion en vivo -- cambiar de vuelta a
-// '0 10 * * 1-5' (una vez por dia, 7 ART) apenas se confirme que escribe
-// bien en Supabase.
-export const config = { schedule: '*/10 * * * *' };
+// Una vez por dia (7 ART, antes de la apertura de Wall Street) -- a
+// diferencia del score tecnico, los fundamentals (P/E, margenes, etc.)
+// casi no cambian intradia, asi que no hace falta correr esto seguido.
+export const config = { schedule: '0 10 * * 1-5' };
