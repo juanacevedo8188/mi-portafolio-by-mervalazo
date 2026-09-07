@@ -202,6 +202,24 @@
 
     <section class="panel">
       <div class="panel-head">
+        <h2>Liquidez</h2>
+        <span>efectivo sin invertir</span>
+      </div>
+      <form class="add-form" style="grid-template-columns:1fr 1fr auto;" onsubmit="saveLiquidez(event)">
+        <div>
+          <label>Efectivo ARS</label>
+          <input type="number" id="fCashArs" step="0.01" min="0" placeholder="0">
+        </div>
+        <div>
+          <label>Efectivo USD</label>
+          <input type="number" id="fCashUsd" step="0.01" min="0" placeholder="0">
+        </div>
+        <button type="submit" class="btn-primary">Guardar</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Radar rápido</h2>
       </div>
       <div class="quick-metrics" id="quickMetrics"></div>
@@ -314,6 +332,8 @@ const REFRESH_MS = 60000;
 let authMode = 'login'; // 'login' | 'signup' | 'reset' | 'recovery'
 let lastPriceMap = null;
 let activeSectorFilter = null;
+let cashArs = 0;
+let cashUsd = 0;
 let editingId = null;
 
 function toggleSectorFilter(sector) {
@@ -499,6 +519,32 @@ async function loadShareProfile() {
     shareProfile = data;
   }
   renderShareUI();
+
+  cashArs = shareProfile.cash_ars || 0;
+  cashUsd = shareProfile.cash_usd || 0;
+  document.getElementById('fCashArs').value = cashArs || '';
+  document.getElementById('fCashUsd').value = cashUsd || '';
+  if (lastPriceMap) render(lastPriceMap);
+}
+
+async function saveLiquidez(e) {
+  e.preventDefault();
+  if (!currentSession) return;
+  const ars = Math.max(0, parseFloat(document.getElementById('fCashArs').value) || 0);
+  const usd = Math.max(0, parseFloat(document.getElementById('fCashUsd').value) || 0);
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    await sb.from('profiles').update({ cash_ars: ars, cash_usd: usd }).eq('id', currentSession.user.id);
+    cashArs = ars;
+    cashUsd = usd;
+    if (shareProfile) { shareProfile.cash_ars = ars; shareProfile.cash_usd = usd; }
+    if (lastPriceMap) render(lastPriceMap);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function renderShareUI() {
@@ -798,14 +844,26 @@ function render(priceMap) {
     };
   });
 
-  const totalValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
-  const totalValueUsd = rows.reduce((s, r) => s + (r.valueUsd ?? r.costUsd ?? 0), 0);
+  const holdingsValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
+  const holdingsValueUsd = rows.reduce((s, r) => s + (r.valueUsd ?? r.costUsd ?? 0), 0);
   const totalCostArs = rows.reduce((s, r) => s + r.costArs, 0);
   const totalCostUsd = rows.reduce((s, r) => s + (r.costUsd ?? 0), 0);
-  const totalGainArs = totalValueArs - totalCostArs;
-  const totalGainUsd = totalValueUsd - totalCostUsd;
+  const totalGainArs = holdingsValueArs - totalCostArs;
+  const totalGainUsd = holdingsValueUsd - totalCostUsd;
   const totalGainPctArs = totalCostArs ? (totalGainArs / totalCostArs) * 100 : 0;
   const totalGainPctUsd = totalCostUsd ? (totalGainUsd / totalCostUsd) * 100 : 0;
+
+  // La liquidez (efectivo sin invertir) suma al patrimonio total ("Valor
+  // de cartera") pero NO al costo/resultado -- el efectivo no tiene una
+  // "compra" de la que medir ganancia. Se convierte cruzado con el MEP
+  // implicito (misma tasa que ya se usa para cripto), no con el oficial
+  // (que es especifico de como cotizan los CEDEARs).
+  const cashTotalArs = cashArs + (usdArsRate ? cashUsd * usdArsRate : 0);
+  const cashTotalUsd = cashUsd + (usdArsRate ? cashArs / usdArsRate : 0);
+  const totalValueArs = holdingsValueArs + cashTotalArs;
+  const totalValueUsd = holdingsValueUsd + cashTotalUsd;
+  const liquidezPct = totalValueArs ? (cashTotalArs / totalValueArs) * 100 : 0;
+
   const weightedDaily = rows.reduce((s, r) => s + (r.dailyPct != null ? r.dailyPct * (r.valueArs ?? 0) : 0), 0) / (totalValueArs || 1);
   const dailyDeltaArs = totalValueArs * (weightedDaily / 100);
   const dailyDeltaUsd = totalValueUsd * (weightedDaily / 100);
@@ -829,8 +887,15 @@ function render(priceMap) {
   document.getElementById('sumCost').textContent = rows.length ? fmtTotal(totalCost) : '—';
   document.getElementById('sumCostSub').innerHTML = `<span class="pill flat">${rows.length} posiciones</span>`;
 
+  const liquidezTile = (cashArs || cashUsd) ? `
+    <div class="quick-stat">
+      <div class="label">Liquidez</div>
+      <div class="val">${fmtNum(liquidezPct)}%</div>
+      <div class="note">${fmtTotal(isUsd ? cashTotalUsd : cashTotalArs)} disponibles</div>
+    </div>` : '';
+
   const sectors = groupBySector(rows);
-  renderQuickMetrics('quickMetrics', rows, priceMap, weightedDaily);
+  renderQuickMetrics('quickMetrics', rows, priceMap, weightedDaily, liquidezTile);
   renderDonut('donutContainer', sectors, totalValueArs, activeSectorFilter, toggleSectorFilter);
 
   const filterBadge = document.getElementById('sectorFilterBadge');

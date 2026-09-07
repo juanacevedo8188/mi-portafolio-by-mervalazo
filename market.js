@@ -675,12 +675,16 @@ function benchmarkTile(priceMap, weightedDaily) {
     </div>`;
 }
 
-function renderQuickMetrics(containerId, rows, priceMap, weightedDaily) {
+// extraTileHtml es opcional -- hoy solo mi-portafolio.html lo usa (para
+// el tile de Liquidez, que no aplica a cartera.html ni a
+// portafolio-publico.html), los demas llamadores simplemente no lo pasan.
+function renderQuickMetrics(containerId, rows, priceMap, weightedDaily, extraTileHtml) {
   const el = document.getElementById(containerId);
   const m = quickMetrics(rows);
   const spyTile = benchmarkTile(priceMap, weightedDaily);
+  const extra = extraTileHtml || '';
   if (!m) {
-    el.innerHTML = '<div class="empty-note">Todavía no hay datos suficientes.</div>' + spyTile;
+    el.innerHTML = '<div class="empty-note">Todavía no hay datos suficientes.</div>' + spyTile + extra;
     return;
   }
   el.innerHTML = `
@@ -697,6 +701,7 @@ function renderQuickMetrics(containerId, rows, priceMap, weightedDaily) {
       <div class="val">${fmtNum(m.top3Pct)}%</div>
     </div>
     ${spyTile}
+    ${extra}
   `;
 }
 
