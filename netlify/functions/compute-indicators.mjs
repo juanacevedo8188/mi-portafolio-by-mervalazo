@@ -105,7 +105,7 @@ const TICKERS = [
   ['STX', 'Tecnología'], ['NTAP', 'Tecnología'], ['KEYS', 'Tecnología'],
   // Consumo Cíclico
   ['YUM', 'Consumo Cíclico'], ['DPZ', 'Consumo Cíclico'], ['DRI', 'Consumo Cíclico'],
-  ['WYNN', 'Consumo Cíclico'], ['MGM', 'Consumo Cíclico'], ['LVS', 'Consumo Cíclico'],
+  ['WYNN', 'Consumo Cíclico'], ['MGM', 'Consumo Cíclico'], ['LVS', 'Consumo Cíclico'], ['HOG', 'Consumo Cíclico'],
   ['EXPE', 'Consumo Cíclico'], ['ORLY', 'Consumo Cíclico'], ['AZO', 'Consumo Cíclico'],
   ['BBY', 'Consumo Cíclico'], ['GAP', 'Consumo Cíclico'], ['RL', 'Consumo Cíclico'],
   ['DECK', 'Consumo Cíclico'], ['POOL', 'Consumo Cíclico'],
@@ -238,16 +238,20 @@ function rsi(values, period) {
   return 100 - 100 / (1 + avgGain / avgLoss);
 }
 
-// "Distribution day" (termino de IBD/Minervini): baja de mas de 0.2% con
-// volumen mayor al dia anterior -- señal de que institucionales estan
-// vendiendo, no solo ruido minorista.
+// "Distribution day" (termino de IBD/Minervini): baja de mas de 0.5% con
+// volumen al menos 10% mayor al dia anterior -- señal de que
+// institucionales estan vendiendo, no solo ruido minorista. (El umbral
+// original, -0.2% y "cualquier volumen mayor", calificaba como
+// "distribucion" casi cualquier dia rojo comun -- estadisticamente ~1 de
+// cada 4 ruedas, penalizando a todo el universo por igual sin distinguir
+// nada real.)
 function countDistributionDays(closes, volumes, lookback) {
   const n = closes.length;
   if (n < lookback + 1) return 0;
   let count = 0;
   for (let i = n - lookback; i < n; i++) {
     const chg = (closes[i] - closes[i - 1]) / closes[i - 1];
-    if (chg <= -0.002 && volumes[i] > volumes[i - 1]) count++;
+    if (chg <= -0.005 && volumes[i] > volumes[i - 1] * 1.1) count++;
   }
   return count;
 }
@@ -260,21 +264,26 @@ function hadBigDrop(closes, lookback, threshold) {
   return false;
 }
 
-// Distancia (en ATRs) de un precio a una media, mapeada 0-1: a -1 ATR o
-// mas abajo, 0; a +2/+3 ATR o mas arriba, el maximo -- una accion
+// Distancia (en ATRs) de un precio a una media, mapeada 0-1: a -1.5 ATR o
+// mas abajo, 0; a `satAtr` ATR o mas arriba, el maximo -- una accion
 // tranquila y una volatil que esten "igual de arriba" en terminos
 // propios puntuan parecido, en vez de que el % fijo castigue mas a la
-// volatil.
+// volatil. El piso en -1.5 (no -1) es a proposito: un pullback chico y
+// sano hacia la SMA50 dentro de una tendencia de fondo intacta no
+// deberia hundir el puntaje a cero.
 function atrDistFrac(price, level, atr14, satAtr) {
   if (level == null || !atr14) return 0;
   const distAtr = (price - level) / atr14;
-  return Math.max(0, Math.min(1, (distAtr + 1) / (satAtr + 1)));
+  return Math.max(0, Math.min(1, (distAtr + 1.5) / (satAtr + 1.5)));
 }
 
+// EMA200 (tendencia de fondo) pesa mas que SMA50 (corto plazo) -- un
+// activo puede estar descansando cerca de su SMA50 despues de una suba
+// fuerte sin que eso invalide una tendencia de largo plazo sólida.
 function computeTendencia({ price, sma50, ema200, trendRising, atr14 }) {
   let pts = 0;
-  pts += atrDistFrac(price, sma50, atr14, 2) * 8;
-  pts += atrDistFrac(price, ema200, atr14, 3) * 8;
+  pts += atrDistFrac(price, sma50, atr14, 2) * 6;
+  pts += atrDistFrac(price, ema200, atr14, 3) * 10;
   if (trendRising) pts += 4;
   return Math.round(pts);
 }
