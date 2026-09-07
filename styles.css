@@ -549,6 +549,7 @@ input[type=number]{-moz-appearance:textfield;}
 .cs-menu{
   position:fixed;background:var(--card);border:1px solid var(--card-border);border-radius:10px;
   padding:6px;box-shadow:0 16px 36px rgba(0,0,0,.45);max-height:260px;overflow-y:auto;
+  overscroll-behavior:contain;
   display:flex;flex-direction:column;gap:2px;z-index:200;
   opacity:0;pointer-events:none;transform:translateY(-6px);
   transition:opacity .15s cubic-bezier(.4,0,.2,1),transform .15s cubic-bezier(.4,0,.2,1);
