@@ -82,6 +82,34 @@ async function getUsdArsRate() {
   return rates.reduce((s, v) => s + v, 0) / rates.length;
 }
 
+// Ratio CEDEAR (cuantos CEDEARs equivalen a 1 accion del subyacente).
+// Fuente: tabla oficial de BYMA "CEDEARs Negociables en BYMA", actualizada
+// 3/2/2026 (descargada y cada ticker cruzado a mano contra el simbolo
+// vigente en el feed en vivo de data912 antes de sumarlo aca). Los ratios
+// cambian ante splits/ajustes societarios de la empresa -- no son
+// permanentes, conviene re-chequear cada tanto contra la tabla oficial.
+const CEDEAR_RATIOS = {
+  AAPL: 20, ABBV: 10, ABNB: 15, ABT: 4, ADBE: 44, AIG: 5, AMAT: 5, AMD: 10,
+  AMZN: 144, ARKK: 10, ASML: 146, AVGO: 39, AXP: 15, BA: 24, BKNG: 700,
+  BKR: 7, BMY: 3, C: 3, CAT: 20, CCL: 3, CL: 3, COIN: 27, COST: 48, CRM: 18,
+  CSCO: 5, CVS: 15, CVX: 16, DD: 5, DE: 40, DECK: 25, DHR: 54, DIA: 20,
+  DOCU: 22, DOW: 6, EBAY: 2, ECL: 56, EEM: 5, EFA: 18, ETSY: 16, F: 1,
+  FCX: 3, FDX: 10, GE: 8, GILD: 4, GLD: 50, GLOB: 18, GM: 6, GOOGL: 58,
+  GRMN: 3, GS: 13, HAL: 2, HD: 32, HOG: 3, HON: 8, HOOD: 29, HPQ: 1,
+  IBM: 15, IFF: 12, INTC: 5, ISRG: 90, IWM: 10, JNJ: 15, JPM: 15, KMB: 6,
+  KO: 5, LLY: 56, LMT: 20, LRCX: 56, LVS: 2, MA: 33, MCD: 24, MDLZ: 15,
+  MDT: 4, MELI: 120, META: 24, MMM: 10, MRK: 5, MRNA: 19, MRVL: 14,
+  MSFT: 30, MSTR: 20, MU: 5, NEM: 3, NFLX: 48, NKE: 12, NOW: 172, NVDA: 24,
+  ORCL: 3, ORLY: 222, OXY: 5, PANW: 50, PCAR: 3, PEP: 18, PFE: 4, PG: 15,
+  PINS: 7, PLTR: 3, PSX: 6, PYPL: 8, QCOM: 11, QQQ: 20, RBLX: 2, ROST: 4,
+  RTX: 5, SBUX: 12, SCHW: 13, SHOP: 107, SLB: 3, SLV: 6, SMH: 50, SNOW: 30,
+  SPGI: 45, SPOT: 28, SPY: 20, TEAM: 47, TGT: 24, TJX: 22, TMO: 22,
+  TMUS: 33, TSLA: 15, TSM: 9, TWLO: 36, TXN: 5, UBER: 2, UNH: 33, UNP: 20,
+  USB: 5, V: 18, VIST: 3, VRTX: 101, WMT: 18, XLB: 18, XLC: 19, XLE: 2,
+  XLF: 2, XLI: 28, XLK: 46, XLP: 16, XLU: 10, XLV: 29, XLY: 43, XOM: 10,
+  XYZ: 20, ZM: 47
+};
+
 async function getOficialRate() {
   const res = await fetch('https://dolarapi.com/v1/dolares/oficial', { cache: 'no-store' });
   if (!res.ok) throw new Error('dolar oficial failed: ' + res.status);

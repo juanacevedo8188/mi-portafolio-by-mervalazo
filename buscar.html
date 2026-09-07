@@ -70,6 +70,14 @@
     <div class="tv-chart-wrap" id="tvChartWrap"></div>
   </section>
 
+  <section class="panel" id="cedearFairPanel" style="display:none;">
+    <div class="panel-head">
+      <h2>Precio recomendado del CEDEAR</h2>
+      <span id="cedearFairUpdated"></span>
+    </div>
+    <div id="cedearFairBody"></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Mi lista de seguimiento</h2>
@@ -83,6 +91,7 @@
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> con demora de mercado, a título informativo. No constituye recomendación de inversión.
     Gráficos por <a href="https://www.tradingview.com" target="_blank" rel="noopener">TradingView</a>.
+    El "Precio recomendado del CEDEAR" se calcula con el dólar CCL y el ratio de conversión oficial de BYMA — es una referencia de arbitraje, no un precio objetivo ni una recomendación de compra o venta.
   </footer>
 </main>
 
@@ -195,6 +204,50 @@ function selectTicker(ticker, tipo) {
   document.getElementById('detailPanel').style.display = 'block';
 
   updateFollowBtn();
+  renderCedearFairValue(ticker, tipo);
+}
+
+// "Precio recomendado" del CEDEAR: (precio del subyacente en USD × dólar
+// CCL) ÷ ratio -- el mismo calculo de no-arbitraje que ya usamos en otros
+// lados del sitio (Carry Trade en Renta Fija, Futuros vs. LECAP). Si el
+// precio real se aleja mucho de esto, o el CEDEAR esta "caro" o el mercado
+// esta viendo algo que este numero no contempla (liquidez, expectativas).
+async function renderCedearFairValue(ticker, tipo) {
+  const panel = document.getElementById('cedearFairPanel');
+  const ratio = CEDEAR_RATIOS[ticker];
+  if (tipo !== 'cedear' || !ratio) {
+    panel.style.display = 'none';
+    return;
+  }
+  const body = document.getElementById('cedearFairBody');
+  panel.style.display = 'block';
+  body.innerHTML = '<div class="empty-note">Calculando…</div>';
+  try {
+    const [rates, usaStocks] = await Promise.all([getAllDolarRates(), fetchFeed('usa_stocks')]);
+    const ccl = rates.find(r => r.casa === 'contadoconliqui');
+    const underlying = usaStocks.find(s => s.symbol === ticker);
+    const cedear = masterList.find(s => s.symbol === ticker && s.tipo === 'cedear');
+    if (!ccl || !underlying || !cedear) {
+      body.innerHTML = '<div class="empty-note">No se pudo calcular — falta el precio del subyacente o del dólar CCL en este momento.</div>';
+      return;
+    }
+    const teorico = (underlying.c * ccl.venta) / ratio;
+    const diffPct = ((cedear.c - teorico) / teorico) * 100;
+    body.innerHTML = `
+      <div style="padding:16px 20px;">
+        <div style="font-size:28px;font-weight:800;" class="mono">${fmtARS(teorico)}</div>
+        <div style="font-size:12.5px;color:var(--text-dim);margin-top:4px;">
+          Según CCL ${fmtARS(ccl.venta)} y ratio ${ratio}:1 — comparado con el precio real ${fmtARS(cedear.c)}.
+        </div>
+        <div style="margin-top:12px;">
+          <span class="pill ${pctClass(-diffPct)}">${diffPct >= 0 ? '+' : ''}${fmtNum(diffPct)}% ${diffPct >= 0 ? 'más caro' : 'más barato'} que el valor teórico</span>
+        </div>
+      </div>`;
+    document.getElementById('cedearFairUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<div class="empty-note">No se pudo calcular el precio teórico en este momento.</div>';
+  }
 }
 
 function updateFollowBtn() {
