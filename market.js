@@ -212,6 +212,14 @@ async function getLecapData() {
 
   return letras
     .map(l => {
+      // La API de letras tambien lista los "bonos duales" (TTD26, TTS26,
+      // etc. -- ver TAMAR_LIST) junto a las LECAP/BONCAP normales. Un dual
+      // paga lo mayor entre tasa fija y TAMAR, asi que no tiene un valor
+      // de vencimiento fijo conocido de antemano -- la cuenta de TEM/TNA/
+      // TEA de abajo (pensada para instrumentos a descuento simple) no
+      // aplica y da tasas sin sentido. Ya se muestran bien en la pestaña
+      // "Tasa TAMAR", asi que se excluyen de esta.
+      if (TAMAR_LIST.includes(l.ticker)) return null;
       const q = priceMap.get(l.ticker);
       if (!q || !q.c || !l.fechaVencimiento || l.precioArs == null || l.teaPorcentaje == null || !l.diasAlVencimiento) return null;
       const vencimiento = new Date(l.fechaVencimiento + 'T00:00:00');
