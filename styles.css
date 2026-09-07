@@ -112,6 +112,18 @@ header{
   padding:14px 12px 4px;font-size:10.5px;font-weight:700;color:var(--text-faint);
   text-transform:uppercase;letter-spacing:.4px;
 }
+.drawer-group-toggle{
+  -webkit-appearance:none;appearance:none;
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:12px;margin-top:4px;background:none;border:none;border-radius:8px;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:700;color:var(--text-dim);
+  transition:background .12s,color .12s;
+}
+.drawer-group-toggle:hover{background:var(--bg-alt);color:var(--text);}
+.drawer-group-toggle.has-active{color:var(--accent);}
+.drawer-group-caret{font-size:10px;transition:transform .2s cubic-bezier(.4,0,.2,1);color:var(--text-faint);}
+.drawer-group-toggle.open .drawer-group-caret{transform:rotate(180deg);}
+.drawer-group-items{display:flex;flex-direction:column;}
 @media (max-width:760px){
   .hamburger-btn{display:flex;}
   .nav-tabs{display:none;}

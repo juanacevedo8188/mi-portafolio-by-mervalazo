@@ -30,6 +30,14 @@ const NAV_GROUPS = [
   { key: 'buscar', label: 'Buscar', href: 'buscar.html' }
 ];
 
+// Grupos abiertos en el drawer de mobile. Se inicializa (una sola vez por
+// pagina, no en cada render) con el grupo de la pagina activa ya abierto,
+// para que el usuario vea de entrada donde esta parado -- pero a partir
+// de ahi es el usuario quien manda: si lo cierra a mano, toggleDrawerGroup()
+// no lo vuelve a forzar abierto en el proximo render.
+let drawerOpenGroups = new Set();
+let drawerActiveKey = null;
+
 function renderNavTabs(active) {
   const el = document.getElementById('navTabs');
   if (el) {
@@ -53,6 +61,17 @@ function renderNavTabs(active) {
     }).join('');
   }
 
+  // Solo re-inicializa que grupo arranca abierto cuando active realmente
+  // cambia (primera carga de esta pagina) -- si ya estabamos en esta
+  // misma pagina y esto se llama de nuevo, no le pisa la eleccion manual
+  // del usuario.
+  if (drawerActiveKey !== active) {
+    drawerOpenGroups = new Set();
+    const activeGroup = NAV_GROUPS.find(g => g.items && g.items.some(i => i.key === active));
+    if (activeGroup) drawerOpenGroups.add(activeGroup.key);
+  }
+  drawerActiveKey = active;
+
   ensureDrawer();
   const drawerItems = document.getElementById('drawerItems');
   if (drawerItems) drawerItems.innerHTML = buildDrawerItemsHtml(active);
@@ -63,6 +82,12 @@ function renderNavTabs(active) {
 // arriba de la pantalla — en desktop sigue igual, con CSS decidiendo cuál
 // de los dos se ve segun el ancho (ver .hamburger-btn/.nav-tabs en
 // styles.css).
+//
+// Los grupos con sub-items (Mercado, Herramientas) son acordeón: por
+// defecto colapsados, salvo el que contiene la pagina activa (asi el
+// usuario ve de entrada donde esta parado) -- antes se mostraban todos
+// los sub-items de todos los grupos siempre desplegados, lo que hacia el
+// menu larguisimo en mobile.
 function buildDrawerItemsHtml(active) {
   return NAV_GROUPS.map(entry => {
     if (!entry.items) {
@@ -70,12 +95,22 @@ function buildDrawerItemsHtml(active) {
       const attrs = entry.external ? ' target="_blank" rel="noopener"' : '';
       return `<a href="${entry.href}"${attrs} class="drawer-item${isActive ? ' active' : ''}">${entry.label}</a>`;
     }
-    const groupHead = `<div class="drawer-group-label">${entry.label}</div>`;
+    const hasActive = entry.items.some(i => i.key === active);
+    const isOpen = drawerOpenGroups.has(entry.key);
     const items = entry.items.map(i =>
       `<a href="${i.href}" class="drawer-item drawer-subitem${i.key === active ? ' active' : ''}">${i.label}</a>`
     ).join('');
-    return groupHead + items;
+    return `<button type="button" class="drawer-group-toggle${isOpen ? ' open' : ''}${hasActive ? ' has-active' : ''}" onclick="toggleDrawerGroup('${entry.key}')">
+      <span>${entry.label}</span><span class="drawer-group-caret">▾</span>
+    </button>
+    <div class="drawer-group-items" style="display:${isOpen ? 'flex' : 'none'};">${items}</div>`;
   }).join('');
+}
+
+function toggleDrawerGroup(key) {
+  if (drawerOpenGroups.has(key)) drawerOpenGroups.delete(key); else drawerOpenGroups.add(key);
+  const drawerItems = document.getElementById('drawerItems');
+  if (drawerItems) drawerItems.innerHTML = buildDrawerItemsHtml(drawerActiveKey);
 }
 
 function ensureDrawer() {
