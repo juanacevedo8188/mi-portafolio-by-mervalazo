@@ -360,7 +360,7 @@ function renderMarket() {
   const view = GAIN_LOSE_VIEWS[viewIdx.market];
   document.getElementById('marketViewLabel').textContent = view.label + ' · Acciones + CEDEARs';
   if (!panelData.market.length) { document.getElementById('topGainers').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
-  const top = [...panelData.market].sort(view.cmp).slice(0, 15);
+  const top = [...panelData.market].sort(view.cmp).slice(0, 10);
   document.getElementById('topGainers').innerHTML = top.map((s, i) =>
     moverCard(i + 1, s.symbol, s.tipo, tipoLabel(s.tipo), null, fmtARS(s.c), s.pct_change)
   ).join('');
