@@ -333,6 +333,55 @@ function computeEstadio(price, ema200, trendRising) {
   return 4;
 }
 
+// Trae 1 año de historial diario de un ticker cualquiera -- version minima
+// reutilizada tanto por fetchOne() (universo curado) como por el Regimen
+// de Mercado (SPY/QQQ/VIX no son parte del universo, no llevan sector).
+async function fetchHistory(ticker) {
+  const res = await fetch(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+  if (!res.ok) throw new Error('yahoo ' + res.status);
+  const data = await res.json();
+  const result = data.chart.result[0];
+  const meta = result.meta;
+  const q = result.indicators.quote[0];
+  const rawCloses = q.close || [];
+  const closes = [], volumes = [], highs = [], lows = [];
+  rawCloses.forEach((c, i) => {
+    if (c != null) {
+      closes.push(c);
+      volumes.push(q.volume[i] || 0);
+      highs.push(q.high[i] != null ? q.high[i] : c);
+      lows.push(q.low[i] != null ? q.low[i] : c);
+    }
+  });
+  return { meta, closes, volumes, highs, lows };
+}
+
+// Score de tendencia de un indice (SPY/QQQ), 0-50: mismo criterio ATR que
+// Tendencia pero escalado -- posicion vs SMA50 (20pts) y EMA200 (25pts)
+// normalizada por volatilidad propia, mas pendiente de la EMA200 (5pts).
+function computeIndexTrendScore(price, sma50, ema200, trendRising, atr14) {
+  let pts = 0;
+  pts += atrDistFrac(price, sma50, atr14, 2) * 20;
+  pts += atrDistFrac(price, ema200, atr14, 3) * 25;
+  if (trendRising) pts += 5;
+  return Math.round(pts);
+}
+
+// VIX en zona sana (13-20) puntua maximo -- ni complacencia extrema (VIX
+// muy bajo, el mercado no le tiene miedo a nada) ni panico (VIX muy alto)
+// son lecturas comodas para operar. No cae a cero en panico extremo a
+// proposito: un miedo muy alto en medio de un mercado que viene fuerte
+// suele ser mas oportunidad que peligro, no una señal binaria de "salite".
+function computeVixScore(vix) {
+  if (vix == null) return 10;
+  if (vix >= 13 && vix <= 20) return 20;
+  if (vix < 13) return Math.round(Math.max(0, 20 - (13 - vix) * 1.5));
+  return Math.round(Math.max(5, 20 - (vix - 20) * 0.8));
+}
+
 async function fetchOne([ticker, sector]) {
   try {
     const res = await fetch(
@@ -408,7 +457,10 @@ export default async () => {
     return new Response('Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY en Netlify', { status: 500 });
   }
 
-  const rows = (await Promise.all(TICKERS.map(fetchOne))).filter(Boolean);
+  const [rows, regimeInputs] = await Promise.all([
+    Promise.all(TICKERS.map(fetchOne)).then(r => r.filter(Boolean)),
+    Promise.allSettled([fetchHistory('SPY'), fetchHistory('QQQ'), fetchHistory('^VIX')])
+  ]);
 
   // Fuerza RS necesita el percentil de cada ticker DENTRO de este mismo
   // universo, asi que hace falta que todos ya esten calculados antes de
@@ -452,8 +504,10 @@ export default async () => {
     r.updated_at = new Date().toISOString();
   });
 
+  const writes = [];
+
   if (rows.length) {
-    await fetch(`${SUPABASE_URL}/rest/v1/technical_indicators?on_conflict=ticker`, {
+    writes.push(fetch(`${SUPABASE_URL}/rest/v1/technical_indicators?on_conflict=ticker`, {
       method: 'POST',
       headers: {
         apikey: serviceKey,
@@ -462,8 +516,67 @@ export default async () => {
         Prefer: 'resolution=merge-duplicates'
       },
       body: JSON.stringify(rows)
-    });
+    }));
   }
+
+  // Regimen de Mercado: score aparte 0-100 que resume el estado general
+  // del mercado (no de un ticker puntual) -- Indices (SPY/QQQ, 0-50) +
+  // Amplitud (% del universo en Estadio 2, 0-30) + Sentimiento (VIX,
+  // 0-20). Si SPY/QQQ/VIX fallan la ejecucion (Yahoo caido, etc.) se
+  // omite en vez de escribir un regimen a medias con huecos silenciosos.
+  const [spyRes, qqqRes, vixRes] = regimeInputs;
+  if (spyRes.status === 'fulfilled' && qqqRes.status === 'fulfilled') {
+    function indexTrend(hist) {
+      const { meta, closes, highs, lows } = hist;
+      const price = meta.regularMarketPrice;
+      const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
+      const pctChange = prevClose ? ((price - prevClose) / prevClose) * 100 : null;
+      const sma50 = sma(closes, 50);
+      const ema200 = ema(closes, 200);
+      const ema200Prev = closes.length > 220 ? ema(closes.slice(0, -20), 200) : null;
+      const trendRising = ema200 != null && ema200Prev != null && ema200 > ema200Prev;
+      const atr14 = atr(closes, highs, lows, 14);
+      return { price, pctChange, score: computeIndexTrendScore(price, sma50, ema200, trendRising, atr14) };
+    }
+    const spy = indexTrend(spyRes.value);
+    const qqq = indexTrend(qqqRes.value);
+    const indicesScore = Math.round((spy.score + qqq.score) / 2);
+
+    const bullish = rows.filter(r => r.estadio === 2).length;
+    const pctBullish = rows.length ? (bullish / rows.length) * 100 : 0;
+    const amplitudScore = Math.round(Math.min(1, pctBullish / 100) * 30);
+
+    const vix = vixRes.status === 'fulfilled' ? vixRes.value.meta.regularMarketPrice : null;
+    const sentimientoScore = computeVixScore(vix);
+
+    const regimeScore = Math.max(0, Math.min(100, indicesScore + amplitudScore + sentimientoScore));
+
+    writes.push(fetch(`${SUPABASE_URL}/rest/v1/market_regime?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        id: 1,
+        score: regimeScore,
+        indices_score: indicesScore,
+        amplitud_score: amplitudScore,
+        sentimiento_score: sentimientoScore,
+        spy_price: spy.price,
+        spy_pct_change: spy.pctChange,
+        qqq_price: qqq.price,
+        qqq_pct_change: qqq.pctChange,
+        vix,
+        pct_bullish: pctBullish,
+        updated_at: new Date().toISOString()
+      })
+    }));
+  }
+
+  await Promise.all(writes);
 
   return new Response(JSON.stringify({ ok: true, count: rows.length, total: TICKERS.length }), {
     headers: { 'Content-Type': 'application/json' }

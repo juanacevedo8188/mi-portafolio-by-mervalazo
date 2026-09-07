@@ -51,6 +51,23 @@
 <main>
   <div id="marketClosedBanner"></div>
 
+  <section class="panel" id="regimePanel" style="display:none;">
+    <div class="panel-head">
+      <h2>Régimen de Mercado</h2>
+      <span id="regimeUpdated">—</span>
+    </div>
+    <div id="regimeBody"></div>
+    <button class="info-toggle" onclick="toggleInfo('regimeInfo')">
+      <span id="regimeInfoChevron">▾</span> ¿Qué es esto?
+    </button>
+    <div id="regimeInfo" class="curve-info" style="display:none;">
+      <p>Un score aparte 0-100 que resume el estado general del mercado — no de un ticker en particular. Sirve de contexto para leer los scores individuales de la tabla de abajo: un ticker con 70 puntos significa algo distinto si el mercado en general está fuerte o débil. Se arma en 3 capas:</p>
+      <p><b>Índices SPY/QQQ (0-50):</b> misma lógica de Tendencia que usamos por ticker (distancia a SMA50/EMA200 normalizada por ATR, más pendiente de la EMA200), aplicada a los dos ETFs de índice más seguidos.</p>
+      <p><b>Amplitud (0-30):</b> qué porcentaje de los ~300 tickers de este universo está en Estadio 2 (tendencia alcista de fondo) — un mercado sano tiene la mayoría de sus componentes en tendencia, no solo un puñado de líderes.</p>
+      <p><b>Sentimiento — VIX (0-20):</b> puntúa mejor en una zona intermedia (VIX 13-20) — ni complacencia extrema (VIX muy bajo) ni pánico (VIX muy alto) son lecturas cómodas para operar.</p>
+    </div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Indicadores Técnicos</h2>
@@ -65,7 +82,7 @@
       <p><b>Fuerza RS (0-25):</b> el mayor entre el nivel (percentil del retorno de 6 meses <i>dentro de este mismo universo</i> de ~300 nombres) y la aceleración (percentil del retorno del último mes) — no hace falta ser el mejor del universo para puntuar bien, con estar claramente por encima de la mediana ya se acerca al máximo — más 5pts si el precio está sobre su SMA50. Si el ticker se desplomó en la última semana, se ignora la vía de aceleración mensual para no premiar un rebote falso.</p>
       <p><b>Contracción (0-35):</b> busca la mejor ventana de 7 ruedas dentro de las últimas 20 (no exige que todo ese tramo esté tranquilo, alcanza con encontrar un buen momento de acumulación reciente) comparada contra el rango de referencia de 50 ruedas, más un bonus si el RSI está en zona sana 40-70 — lo que en trading se conoce como VCP, volatility contraction pattern: suele preceder a un movimiento fuerte.</p>
       <p><b>Setup (0-20):</b> qué tan cerca está el precio del máximo de las últimas 20 ruedas — la lectura de "armando una base para romper".</p>
-      <p><b>Penalizaciones (negativo):</b> -1 por cada "distribution day" (baja de más de 0,2% con volumen mayor al día anterior) en las últimas 20 ruedas, tope -8, más -3 si hubo una caída de un día mayor a 7% en las últimas 10.</p>
+      <p><b>Penalizaciones (negativo):</b> -1 por cada "distribution day" (baja de más de 0,5% con volumen al menos 10% mayor al día anterior) en las últimas 20 ruedas, tope -8, más -3 si hubo una caída de un día mayor a 7% en las últimas 10.</p>
       <p>Se recalcula una vez por día después del cierre — no es en vivo intra-rueda. A título informativo, no constituye recomendación de inversión.</p>
     </div>
     <div class="mkw-picker" style="padding-bottom:0;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
@@ -338,10 +355,40 @@ async function loadIndicators(manual) {
   }
 }
 
+function regimeClass(score) {
+  return score >= 65 ? 'up' : score < 40 ? 'down' : 'flat';
+}
+
+async function loadRegime() {
+  try {
+    const { data, error } = await sb.from('market_regime').select('*').eq('id', 1).maybeSingle();
+    if (error || !data) { document.getElementById('regimePanel').style.display = 'none'; return; }
+    document.getElementById('regimePanel').style.display = '';
+    document.getElementById('regimeBody').innerHTML = `
+      <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:18px 20px;">
+        <div style="text-align:center;min-width:80px;">
+          <div class="mono ${regimeClass(data.score)}" style="font-size:38px;font-weight:800;line-height:1;">${data.score}</div>
+          <div style="font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;">Score / 100</div>
+        </div>
+        <div style="flex:1;min-width:260px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          ${statCard('Índices SPY/QQQ', data.indices_score + '/50', '')}
+          ${statCard('Amplitud', data.amplitud_score + '/30 · ' + fmtNum(data.pct_bullish) + '%', '')}
+          ${statCard('Sentimiento (VIX)', data.sentimiento_score + '/20 · VIX ' + fmtNum(data.vix), '')}
+        </div>
+      </div>
+    `;
+    document.getElementById('regimeUpdated').textContent = 'actualizado ' + new Date(data.updated_at).toLocaleString('es-AR');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('regimePanel').style.display = 'none';
+  }
+}
+
 renderNavTabs('tecnico');
 initTVHover();
 renderHeader();
 loadIndicators(false);
+loadRegime();
 </script>
 
 </body>
