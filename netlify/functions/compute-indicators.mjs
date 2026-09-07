@@ -583,4 +583,10 @@ export default async () => {
   });
 };
 
-export const config = { schedule: '0 21 * * 1-5' };
+// Cada hora en punto de 13 a 21 UTC (10 a 18 ART), lunes a viernes --
+// cubre la rueda (10:30-17:00 ART) con margen de apertura y una corrida
+// final post-cierre, en vez de esperar a una sola corrida a las 18 ART
+// como antes. Si en algun momento Yahoo empieza a bloquear/rate-limitear
+// estos requests (no es una API oficial, no tiene SLA), lo primero para
+// achicar es bajar la frecuencia de vuelta, no el universo de tickers.
+export const config = { schedule: '0 13-21 * * 1-5' };
