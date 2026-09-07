@@ -78,6 +78,14 @@
     <div id="cedearFairBody"></div>
   </section>
 
+  <section class="panel" id="adrFairPanel" style="display:none;">
+    <div class="panel-head">
+      <h2>Precio implícito según ADR</h2>
+      <span id="adrFairUpdated"></span>
+    </div>
+    <div id="adrFairBody"></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Mi lista de seguimiento</h2>
@@ -91,7 +99,7 @@
   <footer>
     Precios provistos por <a href="https://data912.com" target="_blank" rel="noopener">data912.com</a> con demora de mercado, a título informativo. No constituye recomendación de inversión.
     Gráficos por <a href="https://www.tradingview.com" target="_blank" rel="noopener">TradingView</a>.
-    El "Precio recomendado del CEDEAR" se calcula con el dólar CCL y el ratio de conversión oficial de BYMA — es una referencia de arbitraje, no un precio objetivo ni una recomendación de compra o venta.
+    El "Precio recomendado del CEDEAR" se calcula con el dólar CCL y el ratio de conversión oficial de BYMA, y el "Precio implícito según ADR" con el dólar CCL y el ratio de conversión oficial de cada programa de ADR — son referencias de arbitraje, no precios objetivo ni recomendaciones de compra o venta.
   </footer>
 </main>
 
@@ -205,6 +213,7 @@ function selectTicker(ticker, tipo) {
 
   updateFollowBtn();
   renderCedearFairValue(ticker, tipo);
+  renderAdrImplicitPrice(ticker, tipo);
 }
 
 // "Precio recomendado" del CEDEAR: (precio del subyacente en USD × dólar
@@ -247,6 +256,49 @@ async function renderCedearFairValue(ticker, tipo) {
   } catch (err) {
     console.error(err);
     body.innerHTML = '<div class="empty-note">No se pudo calcular el precio teórico en este momento.</div>';
+  }
+}
+
+// El mismo calculo que el CEDEAR pero al reves: para una accion local que
+// ademas cotiza como ADR en NY, el "precio implicito" es (precio del ADR
+// en USD × dólar CCL) ÷ ratio de conversion (ver ADR_MAP en market.js) --
+// si la accion local cotiza lejos de este numero, hay un desarbitraje
+// entre el mercado local y el de Nueva York vía CCL.
+async function renderAdrImplicitPrice(ticker, tipo) {
+  const panel = document.getElementById('adrFairPanel');
+  const info = ADR_MAP[ticker];
+  if (tipo !== 'accion' || !info) {
+    panel.style.display = 'none';
+    return;
+  }
+  const body = document.getElementById('adrFairBody');
+  panel.style.display = 'block';
+  body.innerHTML = '<div class="empty-note">Calculando…</div>';
+  try {
+    const [rates, usaAdrs] = await Promise.all([getAllDolarRates(), fetchFeed('usa_adrs')]);
+    const ccl = rates.find(r => r.casa === 'contadoconliqui');
+    const adr = usaAdrs.find(s => s.symbol === info.adr);
+    const local = masterList.find(s => s.symbol === ticker && s.tipo === 'accion');
+    if (!ccl || !adr || !local) {
+      body.innerHTML = '<div class="empty-note">No se pudo calcular — falta el precio del ADR o del dólar CCL en este momento.</div>';
+      return;
+    }
+    const teorico = (adr.c * ccl.venta) / info.ratio;
+    const diffPct = ((local.c - teorico) / teorico) * 100;
+    body.innerHTML = `
+      <div style="padding:16px 20px;">
+        <div style="font-size:28px;font-weight:800;" class="mono">${fmtARS(teorico)}</div>
+        <div style="font-size:12.5px;color:var(--text-dim);margin-top:4px;">
+          Según el ADR ${info.adr} a US$ ${fmtNum(adr.c)}, CCL ${fmtARS(ccl.venta)} y ratio ${info.ratio}:1 — comparado con el precio real ${fmtARS(local.c)}.
+        </div>
+        <div style="margin-top:12px;">
+          <span class="pill ${pctClass(-diffPct)}">${diffPct >= 0 ? '+' : ''}${fmtNum(diffPct)}% ${diffPct >= 0 ? 'más caro' : 'más barato'} que el valor implícito</span>
+        </div>
+      </div>`;
+    document.getElementById('adrFairUpdated').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<div class="empty-note">No se pudo calcular el precio implícito en este momento.</div>';
   }
 }
 

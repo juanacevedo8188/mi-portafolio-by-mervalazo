@@ -110,6 +110,33 @@ const CEDEAR_RATIOS = {
   XYZ: 20, ZM: 47
 };
 
+// Mapa de acciones argentinas que ademas cotizan como ADR en NYSE/Nasdaq:
+// ticker local (BYMA, el que usa data912/arg_stocks) -> { adr: ticker del
+// ADR (data912/usa_adrs, no siempre igual al local), ratio: cuantas
+// acciones locales equivalen a 1 ADR }. Fuente: cada ratio confirmado por
+// separado contra el 20-F/6-K en sec.gov de la empresa o el listado
+// oficial de Nasdaq para ese ADR (no un unico agregador), y cruzado
+// despues contra el precio en vivo de ambos feeds antes de sumarlo aca
+// (precio local x ratio / CCL tiene que aproximar el precio del ADR).
+// El ratio de YPF cambio de 1:1 a 10:1 el 4/2/2026 por el split de la
+// accion local -- si la empresa hace otro split o ajuste societario esto
+// puede volver a cambiar, conviene re-chequear cada tanto.
+const ADR_MAP = {
+  GGAL: { adr: 'GGAL', ratio: 10 },
+  YPFD: { adr: 'YPF', ratio: 10 },
+  PAMP: { adr: 'PAM', ratio: 25 },
+  BMA: { adr: 'BMA', ratio: 10 },
+  BBAR: { adr: 'BBAR', ratio: 3 },
+  SUPV: { adr: 'SUPV', ratio: 5 },
+  TGSU2: { adr: 'TGS', ratio: 5 },
+  EDN: { adr: 'EDN', ratio: 20 },
+  CEPU: { adr: 'CEPU', ratio: 10 },
+  CRES: { adr: 'CRESY', ratio: 10 },
+  LOMA: { adr: 'LOMA', ratio: 5 },
+  IRSA: { adr: 'IRS', ratio: 10 },
+  TECO2: { adr: 'TEO', ratio: 5 }
+};
+
 async function getOficialRate() {
   const res = await fetch('https://dolarapi.com/v1/dolares/oficial', { cache: 'no-store' });
   if (!res.ok) throw new Error('dolar oficial failed: ' + res.status);
