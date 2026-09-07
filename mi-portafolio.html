@@ -215,6 +215,7 @@
           <input type="number" id="fCashUsd" step="0.01" min="0" placeholder="0">
         </div>
         <button type="submit" class="btn-primary">Guardar</button>
+        <div class="auth-msg" id="liquidezMsg" style="grid-column:1/-1;margin-top:0;"></div>
       </form>
     </section>
 
@@ -533,15 +534,27 @@ async function saveLiquidez(e) {
   const ars = Math.max(0, parseFloat(document.getElementById('fCashArs').value) || 0);
   const usd = Math.max(0, parseFloat(document.getElementById('fCashUsd').value) || 0);
   const btn = e.target.querySelector('button[type="submit"]');
+  const msgEl = document.getElementById('liquidezMsg');
   btn.disabled = true;
+  msgEl.className = 'auth-msg';
+  msgEl.textContent = '';
   try {
-    await sb.from('profiles').update({ cash_ars: ars, cash_usd: usd }).eq('id', currentSession.user.id);
+    // sb.update() no tira excepcion sola por un error de RLS/DB -- hay que
+    // chequear `error` a mano, si no una falla queda muda (el usuario ve
+    // "nada" al tocar Guardar, que es justo el bug que esto corrige).
+    const { error } = await sb.from('profiles').update({ cash_ars: ars, cash_usd: usd }).eq('id', currentSession.user.id);
+    if (error) throw error;
     cashArs = ars;
     cashUsd = usd;
     if (shareProfile) { shareProfile.cash_ars = ars; shareProfile.cash_usd = usd; }
     if (lastPriceMap) render(lastPriceMap);
+    msgEl.className = 'auth-msg ok';
+    msgEl.textContent = 'Guardado ✓';
+    setTimeout(() => { if (msgEl.textContent === 'Guardado ✓') msgEl.textContent = ''; }, 3000);
   } catch (err) {
     console.error(err);
+    msgEl.className = 'auth-msg err';
+    msgEl.textContent = 'No se pudo guardar. Probá de nuevo.';
   } finally {
     btn.disabled = false;
   }
