@@ -54,6 +54,7 @@
     <button class="bond-cat-tab" data-cat="bonares" onclick="selectCategory('bonares')">Bonares (Ley Arg.)</button>
     <button class="bond-cat-tab" data-cat="globales" onclick="selectCategory('globales')">Globales (Ley NY)</button>
     <button class="bond-cat-tab" data-cat="legalspread" onclick="selectCategory('legalspread')">Ley NY vs. Ley Arg.</button>
+    <button class="bond-cat-tab" data-cat="calendario" onclick="selectCategory('calendario')">Calendario de Pagos</button>
     <button class="bond-cat-tab" data-cat="bopreal" onclick="selectCategory('bopreal')">BOPREAL</button>
     <button class="bond-cat-tab" data-cat="cer" onclick="selectCategory('cer')">Ajustables por CER</button>
     <button class="bond-cat-tab" data-cat="tamar" onclick="selectCategory('tamar')">Tasa TAMAR</button>
@@ -216,6 +217,39 @@
       <div id="legalSpreadInfo" class="curve-info" style="display:none;">
         <p>Por cada vencimiento, el Bonar (Ley Argentina) y el Global (Ley Nueva York) pagan exactamente el mismo cupón y cronograma de amortización — la única diferencia es bajo qué jurisdicción se puede reclamar si el país no paga. El spread es cuánto más (o menos) cuesta el papel de Ley NY frente al de Ley Argentina, en igualdad de flujo de fondos: es una medida directa del "riesgo legal" que el mercado le pone a litigar en Argentina en vez de en Nueva York.</p>
         <p>Un spread positivo (lo más común) significa que el mercado paga de más por la protección de Ley NY. Si se achica o se vuelve negativo, es señal de que el mercado le teme menos a una eventual disputa bajo ley local — o más a algo específico del bono de Ley NY (como una cláusula de aceleración distinta).</p>
+      </div>
+    </section>
+  </div>
+
+  <div id="catCalendario" style="display:none;">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Calendario de Pagos</h2>
+        <span id="calendarioUpdated">—</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Próximo pago</th>
+              <th>Faltan</th>
+              <th>Renta</th>
+              <th>Amortización</th>
+              <th>Total (c/100 VN)</th>
+            </tr>
+          </thead>
+          <tbody id="calendarioBody">
+            <tr><td colspan="6" class="empty-note">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="info-toggle" onclick="toggleInfo('calendarioInfo')">
+        <span id="calendarioInfoChevron">▾</span> ¿Cómo se calcula esto?
+      </button>
+      <div id="calendarioInfo" class="curve-info" style="display:none;">
+        <p>Para cada Bonar/Global, la próxima fecha de pago de renta (interés) y/o amortización (devolución de capital) que le toca cobrar a un tenedor, con el monto en dólares por cada 100 de valor nominal original — el mismo cronograma oficial del <a href="https://www.boletinoficial.gob.ar/detalleAviso/primera/233685/20200816" target="_blank" rel="noopener">Decreto 676/2020</a> que se usa para calcular Paridad/TIR/Duration en Bonares y Globales.</p>
+        <p>No esta filtrado por lo que tengas en Mi Portafolio — hoy esa sección todavía no permite cargar Bonares/Globales como tenencia, así que esto es el calendario completo de todas las especies con cronograma cargado, para que lo cruces vos mismo con lo que tengas.</p>
       </div>
     </section>
   </div>
@@ -415,7 +449,7 @@ function toggleInfo(bodyId) {
   if (chevron) chevron.textContent = open ? '▾' : '▴';
 }
 
-const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', legalspread: 'catLegalSpread', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar', caucion: 'catCaucion', carry: 'catCarry' };
+const CAT_DIVS = { letras: 'catLetras', bonares: 'catBonares', globales: 'catGlobales', legalspread: 'catLegalSpread', calendario: 'catCalendario', bopreal: 'catBopreal', cer: 'catCer', tamar: 'catTamar', caucion: 'catCaucion', carry: 'catCarry' };
 let activeCat = 'letras';
 
 function selectCategory(cat) {
@@ -433,6 +467,7 @@ function loadCategory(cat) {
   if (cat === 'bonares') return loadSovereignBonds(BONARES_LIST, 'bonaresBody', 'bonaresUpdated');
   if (cat === 'globales') return loadSovereignBonds(GLOBALES_LIST, 'globalesBody', 'globalesUpdated');
   if (cat === 'legalspread') return loadLegalSpread();
+  if (cat === 'calendario') return loadPaymentCalendar();
   if (cat === 'bopreal') return loadBopreal();
   if (cat === 'cer') return loadCerBonds();
   if (cat === 'tamar') return loadTamarBonds();
@@ -848,6 +883,43 @@ async function loadLegalSpread() {
     console.error(err);
     body.innerHTML = '<tr><td colspan="4" class="empty-note">No se pudo cargar la información.</td></tr>';
     statsEl.innerHTML = '';
+  }
+}
+
+// Proximo pago de renta/amortizacion para cada Bonar/Global -- no hace
+// falta ningun fetch, buildBondCashflow (market.js) ya arma el flujo de
+// fondos futuro completo a partir de BOND_TERMS (mismo cronograma oficial
+// que usa Paridad/TIR/Duration), asi que solo se toma el primer elemento
+// de "future" para cada ticker.
+const PAYMENT_CALENDAR_TICKERS = ['AL29', 'GD29', 'AL30', 'GD30', 'AL35', 'GD35', 'AL41', 'GD41', 'GD38', 'GD46'];
+
+function loadPaymentCalendar() {
+  const body = document.getElementById('calendarioBody');
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = PAYMENT_CALENDAR_TICKERS.map(ticker => {
+      const terms = BOND_TERMS[ticker];
+      const { future } = buildBondCashflow(terms, today);
+      if (!future.length) return null;
+      const next = future[0];
+      const daysTo = Math.round((new Date(next.date) - new Date(today)) / 86400000);
+      return { ticker, date: next.date, daysTo, coupon: next.coupon, amort: next.amort };
+    }).filter(Boolean).sort((a, b) => a.daysTo - b.daysTo);
+
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td><span class="tk">${r.ticker}</span></td>
+        <td class="mono">${new Date(r.date + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td class="mono">${r.daysTo}d</td>
+        <td class="mono">US$ ${fmtNum(r.coupon)}</td>
+        <td class="mono">${r.amort > 0 ? 'US$ ' + fmtNum(r.amort) : '—'}</td>
+        <td class="mono row-value">US$ ${fmtNum(r.coupon + r.amort)}</td>
+      </tr>
+    `).join('');
+    document.getElementById('calendarioUpdated').textContent = rows.length + ' especies';
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="6" class="empty-note">No se pudo calcular el calendario.</td></tr>';
   }
 }
 
