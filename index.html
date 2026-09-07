@@ -48,6 +48,10 @@
   <div class="nav-tabs" id="navTabs"></div>
 </header>
 
+<div class="market-ticker-wrap">
+  <div class="market-ticker" id="marketTicker"><span class="ticker-item">Cargando cotizaciones…</span></div>
+</div>
+
 <main>
   <div id="marketClosedBanner"></div>
 
@@ -158,6 +162,30 @@ function fmtTimeAgo(dateStr) {
   return `hace ${Math.floor(hours / 24)} d`;
 }
 
+// Cinta de cotizaciones arriba de todo -- reusa exactamente los mismos
+// datos que ya trae loadDollar()/loadRiesgoPais() para el resto del
+// dashboard, no vuelve a pedir nada. Se llama desde las dos (cada una con
+// lo que tenga fresco en ese momento), asi que puede ejecutarse antes de
+// que la otra haya terminado -- por eso ambos parametros son opcionales.
+let tickerDollarRates = null;
+let tickerRiesgoPais = null;
+
+function renderMarketTicker(rates, riesgoPais) {
+  if (rates) tickerDollarRates = rates;
+  if (riesgoPais) tickerRiesgoPais = riesgoPais;
+  const el = document.getElementById('marketTicker');
+  if (!el || !tickerDollarRates) return;
+
+  const items = tickerDollarRates.map(r => `<span class="ticker-item">${r.nombre} <b class="mono">${fmtARS(r.venta)}</b></span>`);
+  if (tickerRiesgoPais) {
+    const { last, delta } = tickerRiesgoPais;
+    const deltaHtml = delta != null ? ` <span class="chg ${pctClass(-delta)}">${delta >= 0 ? '+' : ''}${delta}pb</span>` : '';
+    items.push(`<span class="ticker-item">Riesgo País <b class="mono">${fmtNum(last.valor)} pb</b>${deltaHtml}</span>`);
+  }
+  // Duplicado para el loop infinito (ver @keyframes ticker-scroll en styles.css).
+  el.innerHTML = items.join('') + items.join('');
+}
+
 async function loadDollar() {
   const grid = document.getElementById('dollarGrid');
   const toggleEl = document.getElementById('dolarCasaToggle');
@@ -165,6 +193,7 @@ async function loadDollar() {
     const rates = await getAllDolarRates();
     const oficial = rates.find(r => r.casa === 'oficial');
     const brechaOf = r => oficial ? ((r.venta / oficial.venta) - 1) * 100 : null;
+    renderMarketTicker(rates, null);
 
     grid.innerHTML = rates.map(r => {
       const movedAgo = fmtTimeAgo(r.fechaActualizacion);
@@ -450,6 +479,7 @@ async function loadRiesgoPais() {
     const last = data[data.length - 1];
     const prev = data[data.length - 2];
     const delta = prev ? last.valor - prev.valor : null;
+    renderMarketTicker(null, { last, delta });
     // pctClass(-delta): para riesgo pais, que SUBA es malo — se invierte
     // el signo para que el verde/rojo respete esa lectura en vez de la
     // convencion habitual de "sube = verde".
