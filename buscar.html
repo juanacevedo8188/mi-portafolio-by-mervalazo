@@ -350,7 +350,9 @@ async function toggleFollow() {
   if (isFollowing) {
     await sb.from('watchlist').delete().eq('ticker', activeTicker);
   } else {
-    await sb.from('watchlist').insert({ ticker: activeTicker, tipo: activeTipo });
+    const q = masterList.find(s => s.symbol === activeTicker);
+    const precioAgregado = q ? (activeTipo === 'cripto' ? q.usd : q.c) : null;
+    await sb.from('watchlist').insert({ ticker: activeTicker, tipo: activeTipo, precio_agregado: precioAgregado });
   }
   await loadWatchlist();
   updateFollowBtn();
@@ -410,11 +412,20 @@ function renderWatchlist() {
 
   const rowHtml = w => {
     const q = priceOf(w.ticker);
+    const price = q ? (w.tipo === 'cripto' ? q.usd : q.c) : null;
+    // "Desde que se agrego" solo existe si guardamos precio_agregado en su
+    // momento (schema_v20.sql) -- lo que ya estaba en la lista de alguien
+    // antes de esa migracion queda sin este dato, se muestra "—" en vez
+    // de inventar una variacion.
+    const sinceAdded = (price != null && w.precio_agregado) ? ((price - w.precio_agregado) / w.precio_agregado) * 100 : null;
     return `<div class="watchlist-row">
       ${tvLink(w.ticker, w.tipo)}
       <span class="tag ${w.tipo}">${tipoLabel(w.tipo)}</span>
       <input class="group-input" list="groupOptions" placeholder="Sin categoría" value="${w.grupo || ''}" onchange="updateGroup('${w.id}', this.value)">
-      <span class="sr-price mono">${q ? (w.tipo === 'cripto' ? fmtUSD(q.usd) : fmtARS(q.c)) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
+      <span class="sr-price mono" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+        <span>${q ? (w.tipo === 'cripto' ? fmtUSD(q.usd) : fmtARS(q.c)) : '—'} <span class="chg ${q ? pctClass(q.pct_change) : 'flat'}">${q ? fmtPct(q.pct_change) : ''}</span></span>
+        <span style="font-size:10.5px;font-weight:500;color:var(--text-faint);">desde que se agregó: ${sinceAdded != null ? `<span class="chg ${pctClass(sinceAdded)}" style="font-size:10.5px;">${fmtPct(sinceAdded)}</span>` : '—'}</span>
+      </span>
       <button class="icon-btn" onclick="unfollow('${w.ticker}')" title="Dejar de seguir">✕</button>
     </div>`;
   };
