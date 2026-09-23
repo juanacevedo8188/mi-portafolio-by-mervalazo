@@ -315,6 +315,9 @@
         <h2>Carry Trade</h2>
         <span id="carryUpdated">—</span>
       </div>
+      <div class="dolar-casa-row">
+        <div class="hm-toggle" id="carryCasaToggle"></div>
+      </div>
       <div class="quick-metrics" id="carryStats"></div>
       <div class="table-scroll">
         <table>
@@ -325,7 +328,7 @@
               <th>DTM</th>
               <th>TEA</th>
               <th>Precio</th>
-              <th>Dólar MEP hoy</th>
+              <th>Dólar hoy</th>
               <th>Dólar Breakeven</th>
               <th>Suba admitida</th>
             </tr>
@@ -339,8 +342,9 @@
         <span id="carryInfoChevron">▾</span> ¿Qué es el carry trade y el dólar breakeven?
       </button>
       <div id="carryInfo" class="curve-info" style="display:none;">
-        <p>Acá "carry trade" es vender dólares hoy, comprar una LECAP/BONCAP en pesos, y recomprar dólares cuando vence. Ganás en dólares si el MEP subió <b>menos</b> de lo que rindió la letra en ese período; perdés si subió más.</p>
-        <p><b>Dólar Breakeven:</b> a qué valor tendría que estar el MEP el día del vencimiento para que te dé exactamente lo mismo haber hecho el carry que haberte quedado en dólares. <b>Suba admitida:</b> cuánto puede subir el MEP desde hoy hasta esa fecha sin que pierdas — el rendimiento directo (sin anualizar) de la letra en todo el período, no la TEA.</p>
+        <p>Acá "carry trade" es vender dólares hoy, comprar una LECAP/BONCAP en pesos, y recomprar dólares cuando vence. Ganás en dólares si ese dólar subió <b>menos</b> de lo que rindió la letra en ese período; perdés si subió más.</p>
+        <p><b>Dólar Breakeven:</b> a qué valor tendría que estar el dólar elegido el día del vencimiento para que te dé exactamente lo mismo haber hecho el carry que haberte quedado en dólares. <b>Suba admitida:</b> cuánto puede subir desde hoy hasta esa fecha sin que pierdas — el rendimiento directo (sin anualizar) de la letra en todo el período, no la TEA. Ese % es el mismo elijas el dólar que elijas como referencia; lo que cambia es el valor en pesos del breakeven.</p>
+        <p>MEP y CCL son los que realmente podés usar para esta operación (comprar/vender dólares vía bolsa); Oficial, Blue, Mayorista, Tarjeta y Cripto están para comparar, no para operar el carry en la práctica.</p>
         <p>Es una foto de hoy, no una promesa: si el dólar se mueve fuerte antes del vencimiento, podés necesitar vender la letra antes de tiempo a un precio distinto al esperado.</p>
       </div>
     </section>
@@ -408,64 +412,101 @@ function loadCategory(cat) {
 
 // Carry trade: vender dolares hoy, comprar la letra en pesos, recomprar
 // dolares al vencimiento. "ratio" (vpv/precio, ver getLecapData) es el
-// multiplo de capital de hoy al vencimiento — multiplicado por el MEP de
-// hoy da el dolar al que, si llega el MEP justo ahi al vencimiento, el
-// carry da lo mismo que haberse quedado en dolares (breakeven). La "suba
-// admitida" es ese mismo numero como %, osea el rendimiento directo (sin
-// anualizar) de la letra en el período.
+// multiplo de capital de hoy al vencimiento — multiplicado por el dolar de
+// referencia de hoy da el valor al que, si llega justo ahi al vencimiento,
+// el carry da lo mismo que haberse quedado en dolares (breakeven). La
+// "suba admitida" es ese mismo numero como %, osea el rendimiento directo
+// (sin anualizar) de la letra en el período — es el mismo elijas el dolar
+// que elijas como referencia, asi que solo se recalcula el toggle, sin
+// pedir de nuevo las letras.
+let carryLecapCache = [];
+let carryDolarRates = [];
+let activeCarryCasa = 'bolsa'; // MEP por defecto: la referencia estandar de carry trade
+let carryToggleBound = false;
+
 async function loadCarryTrade() {
   const body = document.getElementById('carryBody');
   const statsEl = document.getElementById('carryStats');
+  const toggleEl = document.getElementById('carryCasaToggle');
   try {
-    const [data, mep] = await Promise.all([getLecapData(), getUsdArsRate()]);
+    const [data, rates] = await Promise.all([getLecapData(), getAllDolarRates()]);
     lecapCache = data;
-    if (!data.length) {
+    carryLecapCache = data;
+    carryDolarRates = rates;
+    if (!data.length || !rates.length) {
       body.innerHTML = '<tr><td colspan="8" class="empty-note">No hay LECAPs vigentes en este momento.</td></tr>';
       statsEl.innerHTML = '';
+      toggleEl.innerHTML = '';
       document.getElementById('carryUpdated').textContent = '';
       return;
     }
-    const rows = data.map(l => ({
-      ...l,
-      breakeven: mep * l.ratio,
-      subaAdmitida: (l.ratio - 1) * 100
-    }));
+    if (!rates.some(r => r.casa === activeCarryCasa)) activeCarryCasa = rates[0].casa;
 
-    body.innerHTML = rows.map(l => `
-      <tr>
-        <td><span class="tk">${l.ticker}</span></td>
-        <td class="mono">${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-        <td class="mono">${l.dtm}</td>
-        <td class="mono">${fmtNum(l.tea)}%</td>
-        <td class="mono row-value">${fmtARS(l.price)}</td>
-        <td class="mono">${fmtARS(mep)}</td>
-        <td class="mono">${fmtARS(l.breakeven)}</td>
-        <td class="mono chg ${pctClass(l.subaAdmitida)}">${fmtPct(l.subaAdmitida)}</td>
-      </tr>
-    `).join('');
-    document.getElementById('carryUpdated').textContent = rows.length + ' letras vigentes · dólar MEP ' + fmtARS(mep);
-
-    const bestTea = rows.reduce((a, b) => (b.tea > a.tea ? b : a));
-    const bestCushion = rows.reduce((a, b) => (b.subaAdmitida > a.subaAdmitida ? b : a));
-    statsEl.innerHTML = `
-      <div class="quick-stat">
-        <div class="label">Dólar MEP hoy</div>
-        <div class="val mono">${fmtARS(mep)}</div>
-      </div>
-      <div class="quick-stat">
-        <div class="label">Mejor TEA</div>
-        <div class="val">${bestTea.ticker} · ${fmtNum(bestTea.tea)}%</div>
-      </div>
-      <div class="quick-stat">
-        <div class="label">Mayor colchón a breakeven</div>
-        <div class="val">${bestCushion.ticker} · +${fmtNum(bestCushion.subaAdmitida)}%</div>
-      </div>
-    `;
+    toggleEl.innerHTML = rates.map(r =>
+      `<button class="hm-toggle-btn${r.casa === activeCarryCasa ? ' active' : ''}" data-casa="${r.casa}">${r.nombre}</button>`
+    ).join('');
+    if (!carryToggleBound) {
+      carryToggleBound = true;
+      toggleEl.addEventListener('click', e => {
+        const btn = e.target.closest('.hm-toggle-btn');
+        if (!btn || btn.classList.contains('active')) return;
+        activeCarryCasa = btn.dataset.casa;
+        renderCarryTrade();
+      });
+    }
+    renderCarryTrade();
   } catch (err) {
     console.error(err);
     body.innerHTML = '<tr><td colspan="8" class="empty-note">No se pudo cargar la información.</td></tr>';
     statsEl.innerHTML = '';
   }
+}
+
+function renderCarryTrade() {
+  const dolarRef = carryDolarRates.find(r => r.casa === activeCarryCasa);
+  if (!dolarRef) return;
+  const refVenta = dolarRef.venta;
+
+  document.querySelectorAll('#carryCasaToggle .hm-toggle-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.casa === activeCarryCasa));
+
+  const rows = carryLecapCache.map(l => ({
+    ...l,
+    breakeven: refVenta * l.ratio,
+    subaAdmitida: (l.ratio - 1) * 100
+  }));
+
+  document.getElementById('carryBody').innerHTML = rows.map(l => `
+    <tr>
+      <td><span class="tk">${l.ticker}</span></td>
+      <td class="mono">${new Date(l.vencimiento + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+      <td class="mono">${l.dtm}</td>
+      <td class="mono">${fmtNum(l.tea)}%</td>
+      <td class="mono row-value">${fmtARS(l.price)}</td>
+      <td class="mono">${fmtARS(refVenta)}</td>
+      <td class="mono">${fmtARS(l.breakeven)}</td>
+      <td class="mono chg ${pctClass(l.subaAdmitida)}">${fmtPct(l.subaAdmitida)}</td>
+    </tr>
+  `).join('');
+  document.getElementById('carryUpdated').textContent =
+    rows.length + ' letras vigentes · dólar ' + dolarRef.nombre + ' ' + fmtARS(refVenta);
+
+  const bestTea = rows.reduce((a, b) => (b.tea > a.tea ? b : a));
+  const bestCushion = rows.reduce((a, b) => (b.subaAdmitida > a.subaAdmitida ? b : a));
+  document.getElementById('carryStats').innerHTML = `
+    <div class="quick-stat">
+      <div class="label">Dólar ${dolarRef.nombre} hoy</div>
+      <div class="val mono">${fmtARS(refVenta)}</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Mejor TEA</div>
+      <div class="val">${bestTea.ticker} · ${fmtNum(bestTea.tea)}%</div>
+    </div>
+    <div class="quick-stat">
+      <div class="label">Mayor colchón a breakeven</div>
+      <div class="val">${bestCushion.ticker} · +${fmtNum(bestCushion.subaAdmitida)}%</div>
+    </div>
+  `;
 }
 
 // Caucion real de BYMA (via rava.com, ver netlify/functions/rava-caucion.mjs)
