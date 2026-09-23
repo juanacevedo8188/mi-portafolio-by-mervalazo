@@ -373,6 +373,14 @@ function toggleSectorFilter(sector) {
   if (lastPriceMap) render(lastPriceMap);
 }
 
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
 function renderAuthMode() {
   const title = document.getElementById('authTitle');
   const subtitle = document.getElementById('authSubtitle');
