@@ -228,6 +228,36 @@
 
     <section class="panel">
       <div class="panel-head">
+        <h2>Simulador de dólar</h2>
+        <span id="simUpdated">—</span>
+      </div>
+      <div class="dolar-casa-row">
+        <div class="hm-toggle" id="simCasaToggle"></div>
+      </div>
+      <div class="mkw-chips" style="padding:14px 20px 0;">
+        <button type="button" class="mkw-chip" onclick="applySimPreset(-20)">-20%</button>
+        <button type="button" class="mkw-chip" onclick="applySimPreset(-10)">-10%</button>
+        <button type="button" class="mkw-chip" onclick="applySimPreset(10)">+10%</button>
+        <button type="button" class="mkw-chip" onclick="applySimPreset(20)">+20%</button>
+        <button type="button" class="mkw-chip" onclick="applySimPreset(50)">+50%</button>
+      </div>
+      <div style="padding:12px 20px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label for="simTargetInput" style="font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;">Dólar simulado</label>
+        <input type="number" id="simTargetInput" step="any" min="0" style="max-width:150px;">
+      </div>
+      <div class="fwd-result" id="simResult">Cargando…</div>
+      <button class="info-toggle" onclick="toggleInfo('simInfo')">
+        <span id="simInfoChevron">▾</span> ¿Cómo se calcula esto?
+      </button>
+      <div id="simInfo" class="curve-info" style="display:none;">
+        <p>Este simulador no le inventa un precio nuevo a tus acciones, CEDEARs o letras — no hay una fórmula que diga cuánto valdrían en pesos si el dólar se mueve, es el mercado el que decide eso. Lo que sí cambia con el dólar es <b>cuántos dólares valen esos mismos pesos</b>: eso es lo que recalcula.</p>
+        <p>Tu cripto y tu efectivo en dólares son la excepción — cotizan nativamente en dólares, así que sí se recalculan multiplicando por el dólar simulado.</p>
+        <p>Por eso este número puede no coincidir exactamente con "Valor de cartera" en US$ de arriba: esa tarjeta siempre usa el dólar oficial para acciones/CEDEARs y el MEP implícito para cripto/efectivo USD; acá, en cambio, todo se recalcula con el mismo dólar que elijas en el selector, para poder explorar el escenario de forma consistente.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Evolución</h2>
         <div class="history-pct-badge">
           <span id="historyPct" class="history-pct-val">—</span>
@@ -332,6 +362,7 @@ let refreshTimer = null;
 const REFRESH_MS = 60000;
 let authMode = 'login'; // 'login' | 'signup' | 'reset' | 'recovery'
 let lastPriceMap = null;
+let lastRows = [];
 let activeSectorFilter = null;
 let cashArs = 0;
 let cashUsd = 0;
@@ -492,6 +523,7 @@ function showApp(session) {
   loadHoldings();
   loadHistory();
   loadShareProfile();
+  loadDolarSim();
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(loadHoldings, REFRESH_MS);
 }
@@ -856,6 +888,8 @@ function render(priceMap) {
       value: valueArs, cost: costArs // usados por groupBySector/quickMetrics (siempre en ARS)
     };
   });
+  lastRows = rows; // usado por el Simulador de dólar, que no re-pide holdings/precios
+  if (simDolarRates.length) renderDolarSim(); // mantiene el simulador al día con cada refresh de holdings
 
   const holdingsValueArs = rows.reduce((s, r) => s + (r.valueArs ?? r.costArs), 0);
   const holdingsValueUsd = rows.reduce((s, r) => s + (r.valueUsd ?? r.costUsd ?? 0), 0);
@@ -967,6 +1001,87 @@ function render(priceMap) {
     return `<tr class="sector-row${isActive ? ' active' : ''}" onclick="toggleSectorFilter('${sector}')"><td colspan="8">${sector}<span class="sector-weight">${fmtNum(sectorWeight)}%</span></td></tr>`
       + list.map(rowHtml).join('');
   }).join('');
+}
+
+let simDolarRates = [];
+let activeSimCasa = 'bolsa'; // MEP por defecto, misma referencia que Carry Trade
+let simCasaToggleBound = false;
+
+async function loadDolarSim() {
+  try {
+    simDolarRates = await getAllDolarRates();
+  } catch (err) {
+    console.error(err);
+    document.getElementById('simResult').innerHTML = '<div class="empty-note">No se pudo cargar la cotización del dólar.</div>';
+    return;
+  }
+  if (!simDolarRates.some(r => r.casa === activeSimCasa)) {
+    activeSimCasa = simDolarRates[0] ? simDolarRates[0].casa : activeSimCasa;
+  }
+
+  const toggleEl = document.getElementById('simCasaToggle');
+  toggleEl.innerHTML = simDolarRates.map(r =>
+    `<button class="hm-toggle-btn${r.casa === activeSimCasa ? ' active' : ''}" data-casa="${r.casa}">${r.nombre}</button>`
+  ).join('');
+  if (!simCasaToggleBound) {
+    simCasaToggleBound = true;
+    toggleEl.addEventListener('click', e => {
+      const btn = e.target.closest('.hm-toggle-btn');
+      if (!btn || btn.classList.contains('active')) return;
+      activeSimCasa = btn.dataset.casa;
+      toggleEl.querySelectorAll('.hm-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.casa === activeSimCasa));
+      resetSimTarget();
+      renderDolarSim();
+    });
+    document.getElementById('simTargetInput').addEventListener('input', renderDolarSim);
+  }
+  resetSimTarget();
+  renderDolarSim();
+}
+
+function resetSimTarget() {
+  const rate = simDolarRates.find(r => r.casa === activeSimCasa);
+  if (rate) document.getElementById('simTargetInput').value = Math.round(rate.venta);
+}
+
+function applySimPreset(pct) {
+  const rate = simDolarRates.find(r => r.casa === activeSimCasa);
+  if (!rate) return;
+  document.getElementById('simTargetInput').value = Math.round(rate.venta * (1 + pct / 100));
+  renderDolarSim();
+}
+
+// "Si el dólar [casa] llega a $Z, ¿cuánto vale mi cartera en dólares?" — a
+// las acciones/CEDEARs/letras y el efectivo en ARS no se les inventa un
+// precio nuevo (no hay fórmula defendible para eso, lo decide el mercado);
+// lo único que cambia es cuántos dólares valen esos mismos pesos. La
+// cripto y el efectivo en USD sí se recalculan porque cotizan nativamente
+// en dólares. Mismo enfoque que el dólar breakeven de Carry Trade en
+// Renta Fija, aplicado a toda la cartera en vez de a una sola letra.
+function renderDolarSim() {
+  const resultEl = document.getElementById('simResult');
+  const rate = simDolarRates.find(r => r.casa === activeSimCasa);
+  const target = parseFloat(document.getElementById('simTargetInput').value);
+  if (!rate || !lastRows.length || !(target > 0)) {
+    resultEl.innerHTML = lastRows.length ? 'Cargando…' : '<div class="empty-note">Cargá alguna posición para simular.</div>';
+    return;
+  }
+  const currentRate = rate.venta;
+
+  const arsFixedTotal = lastRows.reduce((s, r) => s + (r.isCrypto ? 0 : (r.valueArs ?? r.costArs ?? 0)), 0) + cashArs;
+  const usdNativeTotal = lastRows.reduce((s, r) => s + (r.isCrypto ? (r.priceUsd != null ? r.priceUsd * r.cantidad : (r.valueUsd ?? 0)) : 0), 0) + cashUsd;
+
+  const usdToday = arsFixedTotal / currentRate + usdNativeTotal;
+  const usdScenario = arsFixedTotal / target + usdNativeTotal;
+  const deltaUsd = usdScenario - usdToday;
+  const deltaPct = usdToday ? (deltaUsd / usdToday) * 100 : 0;
+
+  document.getElementById('simUpdated').textContent = 'Dólar ' + rate.nombre + ' hoy: ' + fmtARS(currentRate);
+  resultEl.innerHTML = `
+    <span class="fwd-label">Tu cartera en dólares, con el ${rate.nombre} a ${fmtARS(target)}</span>
+    ${fmtUSD(usdScenario)}
+    <div class="fwd-note ${pctClass(deltaPct)}">${deltaUsd >= 0 ? '+' : ''}${fmtUSD(deltaUsd)} (${fmtPct(deltaPct)}) vs. hoy · ${fmtUSD(usdToday)} con el ${rate.nombre} a ${fmtARS(currentRate)}</div>
+  `;
 }
 
 async function loadHistory() {
