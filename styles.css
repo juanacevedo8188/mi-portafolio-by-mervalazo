@@ -112,6 +112,18 @@ header{
   padding:14px 12px 4px;font-size:10.5px;font-weight:700;color:var(--text-faint);
   text-transform:uppercase;letter-spacing:.4px;
 }
+.drawer-group-toggle{
+  -webkit-appearance:none;appearance:none;
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:12px;margin-top:4px;background:none;border:none;border-radius:8px;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:700;color:var(--text-dim);
+  transition:background .12s,color .12s;
+}
+.drawer-group-toggle:hover{background:var(--bg-alt);color:var(--text);}
+.drawer-group-toggle.has-active{color:var(--accent);}
+.drawer-group-caret{font-size:10px;transition:transform .2s cubic-bezier(.4,0,.2,1);color:var(--text-faint);}
+.drawer-group-toggle.open .drawer-group-caret{transform:rotate(180deg);}
+.drawer-group-items{display:flex;flex-direction:column;}
 @media (max-width:760px){
   .hamburger-btn{display:flex;}
   .nav-tabs{display:none;}
@@ -142,6 +154,34 @@ header{
 #refreshBtn svg{width:13px;height:13px;}
 #refreshBtn.spinning svg{animation:spin 0.8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Cinta de cotizaciones que se desplaza sola -- el contenido se duplica
+   una vez en el HTML (ver renderMarketTicker en index.html) y la
+   animacion recorre el 50% del ancho total, que es exactamente el largo
+   de UNA copia -- al llegar ahi se ve identico al arranque, asi el loop
+   no se nota. Se pausa al pasar el mouse para poder leer con calma. */
+.market-ticker-wrap{
+  overflow:hidden;background:var(--bg-alt);border-bottom:1px solid var(--divider);
+}
+/* El fondo/borde de .market-ticker-wrap va de punta a punta (igual que el
+   fondo del <header>), pero el contenido que gira se centra en la misma
+   columna de 1140px que .header-inner/.nav-tabs/main -- si no, la cinta
+   se ve mas ancha que la barra de tabs de arriba y el layout queda
+   desalineado. */
+.market-ticker-inner{
+  max-width:1140px;margin:0 auto;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);
+}
+.market-ticker{display:flex;width:max-content;animation:ticker-scroll 38s linear infinite;}
+.market-ticker:hover{animation-play-state:paused;}
+.ticker-item{
+  display:inline-flex;align-items:baseline;gap:6px;padding:9px 22px;
+  font-size:12.5px;color:var(--text-faint);white-space:nowrap;border-right:1px solid var(--divider);
+}
+.ticker-item b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;}
+@keyframes ticker-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+@media (prefers-reduced-motion:reduce){.market-ticker{animation:none;}}
 
 main{max-width:1140px;margin:0 auto;padding:28px 24px;}
 
@@ -179,6 +219,13 @@ main{max-width:1140px;margin:0 auto;padding:28px 24px;}
 .pill.down{color:var(--down);background:var(--down-bg);}
 .pill.flat{color:var(--text-dim);background:var(--bg-alt);}
 
+.market-closed-banner{
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:11px 16px;
+  background:rgba(241,168,135,.08);border:1px solid rgba(241,168,135,.25);
+  border-radius:12px;color:var(--accent);font-size:12.5px;font-weight:500;line-height:1.45;
+}
+.market-closed-banner svg{width:17px;height:17px;flex-shrink:0;}
+
 section.panel{
   background:var(--card);border:1px solid var(--card-border);border-radius:14px;
   margin-bottom:22px;overflow:hidden;
@@ -205,8 +252,27 @@ thead th{
   white-space:nowrap;
 }
 thead th:first-child, tbody td:first-child{text-align:left;}
+thead th.sortable{cursor:pointer;user-select:none;transition:color .15s;}
+thead th.sortable:hover{color:var(--text-dim);}
+thead th.sortable.sorted{color:var(--accent);}
+thead th.sortable .sort-arrow{margin-left:3px;font-size:9px;opacity:.8;}
+.cat-cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.cat-val{font-size:12.5px;font-weight:600;}
+.cat-bar-wrap{width:42px;height:5px;background:var(--card-border);border-radius:3px;overflow:hidden;}
+.cat-bar-fill{height:100%;border-radius:3px;}
 tbody td{padding:13px 16px;border-bottom:1px solid var(--divider);text-align:right;font-variant-numeric:tabular-nums;}
 tbody tr:last-child td{border-bottom:none;}
+
+/* Analisis Tecnico tiene 11 columnas -- el padding y ancho de columna
+   por defecto de las tablas del sitio (pensado para tablas de 6-8
+   columnas) la hace desbordar en desktop. Se achica solo para esta
+   tabla en vez de tocar el padding global de todas las demas. */
+.ind-table-wrap td, .ind-table-wrap th{padding:8px 8px;}
+.ind-search{
+  background:var(--bg-alt);border:1px solid var(--card-border);border-radius:8px;
+  padding:8px 12px;color:var(--text);font-size:13px;font-family:inherit;width:100%;max-width:220px;
+}
+.ind-search:focus{outline:none;border-color:var(--accent-dim);}
 tbody tr:hover{background:var(--bg-alt);}
 .ticker-cell{display:flex;align-items:center;gap:9px;}
 .ticker-cell .tk{font-weight:700;font-size:14px;}
@@ -483,6 +549,7 @@ input[type=number]{-moz-appearance:textfield;}
 .cs-menu{
   position:fixed;background:var(--card);border:1px solid var(--card-border);border-radius:10px;
   padding:6px;box-shadow:0 16px 36px rgba(0,0,0,.45);max-height:260px;overflow-y:auto;
+  overscroll-behavior:contain;
   display:flex;flex-direction:column;gap:2px;z-index:200;
   opacity:0;pointer-events:none;transform:translateY(-6px);
   transition:opacity .15s cubic-bezier(.4,0,.2,1),transform .15s cubic-bezier(.4,0,.2,1);
@@ -595,12 +662,19 @@ input[type=number]{-moz-appearance:textfield;}
 .dollar-card .rate-sub{font-size:11px;color:var(--text-dim);margin-top:4px;}
 .dollar-card .rate-updated{font-size:10px;color:var(--text-faint);margin-top:6px;}
 
-.rank-row{display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid var(--divider);font-size:13.5px;}
-.rank-row:last-child{border-bottom:none;}
-.rank-num{width:18px;color:var(--text-faint);font-size:12px;font-weight:700;text-align:right;flex-shrink:0;}
-.rank-name{flex:1;min-width:0;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
-.rank-name .rn-full{width:100%;font-size:11px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.rank-price{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.movers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;padding:16px 20px;}
+.mover-card{
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;
+  background:var(--bg-alt);border:1px solid var(--card-border);border-radius:12px;
+  padding:12px 14px;text-decoration:none;color:inherit;transition:border-color .15s,transform .15s;
+}
+.mover-card:hover{border-color:var(--accent-dim);transform:translateY(-2px);}
+.mover-rank{position:absolute;top:10px;right:12px;font-size:10px;color:var(--text-faint);font-weight:700;}
+.mover-logo{width:26px;height:26px;border-radius:7px;object-fit:cover;}
+.mover-ticker{font-size:14.5px;font-weight:800;color:var(--text);letter-spacing:.2px;}
+.mover-name{width:100%;font-size:10.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-3px;}
+.mover-price{font-size:13px;color:var(--text-dim);font-variant-numeric:tabular-nums;margin-top:1px;}
+.mover-card .pill{margin-top:2px;}
 
 .view-switch{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);}
 .view-switch span{min-width:70px;text-align:center;}
@@ -738,6 +812,9 @@ input[type=number]{-moz-appearance:textfield;}
 .follow-btn.following{background:var(--accent);color:#12302c;border-color:var(--accent);}
 .tv-chart-wrap{height:420px;}
 .tv-chart-wrap iframe{width:100%;height:100%;border:0;display:block;}
+
+.tv-fundamentals-wrap{height:500px;}
+.tv-fundamentals-wrap iframe{width:100%;height:100%;border:0;display:block;}
 
 .watchlist-row{
   display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--divider);font-size:13.5px;

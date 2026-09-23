@@ -48,7 +48,15 @@
   <div class="nav-tabs" id="navTabs"></div>
 </header>
 
+<div class="market-ticker-wrap">
+  <div class="market-ticker-inner">
+    <div class="market-ticker" id="marketTicker"><span class="ticker-item">Cargando cotizaciones…</span></div>
+  </div>
+</div>
+
 <main>
+  <div id="marketClosedBanner"></div>
+
   <section class="panel">
     <div class="panel-head">
       <h2>Dólar</h2>
@@ -95,7 +103,7 @@
           <button class="vs-arrow" onclick="cycleView('market', 1)" title="Siguiente">›</button>
         </div>
       </div>
-      <div id="topGainers"><div class="empty-note">Cargando…</div></div>
+      <div id="topGainers" class="movers-grid"><div class="empty-note">Cargando…</div></div>
     </section>
 
     <section class="panel">
@@ -107,7 +115,7 @@
           <button class="vs-arrow" onclick="cycleView('crypto', 1)" title="Siguiente">›</button>
         </div>
       </div>
-      <div id="topCrypto"><div class="empty-note">Cargando…</div></div>
+      <div id="topCrypto" class="movers-grid"><div class="empty-note">Cargando…</div></div>
     </section>
   </div>
 
@@ -120,7 +128,7 @@
         <button class="vs-arrow" onclick="cycleView('ar', 1)" title="Siguiente">›</button>
       </div>
     </div>
-    <div id="topStocksArg"><div class="empty-note">Cargando…</div></div>
+    <div id="topStocksArg" class="movers-grid"><div class="empty-note">Cargando…</div></div>
   </section>
 
   <footer>
@@ -156,6 +164,30 @@ function fmtTimeAgo(dateStr) {
   return `hace ${Math.floor(hours / 24)} d`;
 }
 
+// Cinta de cotizaciones arriba de todo -- reusa exactamente los mismos
+// datos que ya trae loadDollar()/loadRiesgoPais() para el resto del
+// dashboard, no vuelve a pedir nada. Se llama desde las dos (cada una con
+// lo que tenga fresco en ese momento), asi que puede ejecutarse antes de
+// que la otra haya terminado -- por eso ambos parametros son opcionales.
+let tickerDollarRates = null;
+let tickerRiesgoPais = null;
+
+function renderMarketTicker(rates, riesgoPais) {
+  if (rates) tickerDollarRates = rates;
+  if (riesgoPais) tickerRiesgoPais = riesgoPais;
+  const el = document.getElementById('marketTicker');
+  if (!el || !tickerDollarRates) return;
+
+  const items = tickerDollarRates.map(r => `<span class="ticker-item">${r.nombre} <b class="mono">${fmtARS(r.venta)}</b></span>`);
+  if (tickerRiesgoPais) {
+    const { last, delta } = tickerRiesgoPais;
+    const deltaHtml = delta != null ? ` <span class="chg ${pctClass(-delta)}">${delta >= 0 ? '+' : ''}${delta}pb</span>` : '';
+    items.push(`<span class="ticker-item">Riesgo País <b class="mono">${fmtNum(last.valor)} pb</b>${deltaHtml}</span>`);
+  }
+  // Duplicado para el loop infinito (ver @keyframes ticker-scroll en styles.css).
+  el.innerHTML = items.join('') + items.join('');
+}
+
 async function loadDollar() {
   const grid = document.getElementById('dollarGrid');
   const toggleEl = document.getElementById('dolarCasaToggle');
@@ -163,6 +195,7 @@ async function loadDollar() {
     const rates = await getAllDolarRates();
     const oficial = rates.find(r => r.casa === 'oficial');
     const brechaOf = r => oficial ? ((r.venta / oficial.venta) - 1) * 100 : null;
+    renderMarketTicker(rates, null);
 
     grid.innerHTML = rates.map(r => {
       const movedAgo = fmtTimeAgo(r.fechaActualizacion);
@@ -278,13 +311,21 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
-function rankRow(rank, tickerHtml, priceLabel, pct) {
-  return `<div class="rank-row">
-    <span class="rank-num">${rank}</span>
-    <div class="rank-name">${tickerHtml}</div>
-    <span class="rank-price mono">${priceLabel}</span>
-    <span class="chg ${pctClass(pct)}" style="width:66px;text-align:right;">${fmtPct(pct)}</span>
-  </div>`;
+// Tarjeta compacta para los rankings de abajo (Mercado/Cripto/Acciones
+// Argentinas) -- antes eran filas de lista con mucho texto apretado en una
+// sola linea (rank + logo + ticker + tag + precio + %), lo que se sentia
+// denso. La grilla de tarjetas da mas aire a cada item sin sacar
+// informacion, solo reordenandola verticalmente.
+function moverCard(rank, symbol, tipo, tag, name, priceLabel, pct) {
+  const logo = tickerLogoUrl(symbol, tipo);
+  return `<a href="${tvUrl(symbol, tipo)}" target="_blank" rel="noopener" class="mover-card tk-link" data-ticker="${symbol}" data-tipo="${tipo}">
+    <span class="mover-rank">#${rank}</span>
+    ${logo ? `<img class="mover-logo" src="${logo}" alt="" onerror="this.style.display='none'">` : ''}
+    <span class="mover-ticker">${symbol}</span>
+    ${tag ? `<span class="tag ${tipo}">${tag}</span>` : (name ? `<span class="mover-name">${name}</span>` : '')}
+    <span class="mover-price mono">${priceLabel}</span>
+    <span class="pill ${pctClass(pct)}">${fmtPct(pct)}</span>
+  </a>`;
 }
 
 // pct_change puede venir null (ej: stablecoins) — esas quedan siempre al final,
@@ -321,13 +362,10 @@ function renderMarket() {
   const view = GAIN_LOSE_VIEWS[viewIdx.market];
   document.getElementById('marketViewLabel').textContent = view.label + ' · Acciones + CEDEARs';
   if (!panelData.market.length) { document.getElementById('topGainers').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
-  const top = [...panelData.market].sort(view.cmp).slice(0, 15);
-  document.getElementById('topGainers').innerHTML = top.map((s, i) => rankRow(
-    i + 1,
-    `${tvLink(s.symbol, s.tipo)}<span class="tag ${s.tipo}" style="margin-left:7px;">${tipoLabel(s.tipo)}</span>`,
-    fmtARS(s.c),
-    s.pct_change
-  )).join('');
+  const top = [...panelData.market].sort(view.cmp).slice(0, 10);
+  document.getElementById('topGainers').innerHTML = top.map((s, i) =>
+    moverCard(i + 1, s.symbol, s.tipo, tipoLabel(s.tipo), null, fmtARS(s.c), s.pct_change)
+  ).join('');
 }
 
 function renderAr() {
@@ -335,9 +373,9 @@ function renderAr() {
   document.getElementById('arViewLabel').textContent = view.label;
   if (!panelData.ar.length) { document.getElementById('topStocksArg').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.ar].sort(view.cmp).slice(0, 10);
-  document.getElementById('topStocksArg').innerHTML = top.map((s, i) => rankRow(
-    i + 1, tvLink(s.symbol, 'accion'), fmtARS(s.c), s.pct_change
-  )).join('');
+  document.getElementById('topStocksArg').innerHTML = top.map((s, i) =>
+    moverCard(i + 1, s.symbol, 'accion', null, null, fmtARS(s.c), s.pct_change)
+  ).join('');
 }
 
 function renderCrypto() {
@@ -345,9 +383,9 @@ function renderCrypto() {
   document.getElementById('cryptoViewLabel').textContent = view.label;
   if (!panelData.crypto.length) { document.getElementById('topCrypto').innerHTML = '<div class="empty-note">Sin datos por ahora — reintenta en el próximo refresh.</div>'; return; }
   const top = [...panelData.crypto].sort(view.cmp).slice(0, 10);
-  document.getElementById('topCrypto').innerHTML = top.map((c, i) => rankRow(
-    i + 1, `${tvLink(c.symbol, 'cripto')}<span class="rn-full">${c.name}</span>`, fmtUSD(c.usd), c.pct_change
-  )).join('');
+  document.getElementById('topCrypto').innerHTML = top.map((c, i) =>
+    moverCard(i + 1, c.symbol, 'cripto', null, c.name, fmtUSD(c.usd), c.pct_change)
+  ).join('');
 }
 
 function renderMarketBreadth() {
@@ -448,6 +486,7 @@ async function loadRiesgoPais() {
     const last = data[data.length - 1];
     const prev = data[data.length - 2];
     const delta = prev ? last.valor - prev.valor : null;
+    renderMarketTicker(null, { last, delta });
     // pctClass(-delta): para riesgo pais, que SUBA es malo — se invierte
     // el signo para que el verde/rojo respete esa lectura en vez de la
     // convencion habitual de "sube = verde".
@@ -478,6 +517,7 @@ async function loadAll(manual) {
   setStatus('', manual ? 'Actualizando…' : 'Conectando…');
   try {
     await Promise.all([loadDollar(), loadTopGainers(), loadTopCrypto(), loadTopStocksArg()]);
+    renderMarketStatusBanner('marketClosedBanner');
     setStatus('live', 'En vivo · actualiza cada 60s');
   } catch (err) {
     console.error(err);

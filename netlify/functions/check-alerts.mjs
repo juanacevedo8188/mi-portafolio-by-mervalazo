@@ -36,7 +36,8 @@ async function getFuturoVencimientos() {
 async function getLetraVencimientos() {
   const res = await fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' });
   if (!res.ok) return new Map();
-  const letras = await res.json();
+  const raw = await res.json();
+  const letras = Array.isArray(raw) ? raw : (raw.letras || []);
   const map = new Map();
   letras.forEach(l => { if (l.fechaVencimiento) map.set(l.ticker, l.fechaVencimiento); });
   return map;

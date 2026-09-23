@@ -13,6 +13,45 @@ async function fetchFeed(path) {
   return res.json();
 }
 
+// Separador de miles mientras se escribe (100000 -> 100.000) para inputs
+// de montos en pesos -- type="number" no puede mostrar esto (rechaza el
+// "."), asi que estos inputs son type="text" con oninput="formatThousandsInput(event)".
+// Solo enteros: el monto se carga redondo, no hace falta manejar centavos.
+function formatThousands(digitsStr) {
+  return digitsStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function formatThousandsInput(e) {
+  const input = e.target;
+  const cursorFromEnd = input.value.length - input.selectionStart;
+  const digits = input.value.replace(/\D/g, '');
+  input.value = digits ? formatThousands(digits) : '';
+  const pos = Math.max(0, input.value.length - cursorFromEnd);
+  input.setSelectionRange(pos, pos);
+}
+
+// BYMA/ROFEX operan ~10:30–17:00 ART, lunes a viernes. No contempla
+// feriados especificos del mercado (son pocos por año) — el aviso ya
+// cubre el caso mas comun de "esta fuera de horario de rueda".
+function isMarketOpenAR() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23'
+  }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  const mins = Number(get('hour')) * 60 + Number(get('minute'));
+  return !['Sat', 'Sun'].includes(get('weekday')) && mins >= 10 * 60 + 30 && mins < 17 * 60;
+}
+
+function renderMarketStatusBanner(targetId) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  el.innerHTML = isMarketOpenAR() ? '' : `
+    <div class="market-closed-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>Mercado cerrado — la rueda opera de 10:30 a 17hs (ART), lunes a viernes. Fuera de ese horario, algunas cotizaciones en vivo pueden verse desactualizadas o incompletas.</span>
+    </div>`;
+}
+
 const CRYPTO_LIST = [
   { id: 'bitcoin', symbol: 'BTC' },
   { id: 'ethereum', symbol: 'ETH' },
@@ -42,6 +81,61 @@ async function getUsdArsRate() {
   if (!rates.length) throw new Error('sin datos de dólar MEP');
   return rates.reduce((s, v) => s + v, 0) / rates.length;
 }
+
+// Ratio CEDEAR (cuantos CEDEARs equivalen a 1 accion del subyacente).
+// Fuente: tabla oficial de BYMA "CEDEARs Negociables en BYMA", actualizada
+// 3/2/2026 (descargada y cada ticker cruzado a mano contra el simbolo
+// vigente en el feed en vivo de data912 antes de sumarlo aca). Los ratios
+// cambian ante splits/ajustes societarios de la empresa -- no son
+// permanentes, conviene re-chequear cada tanto contra la tabla oficial.
+const CEDEAR_RATIOS = {
+  AAPL: 20, ABBV: 10, ABNB: 15, ABT: 4, ADBE: 44, AIG: 5, AMAT: 5, AMD: 10,
+  AMZN: 144, ARKK: 10, ASML: 146, AVGO: 39, AXP: 15, BA: 24, BKNG: 700,
+  BKR: 7, BMY: 3, C: 3, CAT: 20, CCL: 3, CL: 3, COIN: 27, COST: 48, CRM: 18,
+  CSCO: 5, CVS: 15, CVX: 16, DD: 5, DE: 40, DECK: 25, DHR: 54, DIA: 20,
+  DOCU: 22, DOW: 6, EBAY: 2, ECL: 56, EEM: 5, EFA: 18, ETSY: 16, F: 1,
+  FCX: 3, FDX: 10, GE: 8, GILD: 4, GLD: 50, GLOB: 18, GM: 6, GOOGL: 58,
+  GRMN: 3, GS: 13, HAL: 2, HD: 32, HOG: 3, HON: 8, HOOD: 29, HPQ: 1,
+  IBM: 15, IFF: 12, INTC: 5, ISRG: 90, IWM: 10, JNJ: 15, JPM: 15, KMB: 6,
+  KO: 5, LLY: 56, LMT: 20, LRCX: 56, LVS: 2, MA: 33, MCD: 24, MDLZ: 15,
+  MDT: 4, MELI: 120, META: 24, MMM: 10, MRK: 5, MRNA: 19, MRVL: 14,
+  MSFT: 30, MSTR: 20, MU: 5, NEM: 3, NFLX: 48, NKE: 12, NOW: 172, NVDA: 24,
+  ORCL: 3, ORLY: 222, OXY: 5, PANW: 50, PCAR: 3, PEP: 18, PFE: 4, PG: 15,
+  PINS: 7, PLTR: 3, PSX: 6, PYPL: 8, QCOM: 11, QQQ: 20, RBLX: 2, ROST: 4,
+  RTX: 5, SBUX: 12, SCHW: 13, SHOP: 107, SLB: 3, SLV: 6, SMH: 50, SNOW: 30,
+  SPGI: 45, SPOT: 28, SPY: 20, TEAM: 47, TGT: 24, TJX: 22, TMO: 22,
+  TMUS: 33, TSLA: 15, TSM: 9, TWLO: 36, TXN: 5, UBER: 2, UNH: 33, UNP: 20,
+  USB: 5, V: 18, VIST: 3, VRTX: 101, WMT: 18, XLB: 18, XLC: 19, XLE: 2,
+  XLF: 2, XLI: 28, XLK: 46, XLP: 16, XLU: 10, XLV: 29, XLY: 43, XOM: 10,
+  XYZ: 20, ZM: 47
+};
+
+// Mapa de acciones argentinas que ademas cotizan como ADR en NYSE/Nasdaq:
+// ticker local (BYMA, el que usa data912/arg_stocks) -> { adr: ticker del
+// ADR (data912/usa_adrs, no siempre igual al local), ratio: cuantas
+// acciones locales equivalen a 1 ADR }. Fuente: cada ratio confirmado por
+// separado contra el 20-F/6-K en sec.gov de la empresa o el listado
+// oficial de Nasdaq para ese ADR (no un unico agregador), y cruzado
+// despues contra el precio en vivo de ambos feeds antes de sumarlo aca
+// (precio local x ratio / CCL tiene que aproximar el precio del ADR).
+// El ratio de YPF cambio de 1:1 a 10:1 el 4/2/2026 por el split de la
+// accion local -- si la empresa hace otro split o ajuste societario esto
+// puede volver a cambiar, conviene re-chequear cada tanto.
+const ADR_MAP = {
+  GGAL: { adr: 'GGAL', ratio: 10 },
+  YPFD: { adr: 'YPF', ratio: 10 },
+  PAMP: { adr: 'PAM', ratio: 25 },
+  BMA: { adr: 'BMA', ratio: 10 },
+  BBAR: { adr: 'BBAR', ratio: 3 },
+  SUPV: { adr: 'SUPV', ratio: 5 },
+  TGSU2: { adr: 'TGS', ratio: 5 },
+  EDN: { adr: 'EDN', ratio: 20 },
+  CEPU: { adr: 'CEPU', ratio: 10 },
+  CRES: { adr: 'CRESY', ratio: 10 },
+  LOMA: { adr: 'LOMA', ratio: 5 },
+  IRSA: { adr: 'IRS', ratio: 10 },
+  TECO2: { adr: 'TEO', ratio: 5 }
+};
 
 async function getOficialRate() {
   const res = await fetch('https://dolarapi.com/v1/dolares/oficial', { cache: 'no-store' });
@@ -102,7 +196,11 @@ async function getBcraSeries(idVariable, limit) {
 async function getLecapData() {
   const [letras, notes, bonds] = await Promise.all([
     fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error('letras failed: ' + r.status); return r.json(); }),
+      .then(r => { if (!r.ok) throw new Error('letras failed: ' + r.status); return r.json(); })
+      // La API paso de devolver el array directo a envolverlo en
+      // { fechaActualizacion, letras: [...] } (detectado 7/9/2026) -- se
+      // acepta cualquiera de las dos formas por si vuelve a cambiar.
+      .then(data => Array.isArray(data) ? data : (data.letras || [])),
     fetchFeed('arg_notes'),
     fetchFeed('arg_bonds')
   ]);
@@ -114,13 +212,27 @@ async function getLecapData() {
 
   return letras
     .map(l => {
+      // La API de letras tambien lista los "bonos duales" (TTD26, TTS26,
+      // etc. -- ver TAMAR_LIST) junto a las LECAP/BONCAP normales. Un dual
+      // paga lo mayor entre tasa fija y TAMAR, asi que no tiene un valor
+      // de vencimiento fijo conocido de antemano -- la cuenta de TEM/TNA/
+      // TEA de abajo (pensada para instrumentos a descuento simple) no
+      // aplica y da tasas sin sentido. Ya se muestran bien en la pestaña
+      // "Tasa TAMAR", asi que se excluyen de esta.
+      if (TAMAR_LIST.includes(l.ticker)) return null;
       const q = priceMap.get(l.ticker);
-      if (!q || !q.c || !l.fechaVencimiento || !l.vpv) return null;
+      if (!q || !q.c || !l.fechaVencimiento || l.precioArs == null || l.teaPorcentaje == null || !l.diasAlVencimiento) return null;
       const vencimiento = new Date(l.fechaVencimiento + 'T00:00:00');
       const calendarDays = Math.round((vencimiento - today) / 86400000);
       const dtm = calendarDays - 1;
       if (dtm < 1) return null; // vencida o vence manana: fuera de rango util
-      const ratio = l.vpv / q.c;
+      // La API ya no expone el valor al vencimiento (vpv) directo -- se
+      // reconstruye a partir de su propio precio + TEA (self-consistentes
+      // entre si, aunque son de un snapshot diario, no intradia) y despues
+      // se aplica contra el precio EN VIVO de data912 (q.c), para no
+      // perder la actualizacion intradia que ese feed si tiene.
+      const valorVencimiento = l.precioArs * Math.pow(1 + l.teaPorcentaje / 100, l.diasAlVencimiento / 365);
+      const ratio = valorVencimiento / q.c;
       return {
         ticker: l.ticker,
         vencimiento: l.fechaVencimiento,
@@ -151,7 +263,8 @@ async function getLecapData() {
 async function getLetraVencimientos() {
   const res = await fetch('https://api.argentinadatos.com/v1/finanzas/letras', { cache: 'no-store' });
   if (!res.ok) throw new Error('letras vencimientos failed: ' + res.status);
-  const data = await res.json();
+  const raw = await res.json();
+  const data = Array.isArray(raw) ? raw : (raw.letras || []);
   const map = new Map();
   data.forEach(l => { if (l.ticker && l.fechaVencimiento) map.set(l.ticker, l.fechaVencimiento); });
   return map;
@@ -652,12 +765,16 @@ function benchmarkTile(priceMap, weightedDaily) {
     </div>`;
 }
 
-function renderQuickMetrics(containerId, rows, priceMap, weightedDaily) {
+// extraTileHtml es opcional -- hoy solo mi-portafolio.html lo usa (para
+// el tile de Liquidez, que no aplica a cartera.html ni a
+// portafolio-publico.html), los demas llamadores simplemente no lo pasan.
+function renderQuickMetrics(containerId, rows, priceMap, weightedDaily, extraTileHtml) {
   const el = document.getElementById(containerId);
   const m = quickMetrics(rows);
   const spyTile = benchmarkTile(priceMap, weightedDaily);
+  const extra = extraTileHtml || '';
   if (!m) {
-    el.innerHTML = '<div class="empty-note">Todavía no hay datos suficientes.</div>' + spyTile;
+    el.innerHTML = '<div class="empty-note">Todavía no hay datos suficientes.</div>' + spyTile + extra;
     return;
   }
   el.innerHTML = `
@@ -674,6 +791,7 @@ function renderQuickMetrics(containerId, rows, priceMap, weightedDaily) {
       <div class="val">${fmtNum(m.top3Pct)}%</div>
     </div>
     ${spyTile}
+    ${extra}
   `;
 }
 

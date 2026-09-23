@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mervalazo — Análisis Fundamental</title>
+<meta name="description" content="Score fundamental propio (valuación, calidad, crecimiento, salud financiera) para ~300 CEDEARs, ADRs y ETFs líquidos.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mervalazo">
+<meta property="og:title" content="Mervalazo — Análisis Fundamental">
+<meta property="og:description" content="Score fundamental propio (valuación, calidad, crecimiento, salud financiera) para ~300 CEDEARs y ADRs líquidos.">
+<meta property="og:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mi-portafolio-by-mervalazo.netlify.app/analisis-fundamental.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mervalazo — Análisis Fundamental">
+<meta name="twitter:description" content="Score fundamental propio (valuación, calidad, crecimiento, salud financiera) para ~300 CEDEARs y ADRs líquidos.">
+<meta name="twitter:image" content="https://mi-portafolio-by-mervalazo.netlify.app/og-image.png">
+
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="logo.jpg" alt="Mervalazo"></div>
+      <div class="brand-text">
+        <h1>Análisis Fundamental</h1>
+        <p>CEDEARs y ADRs más líquidos</p>
+      </div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="statusDot"></span><span id="statusText">Conectando…</span></span>
+      <button id="refreshBtn" onclick="loadIndicators(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs"></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Indicadores Fundamentales</h2>
+      <span id="indUpdated">—</span>
+    </div>
+    <button class="info-toggle" style="border-top:none;border-bottom:1px solid var(--divider);" onclick="toggleInfo('indInfo')">
+      <span id="indInfoChevron">▾</span> ¿Cómo se arma el score?
+    </button>
+    <div id="indInfo" class="curve-info" style="display:none;border-bottom:1px solid var(--divider);padding-top:6px;">
+      <p>Es un puntaje propio de 0 a 100, no el de ningún servicio externo — pensado para dar una lectura rápida, no una recomendación. A diferencia del score técnico, acá todas las categorías comparan cada empresa contra el resto del universo (percentil), porque un P/E de 15 no dice nada por sí solo sin saber contra qué se lo compara:</p>
+      <p><b>Valuación (0-30):</b> percentil de P/E y de Price/Book dentro del universo, invertido — más barato relativo al resto puntúa más.</p>
+      <p><b>Calidad (0-25):</b> percentil de ROE (retorno sobre el patrimonio) y margen neto.</p>
+      <p><b>Crecimiento (0-25):</b> percentil de crecimiento de ingresos y de ganancias interanual.</p>
+      <p><b>Salud financiera (0-20):</b> percentil de deuda/patrimonio (invertido, menos deuda puntúa más) más un bonus por current ratio sano.</p>
+      <p>No hace falta ser el mejor del universo para puntuar bien — con estar claramente por encima de la mediana ya se acerca al máximo de cada categoría, mismo criterio que usa el score técnico. Se recalcula una vez por día. El precio objetivo de analistas que aparece en la ficha de cada ticker es la opinión de terceros (consenso de Wall Street vía Yahoo Finance), no entra al cálculo del score. A título informativo, no constituye recomendación de inversión.</p>
+    </div>
+    <div class="mkw-picker" style="padding-bottom:0;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
+      <div class="mkw-chips" id="limitChips"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <select id="sectorFilter" onchange="paintIndicators()"></select>
+        <input type="text" id="tickerSearch" placeholder="Buscar ticker…" oninput="paintIndicators()" class="ind-search">
+      </div>
+    </div>
+    <div class="table-scroll ind-table-wrap">
+      <table>
+        <thead>
+          <tr id="indHeadRow"></tr>
+        </thead>
+        <tbody id="indBody">
+          <tr><td colspan="12" class="empty-note">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Datos vía Yahoo Finance, con demora de mercado. El score y los indicadores son de elaboración propia de Mervalazo y se recalculan una vez por día — a título informativo, no constituye recomendación de inversión.
+  </footer>
+</main>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="market.js"></script>
+<script src="nav.js"></script>
+<script>
+const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+  label.textContent = text;
+}
+
+function toggleInfo(bodyId) {
+  const el = document.getElementById(bodyId);
+  const chevron = document.getElementById(bodyId + 'Chevron');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chevron) chevron.textContent = open ? '▾' : '▴';
+}
+
+// Mismo patron que analisis-tecnico.html: cada columna sabe ordenarse
+// sola, el header y el sort comparten una sola fuente de verdad.
+const COLUMNS = [
+  { key: 'ticker', label: 'Ticker', align: 'left' },
+  { key: 'precio', label: 'Precio' },
+  { key: 'score', label: 'Score' },
+  { key: 'pe_trailing', label: 'P/E' },
+  { key: 'price_to_book', label: 'P/B' },
+  { key: 'roe', label: 'ROE' },
+  { key: 'dividend_yield', label: 'Div. Yield' },
+  { key: 'valuacion', label: 'Valuación' },
+  { key: 'calidad', label: 'Calidad' },
+  { key: 'crecimiento', label: 'Crecimiento' },
+  { key: 'salud_financiera', label: 'Salud Fin.' }
+];
+
+const CAT_MAX = { valuacion: 30, calidad: 25, crecimiento: 25, salud_financiera: 20 };
+const LIMIT_OPTIONS = [{ label: 'Top 20', value: 20 }, { label: 'Top 50', value: 50 }, { label: 'Todos', value: null }];
+
+let indCache = [];
+let sortField = 'score';
+let sortDir = 'desc';
+let rowLimit = 20;
+
+function scoreClass(score) {
+  return score >= 70 ? 'up' : score < 40 ? 'down' : 'flat';
+}
+
+function catBarCell(value, max) {
+  if (value == null) return '<td class="mono empty-note">—</td>';
+  const frac = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const color = frac >= 0.75 ? 'var(--up)' : frac >= 0.4 ? 'var(--accent)' : 'var(--down)';
+  return `<td><div class="cat-cell"><span class="cat-val mono">${value}</span><div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${(frac * 100).toFixed(0)}%;background:${color};"></div></div></div></td>`;
+}
+
+function pctCell(value) {
+  if (value == null) return '<td class="mono empty-note">—</td>';
+  return `<td class="mono chg ${pctClass(value * 100)}">${fmtPct(value * 100)}</td>`;
+}
+
+function numCell(value, suffix) {
+  if (value == null) return '<td class="mono empty-note">—</td>';
+  return `<td class="mono">${fmtNum(value)}${suffix || ''}</td>`;
+}
+
+function indicatorRow(r, rank) {
+  return `<tr onclick="handleRowClick(event, '${r.ticker}')" style="cursor:pointer;">
+    <td class="mono empty-note">${rank}</td>
+    <td>${tvLink(r.ticker, 'global')}</td>
+    <td class="mono">${fmtUSD(r.precio)}</td>
+    <td><span class="pill ${scoreClass(r.score)}">${r.score}</span></td>
+    ${numCell(r.pe_trailing)}
+    ${numCell(r.price_to_book)}
+    ${pctCell(r.roe)}
+    ${pctCell(r.dividend_yield)}
+    ${catBarCell(r.valuacion, CAT_MAX.valuacion)}
+    ${catBarCell(r.calidad, CAT_MAX.calidad)}
+    ${catBarCell(r.crecimiento, CAT_MAX.crecimiento)}
+    ${catBarCell(r.salud_financiera, CAT_MAX.salud_financiera)}
+  </tr>`;
+}
+
+function handleRowClick(e, ticker) {
+  if (e.target.closest('a')) return;
+  openFicha(ticker);
+}
+
+function statCard(label, value, cls) {
+  return `<div style="background:var(--bg-alt);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;">
+    <div style="font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">${label}</div>
+    <div class="mono ${cls || ''}" style="font-size:14px;font-weight:700;">${value}</div>
+  </div>`;
+}
+
+function fichaCatRow(label, value, max) {
+  const v = value || 0;
+  const frac = max > 0 ? Math.max(0, Math.min(1, v / max)) : 0;
+  const color = frac >= 0.75 ? 'var(--up)' : frac >= 0.4 ? 'var(--accent)' : 'var(--down)';
+  return `<div style="margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);margin-bottom:4px;"><span>${label}</span><span class="mono">${value}/${max}</span></div>
+    <div class="cat-bar-wrap" style="width:100%;height:6px;"><div class="cat-bar-fill" style="width:${(frac * 100).toFixed(0)}%;background:${color};"></div></div>
+  </div>`;
+}
+
+const RECOMMENDATION_LABEL = {
+  strong_buy: 'Compra fuerte', buy: 'Compra', hold: 'Mantener', sell: 'Venta', strong_sell: 'Venta fuerte', none: 'Sin consenso'
+};
+
+function openFicha(ticker) {
+  const r = indCache.find(x => x.ticker === ticker);
+  if (!r) return;
+  const upside = r.target_mean_price && r.precio ? ((r.target_mean_price - r.precio) / r.precio) * 100 : null;
+  openModal(`
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title" style="text-transform:none;">${r.ticker} <span style="color:var(--text-faint);font-weight:500;">· ${r.sector}</span></div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin:-4px 0 14px;">
+      <span style="font-size:26px;font-weight:700;">${fmtUSD(r.precio)}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      <span class="pill ${scoreClass(r.score)}" style="font-size:15px;padding:5px 13px;">Score ${r.score}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px;">
+      ${statCard('P/E trailing / fwd', (r.pe_trailing != null ? fmtNum(r.pe_trailing) : '—') + ' / ' + (r.pe_forward != null ? fmtNum(r.pe_forward) : '—'), '')}
+      ${statCard('P/B · P/S', (r.price_to_book != null ? fmtNum(r.price_to_book) : '—') + ' · ' + (r.price_to_sales != null ? fmtNum(r.price_to_sales) : '—'), '')}
+      ${statCard('Margen neto · operativo', (r.profit_margin != null ? fmtPct(r.profit_margin * 100) : '—') + ' · ' + (r.operating_margin != null ? fmtPct(r.operating_margin * 100) : '—'), '')}
+      ${statCard('ROE · ROA', (r.roe != null ? fmtPct(r.roe * 100) : '—') + ' · ' + (r.roa != null ? fmtPct(r.roa * 100) : '—'), '')}
+      ${statCard('Crec. ingresos', r.revenue_growth != null ? fmtPct(r.revenue_growth * 100) : '—', r.revenue_growth != null ? pctClass(r.revenue_growth * 100) : '')}
+      ${statCard('Crec. ganancias', r.earnings_growth != null ? fmtPct(r.earnings_growth * 100) : '—', r.earnings_growth != null ? pctClass(r.earnings_growth * 100) : '')}
+      ${statCard('Deuda/Patrimonio', r.debt_to_equity != null ? fmtNum(r.debt_to_equity) + '%' : '—', '')}
+      ${statCard('Current Ratio', r.current_ratio != null ? fmtNum(r.current_ratio) + 'x' : '—', '')}
+    </div>
+    <div style="font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">Desglose del score</div>
+    ${fichaCatRow('Valuación', r.valuacion, CAT_MAX.valuacion)}
+    ${fichaCatRow('Calidad', r.calidad, CAT_MAX.calidad)}
+    ${fichaCatRow('Crecimiento', r.crecimiento, CAT_MAX.crecimiento)}
+    ${fichaCatRow('Salud financiera', r.salud_financiera, CAT_MAX.salud_financiera)}
+    ${r.target_mean_price ? `
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--divider);">
+      <div style="font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Consenso de analistas (Wall Street, no es un cálculo propio)</div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:18px;font-weight:700;" class="mono">${fmtUSD(r.target_mean_price)}</span>
+        <span class="chg ${pctClass(upside)}">${fmtPct(upside)} vs. precio actual</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--text-dim);margin-top:4px;">${RECOMMENDATION_LABEL[r.recommendation_key] || r.recommendation_key || '—'}${r.number_of_analysts ? ' · ' + r.number_of_analysts + ' analistas' : ''}</div>
+    </div>` : ''}
+    <a href="${tvUrl(r.ticker, 'global')}" target="_blank" rel="noopener" class="btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:16px;">Ver en TradingView</a>
+  `);
+}
+
+function sortRows(rows) {
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    if (sortField === 'ticker') return dir * a.ticker.localeCompare(b.ticker);
+    const va = a[sortField], vb = b[sortField];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return dir * (va - vb);
+  });
+}
+
+function renderHeader() {
+  const rankTh = '<th style="text-align:left;">#</th>';
+  document.getElementById('indHeadRow').innerHTML = rankTh + COLUMNS.map(c => {
+    const isSorted = c.key === sortField;
+    const arrow = isSorted ? `<span class="sort-arrow">${sortDir === 'desc' ? '▾' : '▴'}</span>` : '';
+    return `<th class="sortable${isSorted ? ' sorted' : ''}"${c.align === 'left' ? ' style="text-align:left;"' : ''} onclick="setSort('${c.key}')">${c.label}${arrow}</th>`;
+  }).join('');
+}
+
+function paintLimitChips() {
+  document.getElementById('limitChips').innerHTML = LIMIT_OPTIONS.map(o =>
+    `<button class="mkw-chip${o.value === rowLimit ? ' active' : ''}" onclick="setLimit(${o.value})">${o.label}</button>`
+  ).join('');
+}
+
+function paintSectorFilter() {
+  const sel = document.getElementById('sectorFilter');
+  const prev = sel.value;
+  const sectors = [...new Set(indCache.map(r => r.sector).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todos los sectores</option>' + sectors.map(s => `<option value="${s}">${s}</option>`).join('');
+  if (sectors.includes(prev)) sel.value = prev;
+  if (sel._csSync) sel._csSync();
+}
+
+function setLimit(v) {
+  rowLimit = v;
+  paintLimitChips();
+  paintIndicators();
+}
+
+function setSort(key) {
+  sortDir = sortField === key ? (sortDir === 'desc' ? 'asc' : 'desc') : 'desc';
+  sortField = key;
+  renderHeader();
+  paintIndicators();
+}
+
+function paintIndicators() {
+  const body = document.getElementById('indBody');
+  const term = (document.getElementById('tickerSearch')?.value || '').trim().toUpperCase();
+  const sector = document.getElementById('sectorFilter')?.value || '';
+  let filtered = indCache;
+  if (sector) filtered = filtered.filter(r => r.sector === sector);
+  if (term) filtered = filtered.filter(r => r.ticker.includes(term));
+  let rows = sortRows(filtered);
+  if (rowLimit && !term) rows = rows.slice(0, rowLimit);
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="12" class="empty-note">${term ? 'Ningún ticker coincide con "' + term + '".' : 'No hay datos.'}</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map((r, i) => indicatorRow(r, i + 1)).join('');
+}
+
+async function loadIndicators(manual) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  setStatus('', manual ? 'Actualizando…' : 'Conectando…');
+  const body = document.getElementById('indBody');
+  try {
+    const { data, error } = await sb.from('fundamental_indicators').select('*');
+    if (error) throw error;
+    indCache = data || [];
+    if (!indCache.length) {
+      body.innerHTML = '<tr><td colspan="12" class="empty-note">Todavía no hay datos calculados — vuelve a intentar más tarde.</td></tr>';
+      document.getElementById('indUpdated').textContent = '';
+      setStatus('live', 'En vivo');
+      return;
+    }
+    renderHeader();
+    paintLimitChips();
+    paintSectorFilter();
+    enhanceAllSelects();
+    paintIndicators();
+    const latest = indCache.reduce((max, r) => r.updated_at > max ? r.updated_at : max, indCache[0].updated_at);
+    document.getElementById('indUpdated').textContent = 'Universo: ' + indCache.length + ' tickers · actualizado ' + new Date(latest).toLocaleString('es-AR');
+    setStatus('live', 'Datos del último cálculo');
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<tr><td colspan="12" class="empty-note">No se pudo cargar la información de indicadores.</td></tr>';
+    setStatus('err', 'No se pudo conectar');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+renderNavTabs('fundamental');
+initTVHover();
+renderHeader();
+loadIndicators(false);
+</script>
+
+</body>
+</html>
