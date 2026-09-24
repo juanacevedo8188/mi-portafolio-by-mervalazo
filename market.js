@@ -222,6 +222,20 @@ async function getLecapData() {
       if (TAMAR_LIST.includes(l.ticker)) return null;
       const q = priceMap.get(l.ticker);
       if (!q || !q.c || !l.fechaVencimiento || l.precioArs == null || l.teaPorcentaje == null || !l.diasAlVencimiento) return null;
+      // Sanity check: una LECAP a descuento con semanas/meses de plazo no
+      // deberia moverse mas de un punado de % en un dia -- si el precio EN
+      // VIVO de data912 se aleja demasiado del precio de referencia de
+      // argentinadatos (misma fuente que ya trae teaPorcentaje), lo mas
+      // probable es un tick viejo o de poco volumen de data912, no un
+      // movimiento real. Sin este chequeo esa letra puntual mostraba un
+      // TEM/TNA/TEA absurdo (detectado en S16O6: 16,8% de TEA con vecinos
+      // en 26-30%) mientras el resto de la curva se veia bien -- se
+      // descarta la letra entera en vez de mostrar una tasa rota.
+      const priceDeviation = Math.abs(q.c - l.precioArs) / l.precioArs;
+      if (priceDeviation > 0.08) {
+        console.warn(`getLecapData: ${l.ticker} descartada, precio en vivo (${q.c}) se aleja ${(priceDeviation * 100).toFixed(1)}% del de referencia (${l.precioArs})`);
+        return null;
+      }
       const vencimiento = new Date(l.fechaVencimiento + 'T00:00:00');
       const calendarDays = Math.round((vencimiento - today) / 86400000);
       const dtm = calendarDays - 1;
