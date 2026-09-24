@@ -137,7 +137,31 @@ const ADR_MAP = {
   TECO2: { adr: 'TEO', ratio: 5 }
 };
 
+// El "oficial" de dolarapi.com es un agregador/estimacion de casas
+// bancarias -- para ESTE casa puntual hay una fuente mas autoritativa: el
+// propio BCRA, que publica el tipo de cambio minorista como una de sus
+// "Principales Variables" (misma API que ya usa Macroeconomia). Se busca
+// por descripcion en vez de un id fijo (los id no estan documentados de
+// forma estable) y no tiene compra/venta separados -- es un valor de
+// referencia publicado una vez por dia (o cada vez que el BCRA lo
+// actualiza), no una punta transaccionable con spread -- asi que se usa
+// el mismo numero para los dos.
+async function getBcraOficialRate() {
+  const vars = await getBcraVariables();
+  const oficial = vars.find(v => /tipo de cambio/i.test(v.descripcion) && /minorista/i.test(v.descripcion))
+    || vars.find(v => /tipo de cambio/i.test(v.descripcion));
+  if (!oficial || !oficial.ultValorInformado) throw new Error('BCRA: no se encontro la variable de tipo de cambio');
+  return { compra: oficial.ultValorInformado, venta: oficial.ultValorInformado, fecha: oficial.ultFechaInformada };
+}
+
 async function getOficialRate() {
+  try {
+    return await getBcraOficialRate();
+  } catch (err) {
+    // La API del BCRA es mas propensa a caerse que dolarapi.com -- si
+    // falla, se cae al agregador en vez de perder el dato del todo.
+    console.warn('getOficialRate: BCRA no disponible, usando dolarapi.com', err);
+  }
   const res = await fetch('https://dolarapi.com/v1/dolares/oficial', { cache: 'no-store' });
   if (!res.ok) throw new Error('dolar oficial failed: ' + res.status);
   const data = await res.json();
@@ -147,7 +171,21 @@ async function getOficialRate() {
 async function getAllDolarRates() {
   const res = await fetch('https://dolarapi.com/v1/dolares', { cache: 'no-store' });
   if (!res.ok) throw new Error('dolares failed: ' + res.status);
-  return res.json();
+  const rates = await res.json();
+  // Mismo criterio que getOficialRate: se pisa la entrada "oficial" de
+  // dolarapi.com con el dato del BCRA cuando esta disponible, para que
+  // las cards del dashboard, Evolucion del Dolar, Carry Trade y el
+  // simulador de Mi Portafolio muestren todas el mismo oficial "real" --
+  // el resto de las casas (blue/MEP/CCL/etc, que el BCRA no publica)
+  // sigue tal cual viene de dolarapi.com.
+  try {
+    const bcra = await getBcraOficialRate();
+    const idx = rates.findIndex(r => r.casa === 'oficial');
+    if (idx !== -1) rates[idx] = { ...rates[idx], compra: bcra.compra, venta: bcra.venta, fechaActualizacion: bcra.fecha };
+  } catch (err) {
+    console.warn('getAllDolarRates: BCRA no disponible, se mantiene el oficial de dolarapi.com', err);
+  }
+  return rates;
 }
 
 // Historico diario por tipo de dolar (casa: oficial/blue/bolsa/mayorista/
