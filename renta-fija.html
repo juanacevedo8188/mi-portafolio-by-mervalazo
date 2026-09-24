@@ -1059,6 +1059,22 @@ function attachCurveInteraction(points) {
   });
 }
 
+// Algunas LECAP/BONCAP vencen mucho mas lejos que el grueso (a veces
+// 200-300 dias, contra los 5-70 dias tipicos del tramo corto) -- el eje X
+// del grafico es lineal, asi que un puñado de esos puntos lejanos estira
+// la escala entera y aplasta contra el borde izquierdo justo la parte que
+// mas importa mirar. Se recorta directo a "corto plazo" (90 dias, ~3
+// meses) en vez de un recorte relativo (probado con la mediana: dejaba
+// pasar igual algun vencimiento largo y seguia comprimiendo el tramo
+// corto). Si un dia hay MENOS de 3 letras dentro de esos 90 dias, se
+// muestran todas igual antes que dejar el grafico vacio. La tabla, la
+// tasa forward y Carry Trade siguen mostrando TODAS las letras -- esto es
+// solo para que el grafico no quede ilegible.
+function curvePoints() {
+  const filtered = lecapCache.filter(l => l.dtm <= 90);
+  return filtered.length >= 3 ? filtered : lecapCache;
+}
+
 // El viewBox del SVG se arma con el ancho real del contenedor (no un
 // numero fijo) — asi 1 unidad de SVG equivale a 1px real en cualquier
 // pantalla, y el texto de los ejes no queda diminuto en mobile.
@@ -1067,8 +1083,12 @@ function paintCurve() {
   const curveEl = document.getElementById('curveChart');
   const width = curveEl.clientWidth || 700;
   const height = Math.round(Math.min(300, Math.max(220, width * 0.42)));
-  curveEl.innerHTML = buildCurveSVG(lecapCache, width, height);
-  attachCurveInteraction(lecapCache);
+  const points = curvePoints();
+  curveEl.innerHTML = buildCurveSVG(points, width, height);
+  attachCurveInteraction(points);
+  const omitted = lecapCache.length - points.length;
+  document.getElementById('curveUpdated').textContent =
+    points.length + ' puntos' + (omitted > 0 ? ` (${omitted} de muy largo plazo no se grafican)` : '');
 }
 
 let curveResizeTimer = null;
@@ -1105,7 +1125,6 @@ async function loadLecaps() {
     document.getElementById('lecapUpdated').textContent = data.length + ' letras vigentes';
 
     paintCurve();
-    document.getElementById('curveUpdated').textContent = data.length + ' puntos';
     populateForwardSelects();
   } catch (err) {
     console.error(err);
