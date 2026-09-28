@@ -57,19 +57,26 @@
 <main>
   <div id="marketClosedBanner"></div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Dólar</h2>
-      <span id="dolarUpdated">—</span>
+  <section class="hero-band">
+    <div class="hero-main">
+      <span class="hero-eyebrow">Dólar MEP · en vivo</span>
+      <div class="hero-value mono" id="heroValue">—</div>
+      <div class="hero-meta">
+        <span class="pill flat" id="heroBrechaPill">—</span>
+        <span class="hero-updated" id="heroUpdated"></span>
+      </div>
     </div>
-    <div class="dolar-brecha-note" id="dolarBrechaNote"></div>
-    <div class="dollar-grid" id="dollarGrid">
-      <div class="empty-note">Cargando cotizaciones…</div>
-    </div>
+    <div class="hero-spark" id="heroSpark"></div>
   </section>
 
-  <div class="dashboard-grid">
-    <section class="panel">
+  <div class="dolar-brecha-note" id="dolarBrechaNote" style="padding:0 0 10px;"></div>
+  <div class="dollar-strip" id="dollarGrid">
+    <div class="empty-note">Cargando cotizaciones…</div>
+  </div>
+  <div style="text-align:right;margin-top:-14px;margin-bottom:8px;"><span id="dolarUpdated" style="font-size:11px;color:var(--text-faint);">—</span></div>
+
+  <div class="dashboard-grid asym">
+    <section class="panel panel-accent-teal">
       <div class="panel-head">
         <h2>Evolución del Dólar</h2>
         <div class="history-pct-badge">
@@ -84,7 +91,7 @@
       <div class="brecha-chart" id="dolarHistChart"><div class="empty-note">Cargando…</div></div>
     </section>
 
-    <section class="panel">
+    <section class="panel panel-accent-peach">
       <div class="panel-head">
         <h2>Termómetro del Mercado</h2>
         <span>acciones + CEDEARs, hoy</span>
@@ -94,7 +101,7 @@
   </div>
 
   <div class="dashboard-grid">
-    <section class="panel">
+    <section class="panel panel-accent-teal">
       <div class="panel-head">
         <h2>Mercado</h2>
         <div class="view-switch">
@@ -106,7 +113,7 @@
       <div id="topGainers" class="movers-grid"><div class="empty-note">Cargando…</div></div>
     </section>
 
-    <section class="panel">
+    <section class="panel panel-accent-blue">
       <div class="panel-head">
         <h2>Cripto</h2>
         <div class="view-switch">
@@ -119,7 +126,7 @@
     </section>
   </div>
 
-  <section class="panel">
+  <section class="panel panel-accent-peach">
     <div class="panel-head">
       <h2>Acciones Argentinas</h2>
       <div class="view-switch">
@@ -196,17 +203,18 @@ async function loadDollar() {
     const oficial = rates.find(r => r.casa === 'oficial');
     const brechaOf = r => oficial ? ((r.venta / oficial.venta) - 1) * 100 : null;
     renderMarketTicker(rates, null);
+    renderHero(rates);
 
     grid.innerHTML = rates.map(r => {
-      const movedAgo = fmtTimeAgo(r.fechaActualizacion);
+      const brecha = r.casa !== 'oficial' ? brechaOf(r) : null;
+      const badge = brecha != null
+        ? `<span class="pill ${pctClass(brecha)}">${fmtPct(brecha)}</span>`
+        : '';
       return `
-      <div class="dollar-card">
-        <div class="dollar-card-head">
-          <span class="label">${r.nombre}</span>
-        </div>
+      <div class="dollar-mini">
+        <div class="label">${r.nombre}</div>
         <div class="rate mono">${fmtARS(r.venta)}</div>
-        <div class="rate-sub">compra ${fmtARS(r.compra)}</div>
-        ${movedAgo ? `<div class="rate-updated">${movedAgo}</div>` : ''}
+        ${badge}
       </div>`;
     }).join('') + riesgoPaisCardHtml;
 
@@ -244,6 +252,57 @@ async function loadDollar() {
 let activeCasa = 'oficial';
 let casaToggleBuilt = false;
 const dolarHistoryCache = {};
+
+// El hero siempre destaca el MEP (misma referencia que ya es default en
+// Carry Trade y el simulador de Mi Portafolio) -- el sparkline reusa
+// getDolarHistory('bolsa') y lo deja cacheado en dolarHistoryCache, asi
+// que si despues el usuario toca "MEP" en el selector de Evolucion del
+// Dolar de abajo, ese click no vuelve a pedir nada.
+let heroSparkPoints = null;
+
+async function renderHero(rates) {
+  const mep = rates.find(r => r.casa === 'bolsa');
+  const oficial = rates.find(r => r.casa === 'oficial');
+  if (!mep) return;
+
+  document.getElementById('heroValue').textContent = fmtARS(mep.venta);
+  const pillEl = document.getElementById('heroBrechaPill');
+  const brecha = oficial ? ((mep.venta / oficial.venta) - 1) * 100 : null;
+  if (brecha != null) {
+    pillEl.className = 'pill ' + pctClass(brecha);
+    pillEl.textContent = fmtPct(brecha) + ' vs. oficial';
+  } else {
+    pillEl.className = 'pill flat';
+    pillEl.textContent = '—';
+  }
+  const movedAgo = fmtTimeAgo(mep.fechaActualizacion);
+  document.getElementById('heroUpdated').textContent = movedAgo ? 'Actualizado ' + movedAgo : '';
+
+  if (!heroSparkPoints) {
+    try {
+      heroSparkPoints = await getDolarHistory('bolsa', 30);
+      dolarHistoryCache.bolsa = heroSparkPoints;
+    } catch (err) {
+      console.error(err);
+      return;
+    }
+  }
+  if (heroSparkPoints.length >= 2) {
+    const el = document.getElementById('heroSpark');
+    const width = el.clientWidth || 300;
+    el.innerHTML = buildLineChartSVG(heroSparkPoints, width, 72);
+  }
+}
+
+let heroResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(heroResizeTimer);
+  heroResizeTimer = setTimeout(() => {
+    const el = document.getElementById('heroSpark');
+    if (!el || !heroSparkPoints || heroSparkPoints.length < 2) return;
+    el.innerHTML = buildLineChartSVG(heroSparkPoints, el.clientWidth || 300, 72);
+  }, 200);
+});
 
 async function loadDolarHistory(casa, nombre) {
   activeCasa = casa;
@@ -494,13 +553,10 @@ async function loadRiesgoPais() {
       ? `<span class="pill ${pctClass(-delta)}">${delta >= 0 ? '+' : ''}${delta} pb</span>`
       : '';
     riesgoPaisCardHtml = `
-      <div class="dollar-card" id="riesgoPaisCard">
-        <div class="dollar-card-head">
-          <span class="label">Riesgo País</span>
-          ${badge}
-        </div>
+      <div class="dollar-mini" id="riesgoPaisCard">
+        <div class="label">Riesgo País</div>
         <div class="rate mono">${fmtNum(last.valor)}</div>
-        <div class="rate-sub">${prev ? 'ayer ' + fmtNum(prev.valor) + ' pb' : 'puntos básicos'}</div>
+        ${badge}
       </div>`;
     const existing = document.getElementById('riesgoPaisCard');
     if (existing) existing.outerHTML = riesgoPaisCardHtml;
