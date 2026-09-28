@@ -989,6 +989,32 @@ function buildLineChartSVG(points, width, height) {
   </svg>`;
 }
 
+// Sparkline minimalista para hero bands (recibe puntos {date,value}, como
+// buildLineChartSVG): sin ejes ni grillas, solo la linea y el area — a esa
+// escala los ticks de buildLineChartSVG se pisan con la curva. No confundir
+// con buildSparklineSVG (mas abajo), que recibe un array plano de numeros
+// y se usa en las tablas de tickers (analisis-tecnico.html, commodities.html).
+function buildHeroSparkSVG(points, width, height) {
+  width = width || 300;
+  height = height || 72;
+  const pad = 4;
+  const [lo, hi] = chartYRange(points);
+  const stepX = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0;
+  const coords = points.map((p, i) => [
+    pad + i * stepX,
+    height - pad - ((p.value - lo) / (hi - lo || 1)) * (height - pad * 2)
+  ]);
+  const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+  const up = points[points.length - 1].value >= points[0].value;
+  const color = up ? 'var(--up)' : 'var(--down)';
+  const areaPath = `${path} L${coords[coords.length - 1][0].toFixed(1)} ${height - pad} L${coords[0][0].toFixed(1)} ${height - pad} Z`;
+
+  return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    <path d="${areaPath}" fill="${color}" opacity="0.14" stroke="none"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>
+  </svg>`;
+}
+
 // formatValue es opcional (default fmtARS, pesos) — la vista publica de
 // portafolio en modo "sin montos" grafica un indice arrancando en 100,
 // no pesos, y le pasa fmtNum en vez del default.

@@ -290,7 +290,7 @@ async function renderHero(rates) {
   if (heroSparkPoints.length >= 2) {
     const el = document.getElementById('heroSpark');
     const width = el.clientWidth || 300;
-    el.innerHTML = buildLineChartSVG(heroSparkPoints, width, 72);
+    el.innerHTML = buildHeroSparkSVG(heroSparkPoints, width, 72);
   }
 }
 
@@ -300,7 +300,7 @@ window.addEventListener('resize', () => {
   heroResizeTimer = setTimeout(() => {
     const el = document.getElementById('heroSpark');
     if (!el || !heroSparkPoints || heroSparkPoints.length < 2) return;
-    el.innerHTML = buildLineChartSVG(heroSparkPoints, el.clientWidth || 300, 72);
+    el.innerHTML = buildHeroSparkSVG(heroSparkPoints, el.clientWidth || 300, 72);
   }, 200);
 });
 
