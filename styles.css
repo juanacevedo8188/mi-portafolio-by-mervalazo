@@ -640,6 +640,56 @@ input[type=number]{-moz-appearance:textfield;}
 
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
 @media (max-width:860px){.dashboard-grid{grid-template-columns:1fr;}}
+.dashboard-grid.asym{grid-template-columns:1.6fr 1fr;}
+@media (max-width:860px){.dashboard-grid.asym{grid-template-columns:1fr;}}
+
+/* El dashboard arrancaba directo con una grilla de cards todas del mismo
+   peso visual -- nada dirigia la mirada a ningun lado en particular. El
+   hero destaca UN dolar (MEP, la referencia de trading mas estandar, ya
+   es el default en Carry Trade y el simulador de Mi Portafolio) con
+   tipografia mucho mas grande y un sparkline al lado; el resto de las
+   casas pasa a una tira compacta debajo, como detalle secundario en vez
+   de tener el mismo protagonismo que el numero principal. */
+.hero-band{
+  display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;
+  background:var(--card-grad);border:1px solid var(--card-border);border-radius:20px;
+  padding:30px 34px;margin-bottom:16px;box-shadow:var(--card-shadow);
+  position:relative;overflow:hidden;
+}
+.hero-band::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 100% 0%, rgba(94,234,212,.16), transparent 55%);
+}
+.hero-main{position:relative;min-width:0;}
+.hero-eyebrow{font-size:12px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;}
+.hero-value{
+  font-size:clamp(40px,7vw,72px);font-weight:800;letter-spacing:-1.5px;
+  font-family:'JetBrains Mono',ui-monospace,monospace;line-height:1.05;margin:6px 0 12px;
+  background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.hero-updated{font-size:12px;color:var(--text-faint);}
+.hero-spark{width:300px;max-width:100%;flex-shrink:0;position:relative;}
+.hero-spark svg{display:block;width:100%;}
+@media (max-width:760px){
+  .hero-band{padding:24px 22px;}
+  .hero-spark{width:100%;}
+}
+
+.dollar-strip{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;}
+.dollar-strip .dollar-mini{
+  flex:1 1 128px;max-width:170px;background:var(--bg-alt);border:1px solid var(--card-border);
+  border-radius:10px;padding:9px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  transition:border-color .15s,transform .15s;
+}
+.dollar-strip .dollar-mini:hover{border-color:var(--accent2-dim);transform:translateY(-1px);}
+.dollar-strip .dollar-mini .label{font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.3px;}
+.dollar-strip .dollar-mini .rate{font-size:14.5px;font-weight:700;margin-top:2px;}
+.dollar-strip .dollar-mini .pill{margin-top:4px;font-size:10px;padding:1px 6px;}
+
+.panel-accent-teal{box-shadow:var(--card-shadow), inset 0 3px 0 var(--accent2);}
+.panel-accent-peach{box-shadow:var(--card-shadow), inset 0 3px 0 var(--accent);}
+.panel-accent-blue{box-shadow:var(--card-shadow), inset 0 3px 0 #7fa8d9;}
 
 .dolar-casa-row{padding:14px 20px 0;}
 .dolar-casa-row .hm-toggle{flex-wrap:wrap;width:fit-content;}
@@ -667,28 +717,6 @@ input[type=number]{-moz-appearance:textfield;}
 .dolar-brecha-note{padding:14px 20px 0;}
 .dolar-brecha-note .pill{background:var(--bg-alt);color:var(--text-dim);font-weight:500;}
 .dolar-brecha-note .pill b{color:var(--accent);font-weight:700;margin-left:2px;}
-
-/* flex (no grid) a propósito: con grid-auto-fit, si la última fila no se
-   llena queda una card angosta con todo el resto de la fila vacío al lado.
-   Acá las cards tienen un ancho tope (no se estiran a lo gigante si quedan
-   solas) y la fila se centra, así el sobrante de la última fila queda
-   repartido en los dos bordes en vez de todo pegado a la derecha. */
-.dollar-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:18px 20px;}
-.dollar-card{
-  background:var(--bg-alt);border:1px solid var(--card-border);border-radius:12px;padding:14px;
-  flex:1 1 150px;max-width:200px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
-  transition:border-color .15s,transform .15s;
-}
-.dollar-card:hover{border-color:var(--accent2-dim);transform:translateY(-2px);}
-@media (max-width:640px){.dollar-card{flex-basis:calc(50% - 6px);}}
-.dollar-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
-.dollar-card .label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;}
-.dollar-card .rate{
-  font-size:19px;font-weight:700;
-  background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;color:transparent;
-}
-.dollar-card .rate-sub{font-size:11px;color:var(--text-dim);margin-top:4px;}
-.dollar-card .rate-updated{font-size:10px;color:var(--text-faint);margin-top:6px;}
 
 .movers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;padding:16px 20px;}
 .mover-card{
